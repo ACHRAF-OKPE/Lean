@@ -145,7 +145,9 @@ async function PurchaseOrderContent({
               Commande fournisseur
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-medium tracking-tight">{order.number ?? "Brouillon"}</h1>
+              <h1 className="text-2xl font-medium tracking-tight">
+                {order.number ?? statusLabel(order.status)}
+              </h1>
               <PurchaseStatusBadge status={order.status} />
               <ReceiptStateBadge state={order.receiptState} />
             </div>
@@ -306,7 +308,13 @@ async function PurchaseOrderContent({
                         {formatXof(line.lineTotalXof)}
                       </td>
                       <td className="px-4 py-2.5">
-                        <ReceiptStateBadge state={line.receiptState} />
+                        {line.articleType === "service" ? (
+                          <span className="inline-flex rounded-full border border-line bg-canvas px-2 py-0.5 text-[10px] whitespace-nowrap text-muted">
+                            Service
+                          </span>
+                        ) : (
+                          <ReceiptStateBadge state={line.receiptState} />
+                        )}
                       </td>
                     </tr>
                   );
@@ -405,6 +413,9 @@ async function PurchaseOrderContent({
 
         {canWrite && order.status === "confirmed" ? (
           <ReceptionForm
+            key={lines
+              .map((line) => `${line.id}:${line.receivedQty}:${line.remainingQty}`)
+              .join("|")}
             orderId={order.id}
             lines={lines}
             locations={locations}

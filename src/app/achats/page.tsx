@@ -12,6 +12,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { listMembershipsForUser } from "@/modules/identity/queries";
+import { statusLabel } from "@/modules/purchases/lifecycle";
 import { getPurchaseOrderStats, listPurchaseOrders } from "@/modules/purchases/queries";
 
 export const metadata: Metadata = {
@@ -121,7 +122,9 @@ async function PurchasesContent() {
                   {orders.map((order) => (
                     <tr key={order.id} className="border-b border-line last:border-b-0">
                       <td className="px-4 py-2.5 font-mono text-[10px] whitespace-nowrap">
-                        {order.number ?? <span className="text-muted">Brouillon</span>}
+                        {order.number ?? (
+                          <span className="text-muted">{statusLabel(order.status)}</span>
+                        )}
                       </td>
                       <td className="px-4 py-2.5">
                         <span className="block font-medium">{order.supplierName}</span>
@@ -147,7 +150,7 @@ async function PurchasesContent() {
                       <td className="px-4 py-2.5 text-right">
                         <Link
                           href={`/achats/${order.id}`}
-                          aria-label={`Ouvrir la commande ${order.number ?? "brouillon"}`}
+                          aria-label={`Ouvrir la commande ${order.number ?? statusLabel(order.status).toLowerCase()}`}
                           title="Ouvrir la commande"
                           className="ml-auto grid size-7 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
                         >

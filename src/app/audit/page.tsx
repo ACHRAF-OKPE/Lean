@@ -67,9 +67,9 @@ async function AuditContent() {
         </div>
 
         <p className="mt-4 max-w-2xl text-[11px] leading-5 text-muted">
-          Chaque connexion, déconnexion, changement d&apos;espace, création de référentiel et import
-          appliqué est enregistré avec son acteur et son horodatage. Les lectures sont limitées à
-          l&apos;espace de travail actif.
+          Chaque connexion, déconnexion, changement d&apos;espace, création de référentiel, import
+          appliqué, transition de commande et réception est enregistré avec son acteur et son
+          horodatage. Les lectures sont limitées à l&apos;espace de travail actif.
         </p>
 
         <section className="mt-5 overflow-hidden rounded-xl border border-line bg-panel">
