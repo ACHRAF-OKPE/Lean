@@ -6,6 +6,9 @@ référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 **Statut : Lot 2 livré — tiers, articles, nomenclature HS, import XLSX et rapport de
 vérification.** Le prochain lot couvre le cycle achat → réception → stock.
 
+Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
+dédiée `lean`. Aucun autre service n'est nécessaire.
+
 ## Contraintes structurantes
 
 - Aucun service ne tourne en permanence sur la machine du porteur. Le build est local,
