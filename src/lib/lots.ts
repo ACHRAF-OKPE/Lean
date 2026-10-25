@@ -18,13 +18,13 @@ export const LOTS: readonly Lot[] = [
     id: 1,
     title: "Socle applicatif",
     scope: "Authentification, multi-tenant, permissions, audit",
-    status: "next",
+    status: "done",
   },
   {
     id: 2,
     title: "Tiers & articles",
     scope: "Nomenclature HS, import XLSX, template téléchargeable",
-    status: "planned",
+    status: "next",
   },
   {
     id: 3,

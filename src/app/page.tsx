@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import Link from "next/link";
+import { connection } from "next/server";
 import {
+  ArrowLeftRight,
   ArrowUpRight,
   Check,
   CircleDot,
@@ -6,9 +11,17 @@ import {
   GitBranch,
   Layers,
   Lock,
+  LogOut,
+  ScrollText,
   ShieldCheck,
 } from "lucide-react";
+import { getDb } from "@/db/client";
+import { logoutAction, switchTenantAction } from "@/lib/auth/actions";
+import { requireSession } from "@/lib/auth/session";
 import { LOTS, type LotStatus } from "@/lib/lots";
+import { ROLE_LABELS } from "@/modules/identity/labels";
+import { can } from "@/modules/identity/permissions";
+import { listMembershipsForUser } from "@/modules/identity/queries";
 
 const GATE = [
   { label: "Lint", command: "npm run lint" },
@@ -42,9 +55,51 @@ const STATUS_META = {
   },
 } satisfies Record<LotStatus, { label: string; icon: typeof Check; badge: string }>;
 
+export const metadata: Metadata = {
+  title: "Poste de pilotage",
+};
+
 export default function Home() {
+  return (
+    <Suspense fallback={<CockpitFallback />}>
+      <Cockpit />
+    </Suspense>
+  );
+}
+
+function CockpitFallback() {
+  return (
+    <div className="min-h-dvh">
+      <header className="border-b border-line">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-6 py-4 md:px-10">
+          <div
+            aria-hidden="true"
+            className="grid size-9 place-items-center rounded-lg bg-brand text-sm font-semibold text-canvas"
+          >
+            L
+          </div>
+          <div>
+            <p className="text-sm font-semibold tracking-tight">Lean</p>
+            <p className="text-[11px] text-muted">Ouverture de l&apos;espace…</p>
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-6xl px-6 py-10 md:px-10 md:py-14">
+        <div className="h-8 w-72 animate-pulse rounded bg-line" />
+        <div className="mt-4 h-4 w-96 max-w-full animate-pulse rounded bg-line/70" />
+        <div className="mt-10 h-64 animate-pulse rounded-xl border border-line bg-panel" />
+      </main>
+    </div>
+  );
+}
+
+async function Cockpit() {
+  await connection();
+  const session = await requireSession();
+  const memberships = await listMembershipsForUser(getDb(), session.userId);
   const deliveredCount = LOTS.filter((lot) => lot.status === "done").length;
   const nextLot = LOTS.find((lot) => lot.status === "next");
+  const canReadAudit = can(session.role, "audit.read");
 
   return (
     <div className="min-h-dvh">
@@ -64,9 +119,19 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="rounded-full border border-line bg-panel px-3 py-1.5 font-mono text-[10px] text-muted">
-              {deliveredCount} / {LOTS.length} lots livrés
+            <span className="hidden max-w-40 truncate rounded-full border border-line bg-panel px-3 py-1.5 text-[10px] text-muted sm:inline-block">
+              {session.tenantName}
             </span>
+            {canReadAudit ? (
+              <Link
+                href="/audit"
+                aria-label="Ouvrir le journal d'audit"
+                title="Journal d'audit"
+                className="grid size-8 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
+              >
+                <ScrollText className="size-4" aria-hidden="true" />
+              </Link>
+            ) : null}
             <a
               href="https://github.com/ACHRAF-OKPE/Lean"
               target="_blank"
@@ -77,24 +142,72 @@ export default function Home() {
             >
               <GitBranch className="size-4" aria-hidden="true" />
             </a>
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                aria-label="Se déconnecter"
+                title="Se déconnecter"
+                className="grid size-8 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
+              >
+                <LogOut className="size-4" aria-hidden="true" />
+              </button>
+            </form>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-10 md:px-10 md:py-14">
-        <section className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] lg:items-end">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4 text-[11px] text-muted">
+          <p>
+            Connecté : <span className="font-medium text-ink">{session.userName}</span>
+            <span className="mx-1.5">·</span>
+            {ROLE_LABELS[session.role]}
+          </p>
+
+          {memberships.length > 1 ? (
+            <form action={switchTenantAction} className="flex items-center gap-1.5">
+              <label htmlFor="tenantId" className="sr-only">
+                Espace de travail
+              </label>
+              <select
+                id="tenantId"
+                name="tenantId"
+                defaultValue={session.tenantId}
+                className="rounded-md border border-line bg-panel px-2 py-1.5 text-[11px] outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/20"
+              >
+                {memberships.map((membership) => (
+                  <option key={membership.tenantId} value={membership.tenantId}>
+                    {membership.tenantName}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                aria-label="Changer d'espace de travail"
+                title="Changer d'espace de travail"
+                className="grid size-7 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
+              >
+                <ArrowLeftRight className="size-3.5" aria-hidden="true" />
+              </button>
+            </form>
+          ) : (
+            <p className="font-mono text-[10px]">{session.tenantSlug}</p>
+          )}
+        </div>
+
+        <section className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] lg:items-end">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-brand uppercase">
-              Lot 00 · livré
+              Lot 01 · livré
             </p>
             <h1 className="mt-5 max-w-2xl text-4xl leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-5xl md:text-[3.25rem]">
-              Le socle est posé.
-              <span className="block">Les règles prennent le relais.</span>
+              L&apos;accès est vérifié.
+              <span className="block">Les données restent chez elles.</span>
             </h1>
             <p className="mt-5 max-w-xl text-sm leading-6 text-muted">
-              Lean relie les achats, le stock, les ventes, la douane et la comptabilité SYSCOHADA
-              dans un même socle multi-tenant. Chaque règle métier est identifiée, sourcée et
-              vérifiée avant d&apos;entrer en production.
+              Lean ouvre le socle applicatif : sessions serveur, isolation stricte par tenant, rôles
+              et journal d&apos;audit. Chaque action sensible laisse une trace avant que les données
+              métier n&apos;arrivent.
             </p>
           </div>
 
@@ -102,14 +215,18 @@ export default function Home() {
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-medium">Dossier de livraison</p>
               <span className="rounded-full border border-brand/15 bg-brand-soft px-2 py-0.5 font-mono text-[10px] text-brand-strong">
-                L00
+                L01
               </span>
             </div>
 
             <dl className="mt-5 space-y-3">
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Lot courant</dt>
-                <dd className="text-right text-[11px] font-medium">Socle technique</dd>
+                <dd className="text-right text-[11px] font-medium">Socle applicatif</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[11px] text-muted">Rôle</dt>
+                <dd className="text-right text-[11px] font-medium">{ROLE_LABELS[session.role]}</dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Données</dt>
@@ -248,11 +365,11 @@ export default function Home() {
               </p>
               <h2 className="mt-2 text-lg font-medium tracking-tight">{nextLot.title}</h2>
               <p className="mt-2 text-[11px] leading-5 text-white/70">
-                Poser l&apos;authentification, l&apos;isolation tenant et le journal d&apos;audit
-                avant toute donnée métier.
+                Importer les fichiers réels, fournir le template téléchargeable et produire un
+                rapport de vérification ligne à ligne avant toute écriture.
               </p>
               <ul className="mt-4 flex flex-wrap gap-1.5">
-                {["Tenants", "Auth", "Rôles", "Audit"].map((tag) => (
+                {["Nomenclature HS", "XLSX", "Template", "Rapport par ligne"].map((tag) => (
                   <li
                     key={tag}
                     className="rounded-full border border-white/15 px-2.5 py-1 text-[10px] text-white/75"
@@ -263,7 +380,7 @@ export default function Home() {
               </ul>
               <div className="mt-auto flex items-center gap-2 pt-5 font-mono text-[10px] text-white/45">
                 <Database className="size-3" aria-hidden="true" />
-                src/db/schema.ts
+                docs/business-rules.md
               </div>
             </article>
           ) : null}

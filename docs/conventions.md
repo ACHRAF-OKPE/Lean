@@ -79,8 +79,8 @@ npm run gate
 ```
 
 Elle s'exécute à l'identique en local et dans GitHub Actions. Aucun push sans gate vert.
-Les tests d'intégration base, quand ils arriveront, utiliseront une base de test dédiée,
-jamais la production.
+Les tests d'intégration base utilisent PGlite (Postgres en mémoire) et les migrations
+réelles ; ils ne touchent jamais la production et ne lancent aucun service permanent.
 
 ## 8. Git et livraison
 
