@@ -54,7 +54,7 @@ async function PurchasesContent() {
           </div>
           <div className="flex items-center gap-3">
             <span className="rounded-full border border-line bg-panel px-2.5 py-1 font-mono text-[10px] text-muted">
-              {orders.length} récente{orders.length > 1 ? "s" : ""}
+              {orders.length} commande{orders.length > 1 ? "s" : ""}
             </span>
             <CatalogActions kind="purchase_lines" />
           </div>
