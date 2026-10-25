@@ -11,7 +11,7 @@ multi-tenant, les permissions et l'audit.
 - Aucun service ne tourne en permanence sur la machine du porteur. Le build est local,
   l'exécution est sur Vercel, la base sur Neon.
 - Interface 100 % française, boutons icône uniquement, montants XOF entiers.
-- Le dépôt [`Desktop\Axelor`](../Axelor) est une référence en lecture seule. Les règles sont
+- Le dépôt local `Desktop\Axelor` est une référence en lecture seule. Les règles sont
   reformulées dans [`docs/business-rules.md`](docs/business-rules.md) avec un identifiant,
   puis implémentées. Aucun code n'est copié.
 - Chaque import de données passera par le vrai XLSX, un template téléchargeable et un rapport
