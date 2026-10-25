@@ -41,6 +41,56 @@ réutilisation d'un extrait, même minime, exigerait une revue de licence explic
 | `à instruire` | Sujet identifié, aucune règle arrêtée : pas encore d'ID        |
 | `remplacée`   | Conservée pour l'historique, renvoie vers la règle qui la suit |
 
+## Preuve de fidélité
+
+La fidélité à Axelor se mesure **règle par règle**, pas par le langage. Une règle n'est
+`implémentée` que si les six preuves suivantes existent :
+
+| Preuve         | Contenu exigé                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Source         | Fichier et symbole Axelor, référentiel externe (UEMOA, SYSCOHADA, ASYCUDA) ou brief porteur daté                       |
+| Comportement   | Description en français du résultat observable : entrées, sorties, erreurs, cas limites                                |
+| Cas de parité  | Table de scénarios « entrée → résultat attendu », dérivés du comportement décrit                                       |
+| Implémentation | Module pur dans `src/lib` ou `src/modules/<domaine>`                                                                   |
+| Test           | Test Vitest citant l'identifiant de la règle et couvrant les cas de parité                                             |
+| Écarts connus  | Ce qui diverge d'Axelor, pourquoi, et l'impact accepté ; « aucun » est une réponse valide seulement après vérification |
+
+Une règle dont un cas de parité échoue reste `adoptée`. On ne coche pas une règle parce que
+l'écran s'affiche : on la coche parce que le comportement est vérifié.
+
+### Oracle Axelor à la demande
+
+Quand un comportement est ambigu (garde de transition, cut-off, valorisation), on démarre
+Axelor **localement et ponctuellement** en Docker comme oracle : on rejoue le scénario, on
+note le résultat, puis on arrête le conteneur. Rien ne tourne en permanence. L'oracle sert à
+alimenter les cas de parité, jamais à recopier du code, des noms ou des commentaires.
+
+### Matrice de couverture
+
+| Lot | Règles identifiées | Implémentées | Écarts documentés | État     |
+| --- | ------------------ | ------------ | ----------------- | -------- |
+| 0   | 11 (GEN)           | 2            | aucun             | livré    |
+| 1   | 0                  | 0            | —                 | en cours |
+| 2   | 0                  | 0            | —                 | à venir  |
+| 3   | 0                  | 0            | —                 | à venir  |
+| 4   | 0                  | 0            | —                 | à venir  |
+| 5   | 0                  | 0            | —                 | à venir  |
+| 6   | 0                  | 0            | —                 | à venir  |
+| 7   | 0                  | 0            | —                 | à venir  |
+
+Un lot ne peut pas être déclaré livré si la matrice ne reflète pas ses règles et ses écarts.
+
+### Garanti / non garanti
+
+**Garanti :** chaque règle du registre a un test qui cite son identifiant ; les flux métier
+complets tournent avec de vraies données, y compris l'import XLSX réel, son template et son
+rapport ligne à ligne ; les montants XOF restent entiers ; l'isolation tenant est testée ;
+chaque mutation est auditable ; chaque écart est écrit.
+
+**Non garanti :** une couverture 100 % d'Axelor ; l'identité pixel de l'interface (la parité
+est fonctionnelle, pas visuelle) ; la compatibilité avec les plugins, le Studio ou le schéma
+Axelor ; la reprise automatique de données Axelor existantes.
+
 ## Règles transverses
 
 | ID      | Règle                                                                                                                                         | Source                    | Statut        | Mise en œuvre                                   |

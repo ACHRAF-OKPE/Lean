@@ -12,6 +12,14 @@ on reformule la règle en français dans le registre, puis on écrit notre propr
 Aucun fichier Java, aucun extrait de code, aucun identifiant ni commentaire d'Axelor n'est
 recopié. Une règle sans identifiant dans le registre ne part pas en production.
 
+### Parité Axelor
+
+La fidélité vise le **comportement métier**, pas le langage ni le pixel. Chaque règle
+implémentée porte sa source citée, son comportement décrit, ses cas de parité, son test et
+ses écarts connus, conformément à [`docs/business-rules.md`](./business-rules.md#preuve-de-fidélité).
+Quand un comportement est ambigu, on rejoue le scénario sur un Axelor local démarré à la
+demande comme oracle, puis on l'arrête : aucun service permanent, aucune copie de code.
+
 ## 2. Langue et interface
 
 - Interface **100 % française**. Code et identifiants techniques en anglais. Documentation en
@@ -61,7 +69,9 @@ recopié. Une règle sans identifiant dans le registre ne part pas en production
 
 ## 7. Tests et barrière
 
-- Vitest. Chaque règle implémentée possède au moins un test qui cite son identifiant.
+- Vitest. Chaque règle implémentée possède au moins un test qui cite son identifiant et
+  couvre ses cas de parité. Un test qui ne cite aucune règle ne prouve rien : il documente au
+  mieux un utilitaire.
 - La barrière du porteur (lint, types, tests, build) est complétée par le formatage :
 
 ```bash
@@ -97,7 +107,10 @@ Tout module alimenté par un fichier respecte ce protocole :
 Un lot est livré quand :
 
 - son périmètre est décrit et ses décisions sont consignées ;
-- ses règles métier ont un identifiant et, si applicable, une source citée ;
+- ses règles métier ont un identifiant, une source citée, un comportement décrit et des cas
+  de parité ;
+- chaque règle implémentée a son test citant l'identifiant, et ses écarts connus sont écrits ;
+- la matrice de couverture de `docs/business-rules.md` est à jour ;
 - les migrations sont générées et commitées ;
 - les tests passent, la gate est verte et GitHub Actions est verte ;
 - le code est poussé sur `main` ;

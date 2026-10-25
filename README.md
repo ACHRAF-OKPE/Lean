@@ -17,6 +17,21 @@ multi-tenant, les permissions et l'audit.
 - Chaque import de données passera par le vrai XLSX, un template téléchargeable et un rapport
   de vérification par ligne avant écriture.
 
+## Fidélité à Axelor
+
+Lean est une réécriture, pas un fork. La fidélité est **fonctionnelle** et se prouve règle
+par règle : source citée, comportement décrit en français, cas de parité, test qui cite
+l'identifiant, écarts connus. Le protocole et la matrice de couverture vivent dans
+[`docs/business-rules.md`](docs/business-rules.md#preuve-de-fidélité). En cas d'ambiguïté, un
+Axelor local est démarré à la demande comme oracle, puis arrêté.
+
+- **Garanti** : les flux des 7 lots tournent avec de vraies données, les imports passent par
+  le vrai XLSX avec template et rapport ligne à ligne, les montants XOF restent entiers,
+  l'isolation tenant est testée et chaque écart est documenté.
+- **Non garanti** : une couverture 100 % d'Axelor, une interface pixel-identique, la
+  compatibilité avec les plugins ou le Studio Axelor, la reprise automatique de données
+  existantes.
+
 ## Stack
 
 | Couche      | Choix                                    |
