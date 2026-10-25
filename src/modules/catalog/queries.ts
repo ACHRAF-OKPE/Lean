@@ -89,8 +89,29 @@ export async function loadValidationContext(
   tenantId: string,
 ): Promise<ValidationContext> {
   const [partnerRows, articleRows, hsRows] = await Promise.all([
-    db.select({ code: partners.code }).from(partners).where(eq(partners.tenantId, tenantId)),
-    db.select({ code: articles.code }).from(articles).where(eq(articles.tenantId, tenantId)),
+    db
+      .select({
+        id: partners.id,
+        code: partners.code,
+        name: partners.name,
+        active: partners.active,
+        isSupplier: partners.isSupplier,
+      })
+      .from(partners)
+      .where(eq(partners.tenantId, tenantId)),
+    db
+      .select({
+        id: articles.id,
+        code: articles.code,
+        name: articles.name,
+        type: articles.type,
+        unitCode: articles.unitCode,
+        active: articles.active,
+        isPurchasable: articles.isPurchasable,
+        purchasePriceXof: articles.purchasePriceXof,
+      })
+      .from(articles)
+      .where(eq(articles.tenantId, tenantId)),
     db
       .select({ code: hsCodes.code, wording: hsCodes.wording })
       .from(hsCodes)
@@ -101,6 +122,8 @@ export async function loadValidationContext(
     existingPartnerCodes: new Set(partnerRows.map((row) => row.code)),
     existingArticleCodes: new Set(articleRows.map((row) => row.code)),
     existingHsCodes: new Map(hsRows.map((row) => [row.code, row.wording])),
+    suppliersByCode: new Map(partnerRows.map((row) => [row.code, row])),
+    articlesByCode: new Map(articleRows.map((row) => [row.code, row])),
   };
 }
 

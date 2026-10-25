@@ -11,6 +11,8 @@ import {
   type ImportKind,
   type ImportRowStatus,
 } from "@/db/schema";
+import { applyPurchaseLines } from "@/modules/purchases/imports";
+import { PurchaseError } from "@/modules/purchases/errors";
 import { CatalogError } from "./errors";
 import { loadValidationContext } from "./queries";
 import {
@@ -74,9 +76,10 @@ export interface ImportBatchDetail {
 export interface ApplyImportResult {
   readonly kind: ImportKind;
   readonly written: number;
+  readonly orders?: number;
 }
 
-const TABLE_BY_KIND: Record<ImportKind, string> = {
+const TABLE_BY_KIND: Record<"partners" | "articles" | "hs_codes", string> = {
   partners: "partners",
   articles: "articles",
   hs_codes: "hs_codes",
@@ -109,7 +112,7 @@ export async function analyzeImport(
       .orderBy(desc(importBatches.appliedAt))
       .limit(1);
 
-    const notes = [...input.notes];
+    const notes = [...input.notes, ...(validation.notes ?? [])];
     if (previous?.appliedAt) {
       notes.push(
         `Un import identique a déjà été appliqué le ${appliedDateFormatter.format(previous.appliedAt)} : confirmer réappliquera les mêmes données.`,
@@ -384,6 +387,7 @@ export async function applyImportBatch(
         id: importBatches.id,
         kind: importBatches.kind,
         fileName: importBatches.fileName,
+        fileHash: importBatches.fileHash,
         status: importBatches.status,
         errorCount: importBatches.errorCount,
       })
@@ -404,6 +408,27 @@ export async function applyImportBatch(
       );
     }
 
+    if (batch.kind === "purchase_lines") {
+      const [previous] = await tx
+        .select({ id: importBatches.id })
+        .from(importBatches)
+        .where(
+          and(
+            eq(importBatches.tenantId, input.tenantId),
+            eq(importBatches.kind, "purchase_lines"),
+            eq(importBatches.fileHash, batch.fileHash),
+            eq(importBatches.status, "applied"),
+            ne(importBatches.id, batch.id),
+          ),
+        )
+        .limit(1);
+      if (previous) {
+        throw new PurchaseError(
+          "Ce fichier a déjà été importé en commandes : un même fichier ne s'applique qu'une fois.",
+        );
+      }
+    }
+
     const rows = await tx
       .select({ rowNumber: importRows.rowNumber, data: importRows.data })
       .from(importRows)
@@ -420,7 +445,16 @@ export async function applyImportBatch(
       throw new CatalogError("Aucune ligne applicable dans cet import.");
     }
 
-    if (batch.kind === "partners") {
+    let orders: number | undefined;
+    if (batch.kind === "purchase_lines") {
+      const result = await applyPurchaseLines(tx, {
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        batchId: batch.id,
+        rows,
+      });
+      orders = result.orders;
+    } else if (batch.kind === "partners") {
       await upsertPartners(tx, input.tenantId, rows);
     } else if (batch.kind === "articles") {
       await upsertArticles(tx, input.tenantId, rows);
@@ -428,16 +462,18 @@ export async function applyImportBatch(
       await upsertHsCodes(tx, input.tenantId, rows);
     }
 
-    await tx.execute(sql`
-      update ${importRows} as r
-      set entity_id = c.id
-      from ${sql.raw(`"${TABLE_BY_KIND[batch.kind]}"`)} as c
-      where r.tenant_id = ${input.tenantId}
-        and r.batch_id = ${input.batchId}
-        and r.status <> 'error'
-        and c.tenant_id = r.tenant_id
-        and c.code = r.code
-    `);
+    if (batch.kind !== "purchase_lines") {
+      await tx.execute(sql`
+        update ${importRows} as r
+        set entity_id = c.id
+        from ${sql.raw(`"${TABLE_BY_KIND[batch.kind]}"`)} as c
+        where r.tenant_id = ${input.tenantId}
+          and r.batch_id = ${input.batchId}
+          and r.status <> 'error'
+          and c.tenant_id = r.tenant_id
+          and c.code = r.code
+      `);
+    }
 
     await tx
       .update(importBatches)
@@ -450,9 +486,9 @@ export async function applyImportBatch(
       action: "catalog.import.apply",
       entityType: "import_batch",
       entityId: batch.id,
-      details: { kind: batch.kind, fileName: batch.fileName, written: rows.length },
+      details: { kind: batch.kind, fileName: batch.fileName, written: rows.length, orders },
     });
 
-    return { kind: batch.kind, written: rows.length };
+    return { kind: batch.kind, written: rows.length, orders };
   });
 }

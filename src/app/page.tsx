@@ -8,11 +8,14 @@ import {
   Check,
   CircleDot,
   Database,
+  FileSpreadsheet,
   Layers,
   Lock,
   Package,
   ShieldCheck,
+  ShoppingCart,
   Users,
+  Warehouse,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { getDb } from "@/db/client";
@@ -21,6 +24,8 @@ import { LOTS, type LotStatus } from "@/lib/lots";
 import { ROLE_LABELS } from "@/modules/identity/labels";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getCatalogCounts } from "@/modules/catalog/queries";
+import { getPurchaseOrderStats } from "@/modules/purchases/queries";
+import { getStockCounts } from "@/modules/stock/queries";
 
 const GATE = [
   { label: "Lint", command: "npm run lint" },
@@ -96,9 +101,11 @@ async function Cockpit() {
   await connection();
   const session = await requireSession();
   const db = getDb();
-  const [memberships, counts] = await Promise.all([
+  const [memberships, counts, purchaseStats, stockCounts] = await Promise.all([
     listMembershipsForUser(db, session.userId),
     getCatalogCounts(db, session.tenantId),
+    getPurchaseOrderStats(db, session.tenantId),
+    getStockCounts(db, session.tenantId),
   ]);
   const deliveredCount = LOTS.filter((lot) => lot.status === "done").length;
   const nextLot = LOTS.find((lot) => lot.status === "next");
@@ -111,16 +118,16 @@ async function Cockpit() {
         <section className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] lg:items-end">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-brand uppercase">
-              Lot 02 · livré
+              Lot 03 · livré
             </p>
             <h1 className="mt-5 max-w-2xl text-4xl leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-5xl md:text-[3.25rem]">
-              Le référentiel prend forme.
-              <span className="block">Chaque ligne est vérifiée.</span>
+              L&apos;achat devient un flux.
+              <span className="block">Chaque réception laisse une trace.</span>
             </h1>
             <p className="mt-5 max-w-xl text-sm leading-6 text-muted">
-              Tiers, articles et nomenclature douanière vivent désormais dans l&apos;espace actif.
-              Les fichiers XLSX réels sont analysés ligne à ligne, avec un modèle téléchargeable :
-              aucune donnée n&apos;est écrite avant confirmation.
+              Commandes fournisseur, réceptions et stock partagent le même journal. Une réception
+              valide le stock et les états en une transaction ; un mouvement ne se modifie jamais,
+              une correction écrit son inverse.
             </p>
           </div>
 
@@ -128,16 +135,14 @@ async function Cockpit() {
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-medium">Dossier de livraison</p>
               <span className="rounded-full border border-brand/15 bg-brand-soft px-2 py-0.5 font-mono text-[10px] text-brand-strong">
-                L02
+                L03
               </span>
             </div>
 
             <dl className="mt-5 space-y-3">
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Lot courant</dt>
-                <dd className="text-right text-[11px] font-medium">
-                  Référentiel tiers &amp; articles
-                </dd>
+                <dd className="text-right text-[11px] font-medium">Achat → réception → stock</dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Rôle</dt>
@@ -154,6 +159,30 @@ async function Cockpit() {
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Codes SH</dt>
                 <dd className="text-right font-mono text-[11px] font-medium">{counts.hsCodes}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 border-t border-line pt-3">
+                <dt className="text-[11px] text-muted">Commandes ouvertes</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">
+                  {purchaseStats.open}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[11px] text-muted">À réceptionner</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">
+                  {purchaseStats.awaitingReceipt}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[11px] text-muted">Articles en stock</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">
+                  {stockCounts.stockedArticles}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[11px] text-muted">Mouvements</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">
+                  {stockCounts.moves}
+                </dd>
               </div>
             </dl>
 
@@ -228,6 +257,76 @@ async function Cockpit() {
                   <div className="flex items-center justify-between">
                     <Icon className="size-4 text-brand" aria-hidden="true" />
                     <span className="font-mono text-2xl tabular-nums">{card.count}</span>
+                  </div>
+                  <p className="mt-4 text-sm font-medium">{card.label}</p>
+                  <p className="mt-1 text-[10px] leading-4 text-muted">{card.description}</p>
+                  <span className="mt-3 inline-flex items-center gap-1 text-[10px] text-brand">
+                    Ouvrir
+                    <ArrowUpRight
+                      className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
+        <section aria-labelledby="operations-title" className="mt-12">
+          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-line pb-4">
+            <div>
+              <p className="font-mono text-[10px] tracking-[0.18em] text-muted uppercase">
+                Opérations
+              </p>
+              <h2 id="operations-title" className="mt-1 text-sm font-semibold">
+                Le flux achat, de la commande au stock.
+              </h2>
+            </div>
+            <p className="text-[11px] text-muted">
+              Réceptions transactionnelles · journal immuable
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {[
+              {
+                href: "/achats",
+                label: "Achats",
+                description: "Commandes fournisseur, cycle de vie et réceptions",
+                count: purchaseStats.open,
+                tag: null,
+                icon: ShoppingCart,
+              },
+              {
+                href: "/stock",
+                label: "Stock",
+                description: "Niveaux disponibles et journal des mouvements",
+                count: stockCounts.stockedArticles,
+                tag: null,
+                icon: Warehouse,
+              },
+              {
+                href: "/achats/import",
+                label: "Import commandes",
+                description: "Modèle XLSX, analyse et rapport par ligne",
+                count: null,
+                tag: "XLSX",
+                icon: FileSpreadsheet,
+              },
+            ].map((card) => {
+              const Icon = card.icon;
+              return (
+                <Link
+                  key={card.href}
+                  href={card.href}
+                  className="group rounded-xl border border-line bg-panel p-4 transition-colors hover:border-brand/30"
+                >
+                  <div className="flex items-center justify-between">
+                    <Icon className="size-4 text-brand" aria-hidden="true" />
+                    <span className="font-mono text-2xl tabular-nums">
+                      {card.count ?? card.tag}
+                    </span>
                   </div>
                   <p className="mt-4 text-sm font-medium">{card.label}</p>
                   <p className="mt-1 text-[10px] leading-4 text-muted">{card.description}</p>
@@ -343,11 +442,11 @@ async function Cockpit() {
               </p>
               <h2 className="mt-2 text-lg font-medium tracking-tight">{nextLot.title}</h2>
               <p className="mt-2 text-[11px] leading-5 text-white/70">
-                {nextLot.scope}. Le référentiel livré au Lot 02 alimente directement les commandes,
-                les réceptions et les mouvements de stock.
+                {nextLot.scope}. Les niveaux de stock du Lot 03 deviennent la source des livraisons
+                clients, puis des factures.
               </p>
               <ul className="mt-4 flex flex-wrap gap-1.5">
-                {["Commandes fournisseur", "Réceptions", "Stock", "Traçabilité"].map((tag) => (
+                {["Commandes client", "Livraisons", "Factures", "Encours"].map((tag) => (
                   <li
                     key={tag}
                     className="rounded-full border border-white/15 px-2.5 py-1 text-[10px] text-white/75"

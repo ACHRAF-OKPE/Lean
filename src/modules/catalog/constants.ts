@@ -14,9 +14,10 @@ export const IMPORT_KIND_LABELS: Record<ImportKind, string> = {
   partners: "Tiers",
   articles: "Articles",
   hs_codes: "Nomenclature douanière",
+  purchase_lines: "Lignes de commande",
 };
 
-const IMPORT_KINDS = ["partners", "articles", "hs_codes"] as const;
+const IMPORT_KINDS = ["partners", "articles", "hs_codes", "purchase_lines"] as const;
 
 export function isImportKind(value: string): value is ImportKind {
   return (IMPORT_KINDS as readonly string[]).includes(value);
@@ -26,18 +27,21 @@ export const IMPORT_KIND_PATHS: Record<ImportKind, string> = {
   partners: "/tiers",
   articles: "/articles",
   hs_codes: "/nomenclature",
+  purchase_lines: "/achats",
 };
 
 export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
   partners: "/api/modeles/tiers",
   articles: "/api/modeles/articles",
   hs_codes: "/api/modeles/nomenclature",
+  purchase_lines: "/api/modeles/commandes",
 };
 
 const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
   tiers: "partners",
   articles: "articles",
   nomenclature: "hs_codes",
+  commandes: "purchase_lines",
 };
 
 export function resolveTemplateKind(slug: string): ImportKind | null {
@@ -133,10 +137,20 @@ export const ARTICLE_HEADERS = [
   "actif",
 ] as const;
 
+export const PURCHASE_LINE_HEADERS = [
+  "fournisseur",
+  "article",
+  "quantite",
+  "prix_unitaire_xof",
+  "date_reception_prevue",
+  "reference_externe",
+] as const;
+
 export const HEADERS_BY_KIND = {
   partners: PARTNER_HEADERS,
   articles: ARTICLE_HEADERS,
   hs_codes: HS_HEADERS,
+  purchase_lines: PURCHASE_LINE_HEADERS,
 } as const;
 
 export const SHEET_DATA = "Données";

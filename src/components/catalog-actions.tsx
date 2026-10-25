@@ -10,12 +10,14 @@ const CREATE_LABELS: Record<ImportKind, string> = {
   partners: "Créer un tiers",
   articles: "Créer un article",
   hs_codes: "Créer un code SH",
+  purchase_lines: "Créer une commande",
 };
 
 const IMPORT_LABELS: Record<ImportKind, string> = {
   partners: "Importer des tiers",
   articles: "Importer des articles",
   hs_codes: "Importer la nomenclature",
+  purchase_lines: "Importer des lignes de commande",
 };
 
 export function CatalogActions({ kind }: { kind: ImportKind }) {

@@ -20,6 +20,7 @@ const IMPORT_TITLES: Record<ImportKind, string> = {
   partners: "Importer des tiers",
   articles: "Importer des articles",
   hs_codes: "Importer la nomenclature",
+  purchase_lines: "Importer des lignes de commande",
 };
 
 export async function ImportSection({ kind, active }: { kind: ImportKind; active: ActiveSection }) {

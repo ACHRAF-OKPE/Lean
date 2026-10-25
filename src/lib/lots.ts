@@ -30,13 +30,13 @@ export const LOTS: readonly Lot[] = [
     id: 3,
     title: "Achat → réception → stock",
     scope: "Commandes fournisseur, réceptions, mouvements de stock",
-    status: "next",
+    status: "done",
   },
   {
     id: 4,
     title: "Vente → livraison → facture",
     scope: "Commandes client, livraisons, facturation",
-    status: "planned",
+    status: "next",
   },
   {
     id: 5,

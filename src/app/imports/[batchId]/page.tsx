@@ -34,6 +34,7 @@ const ACTIVE_BY_KIND: Record<ImportKind, ActiveSection> = {
   partners: "partners",
   articles: "articles",
   hs_codes: "nomenclature",
+  purchase_lines: "purchases",
 };
 
 const ROW_STATUS_META: Record<
@@ -203,7 +204,10 @@ async function ImportReportContent({
                   </time>
                 </>
               ) : null}
-              . Les lignes ont été écrites dans le référentiel.
+              . Les lignes ont été écrites dans
+              {batch.kind === "purchase_lines"
+                ? " des commandes en brouillon."
+                : " le référentiel."}
             </p>
             <Link
               href={listPath}

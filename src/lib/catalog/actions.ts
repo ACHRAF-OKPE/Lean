@@ -19,6 +19,7 @@ import {
   type HsImportData,
   type PartnerImportData,
 } from "@/modules/catalog/validation";
+import { PurchaseError } from "@/modules/purchases/errors";
 import type { ImportKind } from "@/db/schema";
 
 const BOOLEAN_FIELDS = new Set(["client", "fournisseur", "vendable", "achetable", "actif"]);
@@ -45,7 +46,7 @@ function uniqueCodeError(
 }
 
 function failure(error: unknown): CatalogFormState {
-  if (error instanceof CatalogError) {
+  if (error instanceof CatalogError || error instanceof PurchaseError) {
     return { errors: [error.message] };
   }
   throw error;

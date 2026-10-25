@@ -7,19 +7,24 @@ import {
   LogOut,
   Package,
   ScrollText,
+  ShoppingCart,
   Users,
+  Warehouse,
 } from "lucide-react";
 import { logoutAction, switchTenantAction } from "@/lib/auth/actions";
 import { can } from "@/modules/identity/permissions";
 import type { MembershipSummary, SessionContext } from "@/modules/identity/queries";
 
-export type ActiveSection = "home" | "partners" | "articles" | "nomenclature" | "audit";
+export type ActiveSection =
+  "home" | "partners" | "articles" | "nomenclature" | "purchases" | "stock" | "audit";
 
 const NAV_ITEMS = [
   { key: "home", href: "/", label: "Poste de pilotage", icon: LayoutDashboard },
   { key: "partners", href: "/tiers", label: "Tiers", icon: Users },
   { key: "articles", href: "/articles", label: "Articles", icon: Package },
   { key: "nomenclature", href: "/nomenclature", label: "Nomenclature douanière", icon: Barcode },
+  { key: "purchases", href: "/achats", label: "Achats", icon: ShoppingCart },
+  { key: "stock", href: "/stock", label: "Stock", icon: Warehouse },
 ] as const;
 
 const ICON_BUTTON =
