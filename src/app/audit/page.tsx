@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import Link from "next/link";
 import { connection } from "next/server";
-import { ArrowLeft, ScrollText } from "lucide-react";
+import { ScrollText } from "lucide-react";
+import { AppHeader } from "@/components/app-header";
 import { getDb } from "@/db/client";
 import { requirePermission } from "@/lib/auth/session";
 import { ACTION_LABELS } from "@/modules/identity/labels";
-import { listAuditEvents } from "@/modules/identity/queries";
+import { listAuditEvents, listMembershipsForUser } from "@/modules/identity/queries";
 
 export const metadata: Metadata = {
   title: "Journal d'audit",
@@ -42,38 +42,34 @@ function AuditFallback() {
 async function AuditContent() {
   await connection();
   const session = await requirePermission("audit.read");
-  const events = await listAuditEvents(getDb(), { tenantId: session.tenantId });
+  const db = getDb();
+  const [events, memberships] = await Promise.all([
+    listAuditEvents(db, { tenantId: session.tenantId }),
+    listMembershipsForUser(db, session.userId),
+  ]);
 
   return (
     <div className="min-h-dvh">
-      <header className="border-b border-line">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4 md:px-10">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              aria-label="Retour au poste de pilotage"
-              title="Retour au poste de pilotage"
-              className="grid size-8 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
-            >
-              <ArrowLeft className="size-4" aria-hidden="true" />
-            </Link>
-            <div>
-              <p className="text-sm font-semibold tracking-tight">Journal d&apos;audit</p>
-              <p className="text-[11px] text-muted">{session.tenantName}</p>
-            </div>
-          </div>
+      <AppHeader session={session} memberships={memberships} active="audit" />
 
+      <main className="mx-auto max-w-6xl px-6 py-8 md:px-10 md:py-10">
+        <div className="flex flex-wrap items-end justify-between gap-2 border-b border-line pb-4">
+          <div>
+            <p className="font-mono text-[10px] tracking-[0.18em] text-brand uppercase">
+              Traçabilité
+            </p>
+            <h1 className="mt-1 text-2xl font-medium tracking-tight">Journal d&apos;audit</h1>
+          </div>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-panel px-2.5 py-1 text-[10px] text-muted">
             <ScrollText className="size-3" aria-hidden="true" />
             {events.length} évènement{events.length > 1 ? "s" : ""}
           </span>
         </div>
-      </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-8 md:px-10 md:py-10">
-        <p className="max-w-2xl text-[11px] leading-5 text-muted">
-          Chaque connexion, déconnexion et changement d&apos;espace est enregistré avec son acteur
-          et son horodatage. Les lectures sont limitées à l&apos;espace de travail actif.
+        <p className="mt-4 max-w-2xl text-[11px] leading-5 text-muted">
+          Chaque connexion, déconnexion, changement d&apos;espace, création de référentiel et import
+          appliqué est enregistré avec son acteur et son horodatage. Les lectures sont limitées à
+          l&apos;espace de travail actif.
         </p>
 
         <section className="mt-5 overflow-hidden rounded-xl border border-line bg-panel">

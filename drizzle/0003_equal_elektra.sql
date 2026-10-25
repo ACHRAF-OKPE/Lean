@@ -1,0 +1,1 @@
+ALTER TABLE "import_batches" ADD COLUMN "notes" jsonb DEFAULT '[]'::jsonb NOT NULL;

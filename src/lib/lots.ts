@@ -24,13 +24,13 @@ export const LOTS: readonly Lot[] = [
     id: 2,
     title: "Tiers & articles",
     scope: "Nomenclature HS, import XLSX, template téléchargeable",
-    status: "next",
+    status: "done",
   },
   {
     id: 3,
     title: "Achat → réception → stock",
     scope: "Commandes fournisseur, réceptions, mouvements de stock",
-    status: "planned",
+    status: "next",
   },
   {
     id: 4,

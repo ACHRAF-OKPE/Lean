@@ -3,8 +3,8 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 1 livré — identité, multi-tenant, permissions, audit.** Le prochain lot couvre
-les tiers et les articles : nomenclature HS, import XLSX et rapport de vérification.
+**Statut : Lot 2 livré — tiers, articles, nomenclature HS, import XLSX et rapport de
+vérification.** Le prochain lot couvre le cycle achat → réception → stock.
 
 ## Contraintes structurantes
 
@@ -14,8 +14,8 @@ les tiers et les articles : nomenclature HS, import XLSX et rapport de vérifica
 - Le dépôt local `Desktop\Axelor` est une référence en lecture seule. Les règles sont
   reformulées dans [`docs/business-rules.md`](docs/business-rules.md) avec un identifiant,
   puis implémentées. Aucun code n'est copié.
-- Chaque import de données passera par le vrai XLSX, un template téléchargeable et un rapport
-  de vérification par ligne avant écriture.
+- Chaque import de données passe par le vrai XLSX, un template téléchargeable et un rapport
+  de vérification par ligne avant toute écriture.
 
 ## Fidélité à Axelor
 
@@ -42,6 +42,7 @@ Axelor local est démarré à la demande comme oracle, puis arrêté.
 | Base        | Neon Postgres                            |
 | ORM         | Drizzle ORM + migrations SQL versionnées |
 | Tests       | Vitest + PGlite (Postgres en mémoire)    |
+| XLSX        | ExcelJS côté serveur (lecture, template) |
 | Hébergement | Vercel, runtime Node                     |
 | CI          | GitHub Actions                           |
 
@@ -74,6 +75,42 @@ Vercel avec la base Neon.
 - Connexion, déconnexion, changement d'espace et amorçage alimentent le journal d'audit,
   filtré par tenant et réservé aux rôles autorisés.
 
+## Tiers, articles et nomenclature
+
+Les trois référentiels du Lot 2 sont consultables et créables depuis `/tiers`, `/articles` et
+`/nomenclature`. Chaque enregistrement est unique par code dans l'espace de travail actif :
+
+- **Tiers** — client et/ou fournisseur, entreprise ou particulier, pays ISO 3166-1, délai de
+  paiement entier, indicateur actif.
+- **Articles** — produit ou service, unité de la liste, prix XOF entiers, usages vente/achat.
+  Un produit référence un code SH existant ; un service n'en porte pas.
+- **Nomenclature douanière** — codes numériques de 6, 8 ou 10 chiffres, parent préfixe strict
+  et déjà présent dans le référentiel ou dans le même fichier.
+
+### Import XLSX
+
+Le parcours suit deux temps, sans écriture métier à l'analyse :
+
+1. Télécharger le modèle du domaine : `/api/modeles/tiers`, `/api/modeles/articles` ou
+   `/api/modeles/nomenclature`. Il contient la feuille `Données`, les en-têtes exacts, les
+   listes déroulantes, un mode d'emploi et le référentiel pays.
+2. Remplir le fichier puis l'envoyer depuis la page d'import. Lean l'analyse et affiche un
+   rapport ligne à ligne : statut, code, erreurs bloquantes et avertissements.
+3. Corriger les lignes en erreur et relancer l'analyse si nécessaire.
+4. Confirmer l'import. Les lignes valides ou avec avertissement sont écrites par code
+   (création ou mise à jour) dans une transaction ; les lignes en erreur sont ignorées.
+
+Limites : `.xlsx` uniquement, 4 Mo maximum, 2 000 lignes de données, feuille `Données`. Les
+en-têtes sont lus par position ; une casse ou un accent différent est normalisé avec une note,
+une colonne manquante ou déplacée est refusée. Toute normalisation (majuscules, espaces,
+e-mail) devient un avertissement visible, jamais une correction silencieuse.
+
+Chaque lot conserve le fichier, son empreinte SHA-256, la feuille, les notes, l'acteur et les
+lignes détaillées ; le rapport reste consultable sur `/imports/[batchId]`. Un lot ne s'applique
+qu'une fois. Réanalyser un fichier déjà appliqué ajoute un avertissement, car confirmer
+réécrirait les mêmes valeurs. L'import ne supprime jamais : il crée, met à jour ou désactive
+via le champ `actif`.
+
 ## Scripts
 
 | Commande              | Rôle                                          |
@@ -95,8 +132,11 @@ formatage s'y ajoute.
 ## Base de données
 
 Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, `users`,
-`memberships`, `sessions`, `audit_events`. Les migrations générées sont commitées dans
-`drizzle/` ; la migration `0001` crée le socle d'identité.
+`memberships`, `sessions`, `audit_events`, puis `hs_codes`, `partners`, `articles`,
+`import_batches` et `import_rows`. Les migrations générées sont commitées dans `drizzle/` :
+`0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports, `0003` pour
+les notes de lot. Les contraintes d'unicité, de rôle, de format SH et de cohérence
+article/nomenclature sont posées en base, en complément de la validation applicative.
 
 ```bash
 npm run db:generate
