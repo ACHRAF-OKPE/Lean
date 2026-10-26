@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { Check, CircleDashed, ScrollText, ShieldCheck } from "lucide-react";
+import { Check, CircleDashed, Mail, ScrollText, ShieldCheck } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
@@ -161,6 +161,24 @@ async function SettingsContent({ searchParams }: Pick<PageProps<"/parametres">, 
                   </li>
                 ))}
               </ul>
+            </section>
+
+            <section className="rounded-xl border border-line bg-panel p-5">
+              <h2 className="flex items-center gap-2 text-sm font-semibold">
+                <Mail className="size-4 text-brand" aria-hidden="true" />
+                Échanges fournisseurs
+              </h2>
+              <p className="mt-2 text-[10px] leading-4 text-muted">
+                Compte SMTP chiffré, modèles de demande et de confirmation, journal des envois et
+                pièces jointes PDF.
+              </p>
+              <Link
+                href="/parametres/echanges"
+                className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-brand hover:underline"
+              >
+                <Mail className="size-3.5" aria-hidden="true" />
+                Configurer les échanges
+              </Link>
             </section>
 
             <section className="rounded-xl border border-line bg-panel p-5">

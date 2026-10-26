@@ -3,9 +3,8 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 5A livré — fiche entreprise, logo, conditions de règlement et contacts tiers.**
-Le lot 5 poursuit avec les échanges (demandes et confirmations fournisseur), la discussion
-interne et les tâches. La douane arrive ensuite.
+**Statut : Lot 5B livré — échanges fournisseurs : compte d'envoi, modèles, journal et PDF.**
+Le lot 5 poursuit avec la discussion interne et les tâches. La douane arrive ensuite.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -191,6 +190,30 @@ tiers :
 Chaque mutation vérifie le tenant actif et écrit un évènement d'audit avec l'acteur, les
 valeurs avant et après. Un logo sans fiche entreprise crée la fiche avec le nom légal fourni.
 
+## Échanges fournisseurs
+
+Le Lot 5B ajoute l'envoi des demandes de prix et des confirmations de commande :
+
+- **Compte d'envoi** — un seul compte SMTP par espace, activable, avec TLS implicite,
+  STARTTLS ou aucun. Le mot de passe n'est jamais relu par l'interface ; il est chiffré en
+  AES-256-GCM avec `LEAN_SECRET_KEY` et n'apparaît ni dans l'audit ni dans les erreurs.
+- **Test de connexion** — vérifie l'authentification SMTP sans envoyer de message.
+- **Modèles** — un modèle par type (demande ou confirmation), nom unique, sujet et corps à
+  variables fermées. Un seul défaut actif par type ; désactiver un modèle ne le supprime pas.
+  Sans modèle actif, le modèle intégré sert de repli. L'aperçu HTML échappe le contenu saisi.
+- **Envoi** — depuis une commande demandée (demande) ou confirmée/clôturée (confirmation),
+  avec destinataire prérempli depuis les contacts du tiers et aperçu en direct. Le message
+  est rendu en texte et en HTML, le bon de commande est joint en PDF A4 avec le logo s'il
+  existe.
+- **Journal** — chaque tentative est append-only : statut, erreur éventuelle, acteur,
+  destinataire, sujet, corps rendu et pièce jointe. Un renvoi crée une nouvelle tentative
+  reliée à l'originale. Le détail restitue le message tel qu'il a été remis.
+- **Instantané** — modifier l'entreprise ou le tiers après l'envoi ne réécrit jamais un
+  message ; seul un nouvel envoi reprend les valeurs courantes.
+
+`LEAN_SECRET_KEY` est obligatoire pour enregistrer un mot de passe SMTP. Les échanges sont
+accessibles depuis `/echanges`, `/parametres/echanges` et la fiche d'une commande.
+
 ## Scripts
 
 | Commande              | Rôle                                          |
@@ -242,7 +265,8 @@ jamais touchée.
 
 1. Importer le dépôt dans Vercel.
 2. Créer la base Neon et renseigner `DATABASE_URL` (URL pooler) dans les variables
-   d'environnement Vercel.
+   d'environnement Vercel. Ajouter `LEAN_SECRET_KEY` (32 octets base64) pour chiffrer les
+   mots de passe SMTP, et éventuellement `LEAN_APP_URL` pour les liens des e-mails.
 3. Les migrations sont appliquées automatiquement au début de chaque build Vercel, avant le
    build applicatif (`vercel.json`). Un build qui ne peut pas migrer échoue et laisse la
    production précédente en place. En local, `npm run db:migrate` reste la commande explicite.

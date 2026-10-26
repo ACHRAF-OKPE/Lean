@@ -5,6 +5,7 @@ import {
   GitBranch,
   LayoutDashboard,
   LogOut,
+  Mail,
   Package,
   ReceiptText,
   ScrollText,
@@ -24,6 +25,7 @@ export type ActiveSection =
   | "articles"
   | "nomenclature"
   | "purchases"
+  | "exchanges"
   | "sales"
   | "invoices"
   | "stock"
@@ -36,6 +38,7 @@ const NAV_ITEMS = [
   { key: "articles", href: "/articles", label: "Articles", icon: Package },
   { key: "nomenclature", href: "/nomenclature", label: "Nomenclature douanière", icon: Barcode },
   { key: "purchases", href: "/achats", label: "Achats", icon: ShoppingCart },
+  { key: "exchanges", href: "/echanges", label: "Échanges", icon: Mail },
   { key: "sales", href: "/ventes", label: "Ventes", icon: ShoppingBag },
   { key: "invoices", href: "/factures", label: "Factures", icon: ReceiptText },
   { key: "stock", href: "/stock", label: "Stock", icon: Warehouse },

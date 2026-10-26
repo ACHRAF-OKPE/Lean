@@ -218,6 +218,9 @@ export type StockLocationType = "internal" | "supplier" | "customer";
 export type StockMoveType = "incoming" | "outgoing";
 export type DocumentScope =
   "purchase_order" | "reception" | "stock_move" | "sales_order" | "delivery" | "invoice";
+export type EmailSecurity = "tls" | "starttls" | "none";
+export type ExchangeType = "purchase_request" | "purchase_confirmation";
+export type ExchangeMessageStatus = "sent" | "failed";
 
 export const hsCodes = pgTable(
   "hs_codes",
@@ -321,6 +324,87 @@ export const partnerContacts = pgTable(
       columns: [table.tenantId, table.partnerId],
       foreignColumns: [partners.tenantId, partners.id],
     }).onDelete("cascade"),
+  ],
+);
+
+export const emailAccounts = pgTable(
+  "email_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    host: text("host").notNull(),
+    port: integer("port").notNull(),
+    security: text("security").$type<EmailSecurity>().notNull(),
+    username: text("username"),
+    passwordCiphertext: text("password_ciphertext"),
+    fromName: text("from_name").notNull(),
+    fromAddress: text("from_address").notNull(),
+    replyTo: text("reply_to"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("email_accounts_tenant_idx").on(table.tenantId),
+    uniqueIndex("email_accounts_tenant_id_idx").on(table.tenantId, table.id),
+    check("email_accounts_name_check", sql`char_length(${table.name}) between 1 and 80`),
+    check("email_accounts_host_check", sql`char_length(${table.host}) between 1 and 255`),
+    check("email_accounts_port_check", sql`${table.port} between 1 and 65535`),
+    check("email_accounts_security_check", sql`${table.security} in ('tls', 'starttls', 'none')`),
+    check(
+      "email_accounts_credentials_check",
+      sql`(${table.username} is null) = (${table.passwordCiphertext} is null)`,
+    ),
+    check("email_accounts_from_name_check", sql`char_length(${table.fromName}) between 1 and 120`),
+    check(
+      "email_accounts_from_address_check",
+      sql`char_length(${table.fromAddress}) between 3 and 160`,
+    ),
+    check(
+      "email_accounts_reply_to_check",
+      sql`${table.replyTo} is null or char_length(${table.replyTo}) <= 160`,
+    ),
+  ],
+);
+
+export const exchangeTemplates = pgTable(
+  "exchange_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    type: text("type").$type<ExchangeType>().notNull(),
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    active: boolean("active").notNull().default(true),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("exchange_templates_tenant_name_idx").on(table.tenantId, table.name),
+    uniqueIndex("exchange_templates_tenant_id_idx").on(table.tenantId, table.id),
+    uniqueIndex("exchange_templates_default_idx")
+      .on(table.tenantId, table.type)
+      .where(sql`${table.isDefault}`),
+    index("exchange_templates_tenant_type_idx").on(table.tenantId, table.type, table.active),
+    check(
+      "exchange_templates_type_check",
+      sql`${table.type} in ('purchase_request', 'purchase_confirmation')`,
+    ),
+    check("exchange_templates_name_check", sql`char_length(${table.name}) between 1 and 120`),
+    check("exchange_templates_subject_check", sql`char_length(${table.subject}) between 1 and 200`),
+    check("exchange_templates_body_check", sql`char_length(${table.body}) between 1 and 6000`),
+    check(
+      "exchange_templates_default_active_check",
+      sql`not ${table.isDefault} or ${table.active}`,
+    ),
   ],
 );
 
@@ -509,6 +593,91 @@ export const purchaseOrders = pgTable(
       name: "purchase_orders_tenant_supplier_fk",
       columns: [table.tenantId, table.supplierId],
       foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const exchangeMessages = pgTable(
+  "exchange_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    type: text("type").$type<ExchangeType>().notNull(),
+    status: text("status").$type<ExchangeMessageStatus>().notNull(),
+    orderId: uuid("order_id").notNull(),
+    templateId: uuid("template_id"),
+    templateName: text("template_name").notNull(),
+    recipient: text("recipient").notNull(),
+    recipientName: text("recipient_name"),
+    subject: text("subject").notNull(),
+    bodyText: text("body_text").notNull(),
+    bodyHtml: text("body_html").notNull(),
+    attachmentName: text("attachment_name").notNull(),
+    providerMessageId: text("provider_message_id"),
+    errorMessage: text("error_message"),
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    resentFromId: uuid("resent_from_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("exchange_messages_tenant_id_idx").on(table.tenantId, table.id),
+    index("exchange_messages_tenant_created_idx").on(table.tenantId, table.createdAt),
+    index("exchange_messages_tenant_order_idx").on(table.tenantId, table.orderId, table.createdAt),
+    check(
+      "exchange_messages_type_check",
+      sql`${table.type} in ('purchase_request', 'purchase_confirmation')`,
+    ),
+    check("exchange_messages_status_check", sql`${table.status} in ('sent', 'failed')`),
+    check(
+      "exchange_messages_terminal_check",
+      sql`(${table.status} = 'sent' and ${table.sentAt} is not null and ${table.errorMessage} is null) or (${table.status} = 'failed' and ${table.sentAt} is null and ${table.errorMessage} is not null)`,
+    ),
+    check(
+      "exchange_messages_template_check",
+      sql`char_length(${table.templateName}) between 1 and 120`,
+    ),
+    check(
+      "exchange_messages_recipient_check",
+      sql`char_length(${table.recipient}) between 3 and 160`,
+    ),
+    check(
+      "exchange_messages_recipient_name_check",
+      sql`${table.recipientName} is null or char_length(${table.recipientName}) <= 120`,
+    ),
+    check("exchange_messages_subject_check", sql`char_length(${table.subject}) between 1 and 200`),
+    check(
+      "exchange_messages_body_text_check",
+      sql`char_length(${table.bodyText}) between 1 and 20000`,
+    ),
+    check(
+      "exchange_messages_body_html_check",
+      sql`char_length(${table.bodyHtml}) between 1 and 60000`,
+    ),
+    check(
+      "exchange_messages_attachment_check",
+      sql`char_length(${table.attachmentName}) between 1 and 200`,
+    ),
+    check(
+      "exchange_messages_error_check",
+      sql`${table.errorMessage} is null or char_length(${table.errorMessage}) <= 1000`,
+    ),
+    foreignKey({
+      name: "exchange_messages_tenant_order_fk",
+      columns: [table.tenantId, table.orderId],
+      foreignColumns: [purchaseOrders.tenantId, purchaseOrders.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "exchange_messages_tenant_template_fk",
+      columns: [table.tenantId, table.templateId],
+      foreignColumns: [exchangeTemplates.tenantId, exchangeTemplates.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "exchange_messages_tenant_resent_fk",
+      columns: [table.tenantId, table.resentFromId],
+      foreignColumns: [table.tenantId, table.id],
     }).onDelete("restrict"),
   ],
 );

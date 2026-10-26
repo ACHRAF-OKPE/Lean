@@ -3,9 +3,10 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { ArrowLeft, Info, PackagePlus, ReceiptText } from "lucide-react";
+import { ArrowLeft, Info, Mail, Mails, PackagePlus, ReceiptText } from "lucide-react";
 import type { PurchaseOrderStatus, ReceptionStatus } from "@/db/schema";
 import { AppHeader } from "@/components/app-header";
+import { ExchangeStatusBadge, ExchangeTypeBadge } from "@/components/exchange-badges";
 import { LoadingShell } from "@/components/loading-shell";
 import { PurchaseStatusBadge, ReceiptStateBadge } from "@/components/purchase-badges";
 import { getDb } from "@/db/client";
@@ -16,6 +17,7 @@ import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { canApplyAction, statusLabel } from "@/modules/purchases/lifecycle";
 import { getPurchaseOrder } from "@/modules/purchases/queries";
+import { listExchangeMessages } from "@/modules/exchange/queries";
 import { listInternalLocations } from "@/modules/stock/locations";
 import { compareQuantity, formatQuantity } from "@/modules/stock/quantities";
 import { CancelReceptionButton } from "./cancel-reception-button";
@@ -35,6 +37,11 @@ const ORDER_STATUSES: readonly PurchaseOrderStatus[] = [
   "cancelled",
 ];
 const TH = "px-4 py-2.5 font-normal";
+const EXCHANGE_DATE = new Intl.DateTimeFormat("fr-FR", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "Africa/Abidjan",
+});
 
 const RECEPTION_STATUS_META: Record<ReceptionStatus, { label: string; className: string }> = {
   validated: {
@@ -105,10 +112,11 @@ async function PurchaseOrderContent({
   }
 
   const db = getDb();
-  const [detail, memberships, query] = await Promise.all([
+  const [detail, memberships, query, exchangeMessages] = await Promise.all([
     getPurchaseOrder(db, { tenantId: session.tenantId, orderId }),
     listMembershipsForUser(db, session.userId),
     searchParams,
+    listExchangeMessages(db, { tenantId: session.tenantId, orderId, limit: 5 }),
   ]);
   if (!detail) {
     notFound();
@@ -169,6 +177,16 @@ async function PurchaseOrderContent({
             ) : null}
             {canWrite && canApplyAction(order.status, "cancel") && !hasValidatedReception ? (
               <TransitionButton orderId={order.id} action="cancel" />
+            ) : null}
+            {canWrite && order.status !== "draft" && order.status !== "cancelled" ? (
+              <Link
+                href={`/achats/${order.id}/envoyer`}
+                aria-label="Envoyer au fournisseur"
+                title="Envoyer au fournisseur"
+                className="grid size-9 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
+              >
+                <Mail className="size-4" aria-hidden="true" />
+              </Link>
             ) : null}
             {canReceiveNow ? (
               <a
@@ -322,6 +340,50 @@ async function PurchaseOrderContent({
               </tbody>
             </table>
           </div>
+        </section>
+
+        <section className="mt-6 overflow-hidden rounded-xl border border-line bg-panel">
+          <div className="flex items-center gap-2 border-b border-line px-5 py-3">
+            <Mail className="size-4 text-brand" aria-hidden="true" />
+            <h2 className="text-sm font-semibold">Échanges</h2>
+            <span className="font-mono text-[10px] text-muted">{exchangeMessages.length}</span>
+            <Link
+              href="/echanges"
+              aria-label="Ouvrir le journal des échanges"
+              title="Journal des échanges"
+              className="ml-auto grid size-8 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
+            >
+              <Mails className="size-3.5" aria-hidden="true" />
+            </Link>
+          </div>
+
+          {exchangeMessages.length === 0 ? (
+            <p className="px-5 py-6 text-center text-[11px] text-muted">
+              Aucun message transmis. Demandez la commande pour envoyer une demande, confirmez-la
+              pour envoyer la confirmation.
+            </p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {exchangeMessages.map((message) => (
+                <li key={message.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                  <ExchangeTypeBadge type={message.type} />
+                  <ExchangeStatusBadge status={message.status} />
+                  <Link
+                    href={`/echanges/${message.id}`}
+                    className="min-w-0 flex-1 truncate text-[11px] font-medium hover:text-brand hover:underline"
+                  >
+                    {message.subject}
+                  </Link>
+                  <span className="truncate font-mono text-[10px] text-muted">
+                    {message.recipient}
+                  </span>
+                  <span className="text-[10px] text-muted tabular-nums">
+                    {EXCHANGE_DATE.format(message.createdAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="mt-6 overflow-hidden rounded-xl border border-line bg-panel">
