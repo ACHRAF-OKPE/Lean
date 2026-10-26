@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import Link from "next/link";
 import { connection } from "next/server";
 import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
@@ -109,7 +110,14 @@ async function PartnersContent({ searchParams }: Pick<PageProps<"/tiers">, "sear
                       <td className="px-4 py-2.5 font-mono text-[10px] whitespace-nowrap">
                         {row.code}
                       </td>
-                      <td className="px-4 py-2.5 font-medium">{row.name}</td>
+                      <td className="px-4 py-2.5 font-medium">
+                        <Link
+                          href={`/tiers/${row.id}`}
+                          className="transition-colors hover:text-brand"
+                        >
+                          {row.name}
+                        </Link>
+                      </td>
                       <td className="px-4 py-2.5 whitespace-nowrap text-muted">
                         {PARTNER_TYPE_LABELS[row.type]}
                       </td>

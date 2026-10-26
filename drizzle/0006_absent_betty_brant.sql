@@ -1,0 +1,70 @@
+CREATE TABLE "company_settings" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"legal_name" text NOT NULL,
+	"legal_form" text,
+	"capital_xof" integer,
+	"tax_id" text,
+	"rccm" text,
+	"address_line" text,
+	"city" text,
+	"postal_code" text,
+	"country_code" text,
+	"email" text,
+	"phone" text,
+	"website" text,
+	"logo_data" "bytea",
+	"logo_mime" text,
+	"invoice_footer" text,
+	"payment_term_days" integer DEFAULT 0 NOT NULL,
+	"default_incoterm" text,
+	"bank_name" text,
+	"bank_account_holder" text,
+	"bank_account_number" text,
+	"bank_swift" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "company_settings_legal_name_check" CHECK (char_length("company_settings"."legal_name") between 1 and 160),
+	CONSTRAINT "company_settings_legal_form_check" CHECK ("company_settings"."legal_form" is null or char_length("company_settings"."legal_form") <= 120),
+	CONSTRAINT "company_settings_capital_check" CHECK ("company_settings"."capital_xof" is null or "company_settings"."capital_xof" between 0 and 2000000000),
+	CONSTRAINT "company_settings_tax_id_check" CHECK ("company_settings"."tax_id" is null or char_length("company_settings"."tax_id") <= 40),
+	CONSTRAINT "company_settings_rccm_check" CHECK ("company_settings"."rccm" is null or char_length("company_settings"."rccm") <= 40),
+	CONSTRAINT "company_settings_address_check" CHECK ("company_settings"."address_line" is null or char_length("company_settings"."address_line") <= 200),
+	CONSTRAINT "company_settings_city_check" CHECK ("company_settings"."city" is null or char_length("company_settings"."city") <= 80),
+	CONSTRAINT "company_settings_postal_check" CHECK ("company_settings"."postal_code" is null or char_length("company_settings"."postal_code") <= 16),
+	CONSTRAINT "company_settings_country_check" CHECK ("company_settings"."country_code" is null or "company_settings"."country_code" ~ '^[A-Z]{2}$'),
+	CONSTRAINT "company_settings_email_check" CHECK ("company_settings"."email" is null or char_length("company_settings"."email") <= 160),
+	CONSTRAINT "company_settings_phone_check" CHECK ("company_settings"."phone" is null or char_length("company_settings"."phone") <= 30),
+	CONSTRAINT "company_settings_website_check" CHECK ("company_settings"."website" is null or char_length("company_settings"."website") <= 200),
+	CONSTRAINT "company_settings_logo_check" CHECK (("company_settings"."logo_data" is null) = ("company_settings"."logo_mime" is null) and ("company_settings"."logo_mime" is null or "company_settings"."logo_mime" in ('image/png', 'image/jpeg', 'image/webp'))),
+	CONSTRAINT "company_settings_footer_check" CHECK ("company_settings"."invoice_footer" is null or char_length("company_settings"."invoice_footer") <= 500),
+	CONSTRAINT "company_settings_payment_term_check" CHECK ("company_settings"."payment_term_days" between 0 and 365),
+	CONSTRAINT "company_settings_incoterm_check" CHECK ("company_settings"."default_incoterm" is null or "company_settings"."default_incoterm" in ('EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP')),
+	CONSTRAINT "company_settings_bank_check" CHECK (("company_settings"."bank_name" is null and "company_settings"."bank_account_holder" is null and "company_settings"."bank_account_number" is null) or ("company_settings"."bank_name" is not null and "company_settings"."bank_account_holder" is not null and "company_settings"."bank_account_number" is not null)),
+	CONSTRAINT "company_settings_bank_length_check" CHECK (("company_settings"."bank_name" is null or char_length("company_settings"."bank_name") <= 80) and ("company_settings"."bank_account_holder" is null or char_length("company_settings"."bank_account_holder") <= 120) and ("company_settings"."bank_account_number" is null or char_length("company_settings"."bank_account_number") <= 34) and ("company_settings"."bank_swift" is null or char_length("company_settings"."bank_swift") <= 11))
+);
+--> statement-breakpoint
+CREATE TABLE "partner_contacts" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"partner_id" uuid NOT NULL,
+	"full_name" text NOT NULL,
+	"job_title" text,
+	"email" text,
+	"phone" text,
+	"is_primary" boolean DEFAULT false NOT NULL,
+	"active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "partner_contacts_full_name_check" CHECK (char_length("partner_contacts"."full_name") between 1 and 120),
+	CONSTRAINT "partner_contacts_job_title_check" CHECK ("partner_contacts"."job_title" is null or char_length("partner_contacts"."job_title") <= 80),
+	CONSTRAINT "partner_contacts_email_check" CHECK ("partner_contacts"."email" is null or char_length("partner_contacts"."email") <= 160),
+	CONSTRAINT "partner_contacts_phone_check" CHECK ("partner_contacts"."phone" is null or char_length("partner_contacts"."phone") <= 30),
+	CONSTRAINT "partner_contacts_primary_active_check" CHECK (not "partner_contacts"."is_primary" or "partner_contacts"."active")
+);
+--> statement-breakpoint
+ALTER TABLE "company_settings" ADD CONSTRAINT "company_settings_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "partner_contacts" ADD CONSTRAINT "partner_contacts_tenant_partner_fk" FOREIGN KEY ("tenant_id","partner_id") REFERENCES "public"."partners"("tenant_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "company_settings_tenant_idx" ON "company_settings" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "partner_contacts_tenant_partner_idx" ON "partner_contacts" USING btree ("tenant_id","partner_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "partner_contacts_primary_idx" ON "partner_contacts" USING btree ("tenant_id","partner_id") WHERE "partner_contacts"."is_primary";

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  customType,
   date,
   foreignKey,
   index,
@@ -14,6 +15,12 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -86,6 +93,111 @@ export const auditEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("audit_events_tenant_created_idx").on(table.tenantId, table.createdAt)],
+);
+
+export const companySettings = pgTable(
+  "company_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    legalName: text("legal_name").notNull(),
+    legalForm: text("legal_form"),
+    capitalXof: integer("capital_xof"),
+    taxId: text("tax_id"),
+    rccm: text("rccm"),
+    addressLine: text("address_line"),
+    city: text("city"),
+    postalCode: text("postal_code"),
+    countryCode: text("country_code"),
+    email: text("email"),
+    phone: text("phone"),
+    website: text("website"),
+    logoData: bytea("logo_data"),
+    logoMime: text("logo_mime"),
+    invoiceFooter: text("invoice_footer"),
+    paymentTermDays: integer("payment_term_days").notNull().default(0),
+    defaultIncoterm: text("default_incoterm"),
+    bankName: text("bank_name"),
+    bankAccountHolder: text("bank_account_holder"),
+    bankAccountNumber: text("bank_account_number"),
+    bankSwift: text("bank_swift"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("company_settings_tenant_idx").on(table.tenantId),
+    check(
+      "company_settings_legal_name_check",
+      sql`char_length(${table.legalName}) between 1 and 160`,
+    ),
+    check(
+      "company_settings_legal_form_check",
+      sql`${table.legalForm} is null or char_length(${table.legalForm}) <= 120`,
+    ),
+    check(
+      "company_settings_capital_check",
+      sql`${table.capitalXof} is null or ${table.capitalXof} between 0 and 2000000000`,
+    ),
+    check(
+      "company_settings_tax_id_check",
+      sql`${table.taxId} is null or char_length(${table.taxId}) <= 40`,
+    ),
+    check(
+      "company_settings_rccm_check",
+      sql`${table.rccm} is null or char_length(${table.rccm}) <= 40`,
+    ),
+    check(
+      "company_settings_address_check",
+      sql`${table.addressLine} is null or char_length(${table.addressLine}) <= 200`,
+    ),
+    check(
+      "company_settings_city_check",
+      sql`${table.city} is null or char_length(${table.city}) <= 80`,
+    ),
+    check(
+      "company_settings_postal_check",
+      sql`${table.postalCode} is null or char_length(${table.postalCode}) <= 16`,
+    ),
+    check(
+      "company_settings_country_check",
+      sql`${table.countryCode} is null or ${table.countryCode} ~ '^[A-Z]{2}$'`,
+    ),
+    check(
+      "company_settings_email_check",
+      sql`${table.email} is null or char_length(${table.email}) <= 160`,
+    ),
+    check(
+      "company_settings_phone_check",
+      sql`${table.phone} is null or char_length(${table.phone}) <= 30`,
+    ),
+    check(
+      "company_settings_website_check",
+      sql`${table.website} is null or char_length(${table.website}) <= 200`,
+    ),
+    check(
+      "company_settings_logo_check",
+      sql`(${table.logoData} is null) = (${table.logoMime} is null) and (${table.logoMime} is null or ${table.logoMime} in ('image/png', 'image/jpeg', 'image/webp'))`,
+    ),
+    check(
+      "company_settings_footer_check",
+      sql`${table.invoiceFooter} is null or char_length(${table.invoiceFooter}) <= 500`,
+    ),
+    check("company_settings_payment_term_check", sql`${table.paymentTermDays} between 0 and 365`),
+    check(
+      "company_settings_incoterm_check",
+      sql`${table.defaultIncoterm} is null or ${table.defaultIncoterm} in ('EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP')`,
+    ),
+    check(
+      "company_settings_bank_check",
+      sql`(${table.bankName} is null and ${table.bankAccountHolder} is null and ${table.bankAccountNumber} is null) or (${table.bankName} is not null and ${table.bankAccountHolder} is not null and ${table.bankAccountNumber} is not null)`,
+    ),
+    check(
+      "company_settings_bank_length_check",
+      sql`(${table.bankName} is null or char_length(${table.bankName}) <= 80) and (${table.bankAccountHolder} is null or char_length(${table.bankAccountHolder}) <= 120) and (${table.bankAccountNumber} is null or char_length(${table.bankAccountNumber}) <= 34) and (${table.bankSwift} is null or char_length(${table.bankSwift}) <= 11)`,
+    ),
+  ],
 );
 
 export type PartnerType = "company" | "individual";
@@ -164,6 +276,51 @@ export const partners = pgTable(
       sql`${table.countryCode} is null or ${table.countryCode} ~ '^[A-Z]{2}$'`,
     ),
     check("partners_payment_term_check", sql`${table.paymentTermDays} between 0 and 365`),
+  ],
+);
+
+export const partnerContacts = pgTable(
+  "partner_contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    partnerId: uuid("partner_id").notNull(),
+    fullName: text("full_name").notNull(),
+    jobTitle: text("job_title"),
+    email: text("email"),
+    phone: text("phone"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("partner_contacts_tenant_partner_idx").on(table.tenantId, table.partnerId),
+    uniqueIndex("partner_contacts_primary_idx")
+      .on(table.tenantId, table.partnerId)
+      .where(sql`${table.isPrimary}`),
+    check(
+      "partner_contacts_full_name_check",
+      sql`char_length(${table.fullName}) between 1 and 120`,
+    ),
+    check(
+      "partner_contacts_job_title_check",
+      sql`${table.jobTitle} is null or char_length(${table.jobTitle}) <= 80`,
+    ),
+    check(
+      "partner_contacts_email_check",
+      sql`${table.email} is null or char_length(${table.email}) <= 160`,
+    ),
+    check(
+      "partner_contacts_phone_check",
+      sql`${table.phone} is null or char_length(${table.phone}) <= 30`,
+    ),
+    check("partner_contacts_primary_active_check", sql`not ${table.isPrimary} or ${table.active}`),
+    foreignKey({
+      name: "partner_contacts_tenant_partner_fk",
+      columns: [table.tenantId, table.partnerId],
+      foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("cascade"),
   ],
 );
 

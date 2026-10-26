@@ -8,6 +8,7 @@ import {
   Package,
   ReceiptText,
   ScrollText,
+  Settings,
   ShoppingBag,
   ShoppingCart,
   Users,
@@ -26,6 +27,7 @@ export type ActiveSection =
   | "sales"
   | "invoices"
   | "stock"
+  | "settings"
   | "audit";
 
 const NAV_ITEMS = [
@@ -37,6 +39,7 @@ const NAV_ITEMS = [
   { key: "sales", href: "/ventes", label: "Ventes", icon: ShoppingBag },
   { key: "invoices", href: "/factures", label: "Factures", icon: ReceiptText },
   { key: "stock", href: "/stock", label: "Stock", icon: Warehouse },
+  { key: "settings", href: "/parametres", label: "Paramètres", icon: Settings },
 ] as const;
 
 const ICON_BUTTON =

@@ -3,8 +3,9 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 4 livré — commandes client, livraisons, facturation et encours.** Le prochain
-lot couvre la douane : régimes, acquit-à-caution, apurement et liquidation TEDU.
+**Statut : Lot 5A livré — fiche entreprise, logo, conditions de règlement et contacts tiers.**
+Le lot 5 poursuit avec les échanges (demandes et confirmations fournisseur), la discussion
+interne et les tâches. La douane arrive ensuite.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -72,9 +73,9 @@ Vercel avec la base Neon.
 - Connexion par email et mot de passe (scrypt salé). Session opaque de 7 jours, cookie
   `httpOnly`, `secure` en production, `SameSite=Lax`. L'appartenance au tenant est
   revérifiée à chaque requête serveur.
-- Rôles : **propriétaire** (tout), **administrateur** (membres, audit, données), **membre**
-  (données). Le refus est la valeur par défaut ; l'interface ne fait que masquer ce que le
-  serveur interdit.
+- Rôles : **propriétaire** (tout), **administrateur** (membres, audit, données, paramètres),
+  **membre** (données). Le refus est la valeur par défaut ; l'interface ne fait que masquer ce
+  que le serveur interdit.
 - Connexion, déconnexion, changement d'espace et amorçage alimentent le journal d'audit,
   filtré par tenant et réservé aux rôles autorisés.
 
@@ -167,6 +168,29 @@ Le cycle vente prolonge le référentiel du Lot 2 et le stock du Lot 3. Il est a
 Une livraison s'annule par un mouvement inverse : le journal reste immuable. L'annulation est
 refusée si une quantité déjà facturée n'était plus couverte par une livraison.
 
+## Entreprise, conditions et contacts
+
+Le socle administratif du Lot 5 est accessible depuis `/parametres` et la fiche de chaque
+tiers :
+
+- **Fiche entreprise** — une seule fiche par espace : raison sociale, forme juridique, capital
+  XOF, identifiants fiscaux, adresse, contacts, pied de facture, délai de règlement par défaut
+  et incoterm par défaut. Les membres la lisent ; seuls le propriétaire et l'administrateur la
+  modifient (`settings.manage`).
+- **Logo** — PNG, JPEG ou WebP de 512 Kio maximum, vérifié par signature binaire et non par
+  simple extension. Stocké en base et servi par une route authentifiée, jamais par un chemin
+  public. Le retrait est une suppression explicite et auditée.
+- **Conditions de règlement** — délai entier de 0 à 365 jours et incoterm 2020 facultatif. Un
+  changement ne réécrit jamais les documents déjà émis.
+- **Coordonnées bancaires** — bloc complet ou vide : banque, titulaire et compte vont ensemble ;
+  le SWIFT facultatif suit le format ISO 9362. Les valeurs sont normalisées en majuscules.
+- **Contacts tiers** — plusieurs contacts par tiers, un seul principal actif à la fois. Un
+  contact se désactive, ne se supprime pas ; le passage au principal désigne automatiquement
+  les autres comme secondaires.
+
+Chaque mutation vérifie le tenant actif et écrit un évènement d'audit avec l'acteur, les
+valeurs avant et après. Un logo sans fiche entreprise crée la fiche avec le nom légal fourni.
+
 ## Scripts
 
 | Commande              | Rôle                                          |
@@ -192,11 +216,13 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `import_batches`, `import_rows`, `purchase_orders`, `purchase_order_lines`, `receptions`,
 `stock_locations`, `stock_moves`, `stock_move_lines`, `stock_levels`, puis `sales_orders`,
 `sales_order_lines`, `deliveries`, `delivery_lines`, `invoices`, `invoice_lines`,
-`invoice_payments` et `document_sequences`. Les migrations générées sont commitées dans
-`drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
-`0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
-facturation. Les contraintes d'unicité, de rôle, de format SH, de quantités et de cohérence
-article/nomenclature sont posées en base, en complément de la validation applicative.
+`invoice_payments`, `document_sequences`, `company_settings` et `partner_contacts`. Les
+migrations générées sont commitées dans `drizzle/` : `0001` pour l'identité, `0002` pour le
+catalogue et la traçabilité des imports, `0003` pour les notes de lot, `0004` pour les achats
+et le stock, `0005` pour les ventes et la facturation, `0006` pour la fiche entreprise et les
+contacts tiers. Les contraintes d'unicité, de rôle, de format SH, de quantités, de cohérence
+article/nomenclature et de bloc bancaire sont posées en base, en complément de la validation
+applicative.
 
 ```bash
 npm run db:generate
@@ -217,7 +243,9 @@ jamais touchée.
 1. Importer le dépôt dans Vercel.
 2. Créer la base Neon et renseigner `DATABASE_URL` (URL pooler) dans les variables
    d'environnement Vercel.
-3. Appliquer les migrations (`npm run db:migrate`) contre la base cible.
+3. Les migrations sont appliquées automatiquement au début de chaque build Vercel, avant le
+   build applicatif (`vercel.json`). Un build qui ne peut pas migrer échoue et laisse la
+   production précédente en place. En local, `npm run db:migrate` reste la commande explicite.
 4. Créer le premier propriétaire une seule fois : renseigner les `BOOTSTRAP_*` dans un
    environnement local pointant sur Neon, lancer `npm run db:seed`, puis retirer ces
    variables. Aucune inscription publique n'existe dans l'application.

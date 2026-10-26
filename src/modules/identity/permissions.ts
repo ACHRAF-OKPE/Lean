@@ -7,6 +7,7 @@ export const PERMISSIONS = [
   "members.read",
   "members.manage",
   "audit.read",
+  "settings.manage",
   "data.read",
   "data.write",
 ] as const;
@@ -19,10 +20,18 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "members.read",
     "members.manage",
     "audit.read",
+    "settings.manage",
     "data.read",
     "data.write",
   ],
-  admin: ["members.read", "members.manage", "audit.read", "data.read", "data.write"],
+  admin: [
+    "members.read",
+    "members.manage",
+    "audit.read",
+    "settings.manage",
+    "data.read",
+    "data.write",
+  ],
   member: ["data.read", "data.write"],
 };
 

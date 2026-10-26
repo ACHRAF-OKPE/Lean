@@ -160,6 +160,40 @@ export async function listPartners(
   return { rows, total: totalRow?.value ?? 0, limit: LIST_LIMIT };
 }
 
+export interface PartnerDetail extends PartnerSummary {
+  readonly email: string | null;
+  readonly phone: string | null;
+  readonly addressLine: string | null;
+  readonly taxNumber: string | null;
+}
+
+export async function getPartner(
+  db: Database,
+  input: { tenantId: string; partnerId: string },
+): Promise<PartnerDetail | null> {
+  const [row] = await db
+    .select({
+      id: partners.id,
+      code: partners.code,
+      name: partners.name,
+      type: partners.type,
+      isCustomer: partners.isCustomer,
+      isSupplier: partners.isSupplier,
+      city: partners.city,
+      countryCode: partners.countryCode,
+      paymentTermDays: partners.paymentTermDays,
+      active: partners.active,
+      email: partners.email,
+      phone: partners.phone,
+      addressLine: partners.addressLine,
+      taxNumber: partners.taxNumber,
+    })
+    .from(partners)
+    .where(and(eq(partners.tenantId, input.tenantId), eq(partners.id, input.partnerId)))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function listArticles(
   db: Database,
   tenantId: string,

@@ -13,6 +13,8 @@ import {
   Lock,
   Package,
   ReceiptText,
+  ScrollText,
+  Settings,
   ShieldCheck,
   ShoppingBag,
   ShoppingCart,
@@ -25,10 +27,12 @@ import { requireSession } from "@/lib/auth/session";
 import { LOTS, type LotStatus } from "@/lib/lots";
 import { formatXof } from "@/lib/money";
 import { ROLE_LABELS } from "@/modules/identity/labels";
+import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getCatalogCounts } from "@/modules/catalog/queries";
 import { getPurchaseOrderStats } from "@/modules/purchases/queries";
 import { getReceivablesStats, getSalesOrderStats } from "@/modules/sales/queries";
+import { getCompanySettings } from "@/modules/settings/queries";
 import { getStockCounts } from "@/modules/stock/queries";
 
 const GATE = [
@@ -105,7 +109,7 @@ async function Cockpit() {
   await connection();
   const session = await requireSession();
   const db = getDb();
-  const [memberships, counts, purchaseStats, salesStats, receivables, stockCounts] =
+  const [memberships, counts, purchaseStats, salesStats, receivables, stockCounts, company] =
     await Promise.all([
       listMembershipsForUser(db, session.userId),
       getCatalogCounts(db, session.tenantId),
@@ -113,9 +117,13 @@ async function Cockpit() {
       getSalesOrderStats(db, session.tenantId),
       getReceivablesStats(db, session.tenantId),
       getStockCounts(db, session.tenantId),
+      getCompanySettings(db, session.tenantId),
     ]);
   const deliveredCount = LOTS.filter((lot) => lot.status === "done").length;
   const nextLot = LOTS.find((lot) => lot.status === "next");
+  const companyState = company
+    ? `${company.legalName} · ${company.logoMime ? "logo" : "sans logo"}`
+    : "À configurer";
 
   return (
     <div className="min-h-dvh">
@@ -125,35 +133,41 @@ async function Cockpit() {
         <section className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] lg:items-end">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-brand uppercase">
-              Lot 04 · livré
+              Lot 05 · socle ERP
             </p>
             <h1 className="mt-5 max-w-2xl text-4xl leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-5xl md:text-[3.25rem]">
-              La vente devient un flux.
-              <span className="block">Chaque livraison laisse une trace.</span>
+              L&apos;entreprise prend forme.
+              <span className="block">Chaque contact laisse une trace.</span>
             </h1>
             <p className="mt-5 max-w-xl text-sm leading-6 text-muted">
-              Commandes client, livraisons, factures et règlements partagent le même journal. Une
-              livraison sort le stock ; une facture validée crée la créance. Rien ne se modifie,
-              chaque correction écrit son inverse.
+              Fiche entreprise, logo, conditions de règlement et carnet de contacts entrent dans le
+              socle. Les paramètres sont lus par tous, modifiés par les rôles autorisés et audités.
+              Les échanges et les tâches suivent.
             </p>
           </div>
 
           <div className="rounded-xl border border-line bg-panel p-5">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-medium">Dossier de livraison</p>
+              <p className="text-xs font-medium">Dossier de socle</p>
               <span className="rounded-full border border-brand/15 bg-brand-soft px-2 py-0.5 font-mono text-[10px] text-brand-strong">
-                L04
+                L05
               </span>
             </div>
 
             <dl className="mt-5 space-y-3">
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Lot courant</dt>
-                <dd className="text-right text-[11px] font-medium">Vente → livraison → facture</dd>
+                <dd className="text-right text-[11px] font-medium">Socle ERP : paramètres</dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Rôle</dt>
                 <dd className="text-right text-[11px] font-medium">{ROLE_LABELS[session.role]}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[11px] text-muted">Entreprise</dt>
+                <dd className="max-w-[60%] truncate text-right text-[11px] font-medium">
+                  {companyState}
+                </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Tiers</dt>
@@ -284,6 +298,68 @@ async function Cockpit() {
           </div>
         </section>
 
+        <section aria-labelledby="socle-title" className="mt-12">
+          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-line pb-4">
+            <div>
+              <p className="font-mono text-[10px] tracking-[0.18em] text-muted uppercase">Socle</p>
+              <h2 id="socle-title" className="mt-1 text-sm font-semibold">
+                L&apos;espace se configure et se vérifie.
+              </h2>
+            </div>
+            <p className="text-[11px] text-muted">
+              {can(session.role, "settings.manage") ? "Modification autorisée" : "Lecture seule"}
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {[
+              {
+                href: "/parametres",
+                label: "Paramètres",
+                description: "Fiche entreprise, logo, conditions et coordonnées bancaires",
+                tag: company ? "À jour" : "Configurer",
+                icon: Settings,
+              },
+              {
+                href: "/audit",
+                label: "Journal d'audit",
+                description: "Chaque mutation consignée avec son acteur et ses valeurs",
+                tag: "Traçable",
+                icon: ScrollText,
+              },
+            ].map((card) => {
+              const Icon = card.icon;
+              return (
+                <Link
+                  key={card.href}
+                  href={card.href}
+                  className="group flex items-start gap-4 rounded-xl border border-line bg-panel p-4 transition-colors hover:border-brand/30"
+                >
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-strong">
+                    <Icon className="size-4" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{card.label}</span>
+                      <span className="font-mono text-[10px] text-muted">{card.tag}</span>
+                    </span>
+                    <span className="mt-1 block text-[10px] leading-4 text-muted">
+                      {card.description}
+                    </span>
+                    <span className="mt-2 inline-flex items-center gap-1 text-[10px] text-brand">
+                      Ouvrir
+                      <ArrowUpRight
+                        className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
         <section aria-labelledby="operations-title" className="mt-12">
           <div className="flex flex-wrap items-end justify-between gap-2 border-b border-line pb-4">
             <div>
@@ -388,7 +464,7 @@ async function Cockpit() {
                 Feuille de route
               </p>
               <h2 id="roadmap-title" className="mt-1 text-sm font-semibold">
-                Huit lots, une barrière identique.
+                Neuf lots, une barrière identique.
               </h2>
             </div>
             <p className="text-[11px] text-muted">Gate vert, puis push.</p>
@@ -477,11 +553,11 @@ async function Cockpit() {
               </p>
               <h2 className="mt-2 text-lg font-medium tracking-tight">{nextLot.title}</h2>
               <p className="mt-2 text-[11px] leading-5 text-white/70">
-                {nextLot.scope}. Les flux achat et vente alimentent désormais un référentiel unique
-                ; la douane devient la prochaine brique.
+                {nextLot.scope}. La fiche entreprise, les contacts et les paramètres d&apos;accès
+                posent la base ; les échanges et les tâches suivront dans le même lot.
               </p>
               <ul className="mt-4 flex flex-wrap gap-1.5">
-                {["Régimes", "Acquit-à-caution", "Apurement", "TEDU"].map((tag) => (
+                {["Entreprise", "Contacts", "Échanges", "Tâches"].map((tag) => (
                   <li
                     key={tag}
                     className="rounded-full border border-white/15 px-2.5 py-1 text-[10px] text-white/75"

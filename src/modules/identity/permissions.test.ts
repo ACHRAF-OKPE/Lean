@@ -22,11 +22,13 @@ describe("TEN-002 — rôles et permissions", () => {
     expect(can("member", "tenant.manage")).toBe(false);
   });
 
-  it("donne à l'administrateur l'audit et les membres, pas au membre", () => {
+  it("donne à l'administrateur l'audit, les membres et les paramètres, pas au membre", () => {
     expect(can("admin", "audit.read")).toBe(true);
     expect(can("admin", "members.manage")).toBe(true);
+    expect(can("admin", "settings.manage")).toBe(true);
     expect(can("member", "audit.read")).toBe(false);
     expect(can("member", "members.manage")).toBe(false);
+    expect(can("member", "settings.manage")).toBe(false);
     expect(can("member", "members.read")).toBe(false);
   });
 

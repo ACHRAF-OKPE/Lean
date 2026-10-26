@@ -40,18 +40,24 @@ export const LOTS: readonly Lot[] = [
   },
   {
     id: 5,
-    title: "Douane",
-    scope: "Régimes ASYCUDA, acquit-à-caution, apurement, TEDU",
+    title: "Socle ERP",
+    scope: "Paramètres entreprise, contacts, échanges, collaboration et tâches",
     status: "next",
   },
   {
     id: 6,
+    title: "Douane",
+    scope: "Régimes ASYCUDA, acquit-à-caution, apurement, TEDU",
+    status: "planned",
+  },
+  {
+    id: 7,
     title: "Comptabilité SYSCOHADA",
     scope: "Écritures, cut-off, rapprochements",
     status: "planned",
   },
   {
-    id: 7,
+    id: 8,
     title: "Rapports & clôture",
     scope: "États de gestion, clôture, exports",
     status: "planned",

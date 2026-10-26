@@ -22,4 +22,9 @@ export const ACTION_LABELS: Record<string, string> = {
   "purchase.order.cancel": "Annulation de commande",
   "purchase.reception.create": "Réception de commande",
   "purchase.reception.cancel": "Annulation de réception",
+  "settings.company.update": "Mise à jour de la fiche entreprise",
+  "settings.logo.update": "Mise à jour du logo",
+  "settings.logo.delete": "Retrait du logo",
+  "catalog.partner.contact.create": "Création d'un contact tiers",
+  "catalog.partner.contact.update": "Mise à jour d'un contact tiers",
 };
