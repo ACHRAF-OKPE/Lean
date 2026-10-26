@@ -6,6 +6,7 @@ import { connection } from "next/server";
 import { ArrowLeft, FilePlus2, Info, ReceiptText, Truck } from "lucide-react";
 import type { SalesOrderStatus } from "@/db/schema";
 import { AppHeader } from "@/components/app-header";
+import { DiscussionPanel } from "@/components/discussion-panel";
 import { LoadingShell } from "@/components/loading-shell";
 import {
   DeliveryStateBadge,
@@ -526,6 +527,8 @@ async function SalesOrderContent({
             La livraison et la facturation seront disponibles après confirmation de la commande.
           </p>
         ) : null}
+
+        <DiscussionPanel session={session} entityType="sales_order" entityId={order.id} />
       </main>
     </div>
   );

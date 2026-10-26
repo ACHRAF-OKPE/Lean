@@ -1317,6 +1317,145 @@ export const documentSequences = pgTable(
   ],
 );
 
+export type DiscussionEntityType = "partner" | "purchase_order" | "sales_order" | "invoice";
+export type DiscussionMessageKind = "comment" | "event";
+export type NotificationKind = "mention" | "event";
+
+export const discussionMessages = pgTable(
+  "discussion_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    entityType: text("entity_type").$type<DiscussionEntityType>().notNull(),
+    entityId: uuid("entity_id").notNull(),
+    kind: text("kind").$type<DiscussionMessageKind>().notNull(),
+    body: text("body").notNull(),
+    eventType: text("event_type"),
+    eventKey: text("event_key"),
+    authorUserId: uuid("author_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("discussion_messages_tenant_id_idx").on(table.tenantId, table.id),
+    index("discussion_messages_tenant_entity_idx").on(
+      table.tenantId,
+      table.entityType,
+      table.entityId,
+      table.createdAt,
+    ),
+    uniqueIndex("discussion_messages_tenant_event_idx")
+      .on(table.tenantId, table.entityType, table.entityId, table.eventKey)
+      .where(sql`${table.eventKey} is not null`),
+    check("discussion_messages_kind_check", sql`${table.kind} in ('comment', 'event')`),
+    check(
+      "discussion_messages_entity_type_check",
+      sql`${table.entityType} in ('partner', 'purchase_order', 'sales_order', 'invoice')`,
+    ),
+    check("discussion_messages_body_check", sql`char_length(${table.body}) between 1 and 4000`),
+    check(
+      "discussion_messages_event_check",
+      sql`(${table.kind} = 'comment' and ${table.eventType} is null and ${table.eventKey} is null) or (${table.kind} = 'event' and ${table.eventType} is not null and ${table.eventKey} is not null)`,
+    ),
+    check(
+      "discussion_messages_event_type_check",
+      sql`${table.eventType} is null or char_length(${table.eventType}) between 1 and 80`,
+    ),
+    check(
+      "discussion_messages_event_key_check",
+      sql`${table.eventKey} is null or char_length(${table.eventKey}) between 1 and 120`,
+    ),
+  ],
+);
+
+export const discussionMentions = pgTable(
+  "discussion_mentions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    messageId: uuid("message_id").notNull(),
+    mentionedUserId: uuid("mentioned_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("discussion_mentions_message_user_idx").on(
+      table.tenantId,
+      table.messageId,
+      table.mentionedUserId,
+    ),
+    index("discussion_mentions_tenant_user_idx").on(
+      table.tenantId,
+      table.mentionedUserId,
+      table.createdAt,
+    ),
+    foreignKey({
+      name: "discussion_mentions_tenant_message_fk",
+      columns: [table.tenantId, table.messageId],
+      foreignColumns: [discussionMessages.tenantId, discussionMessages.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "discussion_mentions_tenant_user_fk",
+      columns: [table.tenantId, table.mentionedUserId],
+      foreignColumns: [memberships.tenantId, memberships.userId],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull(),
+    kind: text("kind").$type<NotificationKind>().notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    entityType: text("entity_type").$type<DiscussionEntityType>().notNull(),
+    entityId: uuid("entity_id").notNull(),
+    messageId: uuid("message_id").notNull(),
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    eventKey: text("event_key").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("notifications_tenant_user_event_idx").on(
+      table.tenantId,
+      table.userId,
+      table.eventKey,
+    ),
+    index("notifications_tenant_user_read_idx").on(
+      table.tenantId,
+      table.userId,
+      table.readAt,
+      table.createdAt,
+    ),
+    check("notifications_kind_check", sql`${table.kind} in ('mention', 'event')`),
+    check(
+      "notifications_entity_type_check",
+      sql`${table.entityType} in ('partner', 'purchase_order', 'sales_order', 'invoice')`,
+    ),
+    check("notifications_title_check", sql`char_length(${table.title}) between 1 and 200`),
+    check("notifications_body_check", sql`char_length(${table.body}) between 1 and 500`),
+    check("notifications_event_key_check", sql`char_length(${table.eventKey}) between 1 and 120`),
+    foreignKey({
+      name: "notifications_tenant_user_fk",
+      columns: [table.tenantId, table.userId],
+      foreignColumns: [memberships.tenantId, memberships.userId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "notifications_tenant_message_fk",
+      columns: [table.tenantId, table.messageId],
+      foreignColumns: [discussionMessages.tenantId, discussionMessages.id],
+    }).onDelete("restrict"),
+  ],
+);
+
 export type HsCodeRow = typeof hsCodes.$inferSelect;
 export type PartnerRow = typeof partners.$inferSelect;
 export type ArticleRow = typeof articles.$inferSelect;
@@ -1337,3 +1476,5 @@ export type StockMoveRow = typeof stockMoves.$inferSelect;
 export type StockMoveLineRow = typeof stockMoveLines.$inferSelect;
 export type StockLevelRow = typeof stockLevels.$inferSelect;
 export type DocumentSequenceRow = typeof documentSequences.$inferSelect;
+export type DiscussionMessageRow = typeof discussionMessages.$inferSelect;
+export type NotificationRow = typeof notifications.$inferSelect;

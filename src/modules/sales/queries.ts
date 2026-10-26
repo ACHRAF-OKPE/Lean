@@ -21,6 +21,8 @@ import {
   type SalesOrderStatus,
 } from "@/db/schema";
 import { todayIsoDate } from "@/lib/dates";
+import { recordDocumentEvent } from "@/modules/discussion/queries";
+import type { DocumentEventType } from "@/modules/discussion/events";
 import { nextDocumentNumber } from "@/modules/stock/sequences";
 import { normalizeQuantity, remainingQuantity } from "@/modules/stock/quantities";
 import { SalesError } from "./errors";
@@ -37,6 +39,12 @@ import {
   type DraftSalesOrderInput,
   type SalesArticleReference,
 } from "./validation";
+
+const SALES_EVENT_BY_ACTION: Record<SalesAction, DocumentEventType> = {
+  confirm: "sales_order.confirmed",
+  close: "sales_order.closed",
+  cancel: "sales_order.cancelled",
+};
 
 export interface CustomerOption {
   readonly id: string;
@@ -700,6 +708,18 @@ export async function transitionSalesOrder(
       details: {
         from: order.status,
         to: nextStatus,
+        number,
+      },
+    });
+
+    await recordDocumentEvent(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      entityType: "sales_order",
+      entityId: order.id,
+      event: {
+        type: SALES_EVENT_BY_ACTION[input.action],
+        key: `status:${input.action}`,
         number,
       },
     });

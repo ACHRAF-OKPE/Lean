@@ -12,6 +12,7 @@ import type { InvoicingState } from "@/db/schema";
 import { todayIsoDate } from "@/lib/dates";
 import { MAX_XOF_AMOUNT } from "@/modules/catalog/constants";
 import { parseIsoDate } from "@/modules/shared/validation";
+import { recordDocumentEvent } from "@/modules/discussion/queries";
 import {
   addQuantity,
   compareQuantity,
@@ -372,6 +373,19 @@ export async function validateInvoice(
         number,
         orderNumber: order.number,
         exTaxTotal: invoice.exTaxTotal,
+      },
+    });
+
+    await recordDocumentEvent(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      entityType: "invoice",
+      entityId: invoice.id,
+      event: {
+        type: "invoice.validated",
+        key: `invoice:${invoice.id}:validate`,
+        number,
+        amountXof: invoice.exTaxTotal,
       },
     });
 

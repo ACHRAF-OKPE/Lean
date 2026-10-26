@@ -20,18 +20,19 @@ réutilisation d'un extrait, même minime, exigerait une revue de licence explic
 
 `<DOMAINE>-<NNN>`, numéro à trois chiffres, jamais réutilisé.
 
-| Préfixe | Domaine                      |
-| ------- | ---------------------------- |
-| `GEN`   | Transverse                   |
-| `TEN`   | Tenants, utilisateurs, rôles |
-| `ORG`   | Organisation et paramètres   |
-| `ART`   | Tiers et articles            |
-| `PUR`   | Achats                       |
-| `STK`   | Stock et mouvements          |
-| `SAL`   | Ventes                       |
-| `CUS`   | Douane                       |
-| `ACC`   | Comptabilité SYSCOHADA       |
-| `RPT`   | Rapports et clôture          |
+| Préfixe | Domaine                        |
+| ------- | ------------------------------ |
+| `GEN`   | Transverse                     |
+| `TEN`   | Tenants, utilisateurs, rôles   |
+| `ORG`   | Organisation et paramètres     |
+| `ART`   | Tiers et articles              |
+| `PUR`   | Achats                         |
+| `STK`   | Stock et mouvements            |
+| `SAL`   | Ventes                         |
+| `COL`   | Collaboration et notifications |
+| `CUS`   | Douane                         |
+| `ACC`   | Comptabilité SYSCOHADA         |
+| `RPT`   | Rapports et clôture            |
 
 ## Statuts
 
@@ -68,17 +69,17 @@ alimenter les cas de parité, jamais à recopier du code, des noms ou des commen
 
 ### Matrice de couverture
 
-| Lot | Règles identifiées | Implémentées | Écarts documentés | État                           |
-| --- | ------------------ | ------------ | ----------------- | ------------------------------ |
-| 0   | 11 (GEN)           | 6            | aucun             | livré                          |
-| 1   | 6 (TEN)            | 6            | 6                 | livré                          |
-| 2   | 7 (ART)            | 7            | 7                 | livré                          |
-| 3   | 8 (PUR/STK)        | 8            | 8                 | livré                          |
-| 4   | 9 (SAL/STK)        | 9            | 9                 | livré                          |
-| 5   | 6 (ORG/TEN)        | 6            | 6                 | livré (5A, 5B ; 5C→5D à venir) |
-| 6   | 0 (CUS)            | 0            | —                 | à venir                        |
-| 7   | 0 (ACC)            | 0            | —                 | à venir                        |
-| 8   | 0 (RPT)            | 0            | —                 | à venir                        |
+| Lot | Règles identifiées | Implémentées | Écarts documentés | État                            |
+| --- | ------------------ | ------------ | ----------------- | ------------------------------- |
+| 0   | 11 (GEN)           | 6            | aucun             | livré                           |
+| 1   | 6 (TEN)            | 6            | 6                 | livré                           |
+| 2   | 7 (ART)            | 7            | 7                 | livré                           |
+| 3   | 8 (PUR/STK)        | 8            | 8                 | livré                           |
+| 4   | 9 (SAL/STK)        | 9            | 9                 | livré                           |
+| 5   | 11 (ORG/TEN/COL)   | 11           | 11                | livré (5A, 5B, 5C ; 5D à venir) |
+| 6   | 0 (CUS)            | 0            | —                 | à venir                         |
+| 7   | 0 (ACC)            | 0            | —                 | à venir                         |
+| 8   | 0 (RPT)            | 0            | —                 | à venir                         |
 
 Un lot ne peut pas être déclaré livré si la matrice ne reflète pas ses règles et ses écarts.
 
@@ -263,6 +264,30 @@ tenant, XOF entier, logo servi par l'application et contacts multiples par tiers
 | ORG-008 | Demande réservée aux commandes demandées, confirmation aux commandes confirmées ou clôturées ; compte actif, raison sociale, destinataire valide et modèle du bon type exigés. Envoi SMTP réel avec sujet français, texte, HTML, PDF joint, expéditeur et réponse configurés. Journal append-only : statut, horodatage, acteur, sujet, corps rendu, pièce jointe, erreur éventuelle et identifiant fournisseur. Échec restitué et audité sans secret ; renvoi relié au message d'origine ; aucun accès inter-tenant à la commande, aux contacts ou au journal.                      | `queries.test.ts` (ORG-008), `mailer.test.ts` (ORG-008)                                                              | Un destinataire par message, pas de file de reprise automatique, de suivi d'ouverture ni d'autres pièces jointes que le bon de commande PDF.         |
 | ORG-009 | Instantané de l'entreprise et du tiers à l'envoi : identité, adresse, pays, coordonnées, numéro fiscal, RCCM, règlement, incoterm, banque et mentions. Valeurs absentes omises, ni `null` ni espace réservé. Modifier la fiche ou le tiers après l'envoi laisse le message journalisé inchangé ; un nouvel envoi reprend les valeurs courantes. PDF A4 valide, pagination, logo embarqué si présent, nom de pièce joint cohérent avec le type et le numéro.                                                                                                                         | `document.test.ts` (ORG-009), `queries.test.ts` (ORG-008)                                                            | Pas de mise en page paramétrable ni de signature électronique ; le logo est facultatif et non recadré.                                               |
 
+## Règles de collaboration
+
+La référence Axelor décrit un message rattaché à un document (`relatedName`) et un journal
+d'activité par fiche, avec des notifications adressées aux membres. Lean reformule ce
+comportement sans reprendre le moteur de messagerie : le fil reste interne, sans e-mail.
+
+| ID      | Règle                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Source                                                                           | Statut        | Mise en œuvre |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ------------- | ------------- |
+| COL-001 | Un tiers, une commande fournisseur, une commande client et une facture portent un fil de discussion interne. Un commentaire contient de 1 à 4 000 caractères après détourage, en texte brut, signé par son auteur et horodaté. Le fil est append-only : aucun commentaire n'est modifiable ni supprimable. Un commentaire sur un document inconnu, d'un autre espace ou d'un autre type est refusé sans écriture. La lecture exige `data.read`, l'écriture `data.write`. Chaque commentaire est audité avec le document et le nombre de mentions, jamais avec son texte.                                                       | `Message.xml` (base, crm, purchase) ; `Mail.xml` : `relatedName` ; brief porteur | `implémentée` | Lot 5C        |
+| COL-002 | Un commentaire peut mentionner zéro, une ou plusieurs personnes membres du même espace. Une mention vers un utilisateur inconnu ou extérieur à l'espace fait échouer tout le commentaire, sans écriture partielle. Une personne est mentionnée au plus une fois par message. Chaque mention crée une notification pour la personne mentionnée ; une auto-mention de l'auteur n'en crée aucune. Les mentions restent attachées au message et ne sont jamais modifiées.                                                                                                                                                          | `Message.xml` ; brief porteur                                                    | `implémentée` | Lot 5C        |
+| COL-003 | Les évènements structurants s'inscrivent automatiquement dans le fil du document : demande, confirmation, clôture et annulation d'une commande fournisseur ; réception enregistrée ou annulée ; confirmation, clôture et annulation d'une commande client ; livraison enregistrée ou annulée ; validation de facture ; paiement enregistré. Chaque évènement porte une clé stable et une contrainte d'unicité : rejouer l'action ne duplique ni l'entrée ni la notification. Le texte est généré en français avec les numéros attribués et n'accepte aucun texte libre. L'acteur est conservé même si son compte est supprimé. | `Mail.xml` : `relatedName` ; `Message.xml` ; brief porteur                       | `implémentée` | Lot 5C        |
+| COL-004 | Une notification est interne à l'application : titre, texte, document lié, date et état lu ou non lu. Un évènement notifie tous les membres de l'espace, auteur compris, une seule fois par membre et par évènement. Une mention notifie la personne mentionnée. Chaque membre ne lit et ne marque que ses propres notifications ; marquer comme lu est idempotent. Aucune notification n'est envoyée par e-mail dans ce lot.                                                                                                                                                                                                  | `Mail.xml` ; `Message.xml` ; brief porteur                                       | `implémentée` | Lot 5C        |
+| COL-005 | Le bandeau affiche le nombre de notifications non lues et ouvre `/notifications`, qui liste les 100 dernières. Le fil est visible sur la fiche tiers, la commande fournisseur, la commande client et la facture. Lecture avec `data.read`, commentaire avec `data.write`, mentions limitées aux membres de l'espace. Les notifications ne franchissent jamais la frontière du tenant ni celle de l'utilisateur.                                                                                                                                                                                                                | Brief porteur ; `Team.xml` : `code`, `typeSelect` ; `Message.xml`                | `implémentée` | Lot 5C        |
+
+### Preuves du Lot 5C
+
+| ID      | Comportement et cas de parité                                                                                                                                                                                                                                                                                                                                                                            | Test                           | Écarts connus                                                                                                                                                                                 |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| COL-001 | Commentaire de 1 à 4 000 caractères après détourage, signé et horodaté, inscrit au fil du tiers, de la commande fournisseur, de la commande client ou de la facture. Vide ou 4 001 caractères → refus. Document inconnu, d'un autre type ou d'un autre espace → refus sans écriture. Audit avec document et nombre de mentions, jamais avec le texte. Fil append-only, sans modification ni suppression. | `discussion.test.ts` (COL-001) | Pas de pièces jointes, de réactions ni de fil général hors document ; le texte est brut, sans éditeur riche.                                                                                  |
+| COL-002 | Mentions limitées aux membres de l'espace, dédupliquées, 50 au plus. Mention hors espace → échec du commentaire entier sans écriture partielle. Chaque personne mentionnée reçoit une notification ; l'auto-mention de l'auteur n'en crée aucune.                                                                                                                                                        | `discussion.test.ts` (COL-002) | Pas de notification aux non-membres, pas de groupes de mention ni de préférences par utilisateur.                                                                                             |
+| COL-003 | Évènements automatiques : demande, confirmation, clôture, annulation et réception d'une commande fournisseur ; confirmation, clôture, annulation et livraison d'une commande client ; validation et paiement d'une facture. Texte généré en français avec numéros et montants. Clé stable et unicité : le rejeu d'un évènement ne duplique ni l'entrée ni la notification.                               | `discussion.test.ts` (COL-003) | L'évènement est écrit dans la transaction métier ; pas de reprise rétroactive des documents antérieurs au lot.                                                                                |
+| COL-004 | Notification interne avec titre, texte de 500 caractères au plus, document lié, acteur, date et état lu. Un évènement notifie tous les membres, auteur compris, une fois par membre et par évènement ; une mention notifie la personne mentionnée. Lecture et marquage limités à l'utilisateur ; marquage idempotent ; aucun envoi e-mail.                                                               | `discussion.test.ts` (COL-004) | L'auteur reçoit aussi les notifications d'évènement, choix assumé pour qu'un espace à un seul membre dispose d'une boîte d'activité ; pas d'e-mail, pas de préférences ni de lots de lecture. |
+| COL-005 | Cloche avec compteur des non-lues, page `/notifications` limitée aux 100 dernières, fil présent sur les quatre fiches. Lecture `data.read`, écriture `data.write`. Mentions et notifications strictement cloisonnées par tenant et par utilisateur.                                                                                                                                                      | `discussion.test.ts` (COL-005) | Pas de temps réel ni de notification navigateur ; le compteur est recalculé à l'affichage, sans abonnement.                                                                                   |
+
 ## Sujets à instruire
 
 Ces sujets ne sont **pas encore des règles** : ils seront lus dans Axelor, reformulés puis
@@ -270,7 +295,6 @@ inscrits avec un identifiant au moment du lot concerné.
 
 | Lot | Sujet à instruire                                               | Référence principale à lire            |
 | --- | --------------------------------------------------------------- | -------------------------------------- |
-| 5C  | Discussion interne et notifications                             | `Message.xml`, `Mail.xml`, `Team.xml`  |
 | 5D  | Tâches, assignation et suivi                                    | `Team.xml`, `TeamTask.xml`             |
 | 6   | Régimes, acquit-à-caution, apurement, liquidation TEDU          | Référentiel ASYCUDA, brief porteur     |
 | 7   | Cut-off comptable, écritures de stock, rapprochements SYSCOHADA | `axelor-account`, `axelor-supplychain` |
@@ -289,3 +313,4 @@ inscrits avec un identifiant au moment du lot concerné.
 | 2026-10-25 | `SaleOrder.xml`, `SaleOrderLine.xml`, `SaleOrderWorkflowServiceImpl`, `SaleOrderConfirmServiceImpl`, `SaleOrderFinalizeServiceImpl`, `SaleOrderSequenceServiceImpl`, `SaleOrderStockServiceImpl`, `SaleInvoicingStateServiceImpl`, `StockMoveInvoiceServiceImpl`, `SaleOrderInvoiceServiceImpl`, `Invoice.xml`, `InvoiceLine.xml` (lecture seule) | Reformulation des règles SAL-001 à SAL-007 et STK-003 : éligibilité, cycle de vie, livraison partielle, annulation par mouvement inverse, facturation des quantités livrées ou commandées, encours, séquences et emplacement client virtuel. Aucun code, nom ou commentaire copié. |
 | 2026-10-26 | `Company.xml`, `Partner.xml`, `Address.xml`, `BankDetails.xml`, `Role.xml`, `Permission.xml` (lecture seule)                                                                                                                                                                                                                                      | Reformulation des règles ORG-001 à ORG-005 et TEN-007 : fiche entreprise unique, logo, conditions par défaut, coordonnées bancaires et contacts multiples par tiers, avec lecture et écriture séparées. Aucun code, nom ou commentaire copié.                                      |
 | 2026-10-26 | `EmailAccount.xml`, `Template.xml`, `Mail.xml`, `BankDetails.xml`, `Company.xml` (lecture seule)                                                                                                                                                                                                                                                  | Reformulation des règles ORG-006 à ORG-009 : compte d'envoi unique, modèles personnalisés à variables fermées, envoi journalisé avec PDF joint et instantané entreprise. Aucun code, nom ou commentaire copié.                                                                     |
+| 2026-10-26 | `Message.xml` (base, crm, purchase), `Mail.xml`, `Team.xml`, `TeamTask.xml`, `views/Message.xml`, `views/Team.xml` (lecture seule)                                                                                                                                                                                                                | Reformulation des règles COL-001 à COL-005 : fil de discussion rattaché au document, mentions, journal d'activité, notifications internes et bandeau de compteur. Aucun code, nom ou commentaire copié.                                                                            |

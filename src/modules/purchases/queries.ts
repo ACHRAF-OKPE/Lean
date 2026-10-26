@@ -15,6 +15,8 @@ import {
   type ReceptionStatus,
 } from "@/db/schema";
 import { todayIsoDate } from "@/lib/dates";
+import { recordDocumentEvent } from "@/modules/discussion/queries";
+import type { DocumentEventType } from "@/modules/discussion/events";
 import {
   actionLabel,
   canApplyAction,
@@ -31,6 +33,13 @@ import {
 } from "./validation";
 import { nextDocumentNumber } from "@/modules/stock/sequences";
 import { normalizeQuantity, remainingQuantity } from "@/modules/stock/quantities";
+
+const PURCHASE_EVENT_BY_ACTION: Record<PurchaseAction, DocumentEventType> = {
+  request: "purchase_order.requested",
+  confirm: "purchase_order.confirmed",
+  close: "purchase_order.closed",
+  cancel: "purchase_order.cancelled",
+};
 
 export interface SupplierOption {
   readonly id: string;
@@ -537,6 +546,18 @@ export async function transitionPurchaseOrder(
       details: {
         from: order.status,
         to: nextStatus,
+        number,
+      },
+    });
+
+    await recordDocumentEvent(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      entityType: "purchase_order",
+      entityId: order.id,
+      event: {
+        type: PURCHASE_EVENT_BY_ACTION[input.action],
+        key: `status:${input.action}`,
         number,
       },
     });

@@ -4,6 +4,7 @@ import { auditEvents, invoicePayments, invoices } from "@/db/schema";
 import { formatXof } from "@/lib/money";
 import { todayIsoDate } from "@/lib/dates";
 import { parseIsoDate, parseXofPrice } from "@/modules/shared/validation";
+import { recordDocumentEvent } from "@/modules/discussion/queries";
 import { SalesError } from "./errors";
 import { isPaymentMethod } from "./payment-methods";
 
@@ -119,6 +120,18 @@ export async function createInvoicePayment(
         amountXof: amount.value,
         method: methodText,
         balanceXof: balance - amount.value,
+      },
+    });
+
+    await recordDocumentEvent(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      entityType: "invoice",
+      entityId: invoice.id,
+      event: {
+        type: "invoice.payment",
+        key: `payment:${payment.id}`,
+        amountXof: amount.value,
       },
     });
 

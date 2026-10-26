@@ -57,6 +57,13 @@
       "when": 1792983381807,
       "tag": "0007_exchange",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793056416381,
+      "tag": "0008_little_tigra",
+      "breakpoints": true
     }
   ]
 }

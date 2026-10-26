@@ -15,6 +15,7 @@ import { todayIsoDate } from "@/lib/dates";
 import { computeLineReceiptState, computeOrderReceiptState } from "@/modules/purchases/lifecycle";
 import { parseIsoDate } from "@/modules/shared/validation";
 import { PurchaseError } from "@/modules/purchases/errors";
+import { recordDocumentEvent } from "@/modules/discussion/queries";
 import {
   addQuantity,
   compareQuantity,
@@ -295,6 +296,18 @@ export async function createReception(
       },
     });
 
+    await recordDocumentEvent(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      entityType: "purchase_order",
+      entityId: order.id,
+      event: {
+        type: "purchase_order.received",
+        key: `reception:${reception.id}:create`,
+        number,
+      },
+    });
+
     return { receptionId: reception.id, number, moveNumber: move.number, warnings };
   });
 }
@@ -457,6 +470,18 @@ export async function cancelReception(
         originalMoveNumber: original.number,
         lineCount: originalLines.length,
         notes,
+      },
+    });
+
+    await recordDocumentEvent(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      entityType: "purchase_order",
+      entityId: order.id,
+      event: {
+        type: "purchase_order.reception_cancelled",
+        key: `reception:${reception.id}:cancel`,
+        number: reception.number,
       },
     });
 

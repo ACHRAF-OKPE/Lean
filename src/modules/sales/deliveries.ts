@@ -14,6 +14,7 @@ import {
 import type { DeliveryState } from "@/db/schema";
 import { todayIsoDate } from "@/lib/dates";
 import { parseIsoDate } from "@/modules/shared/validation";
+import { recordDocumentEvent } from "@/modules/discussion/queries";
 import {
   addQuantity,
   compareQuantity,
@@ -295,6 +296,18 @@ export async function createDelivery(
       },
     });
 
+    await recordDocumentEvent(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      entityType: "sales_order",
+      entityId: order.id,
+      event: {
+        type: "sales_order.delivered",
+        key: `delivery:${delivery.id}:create`,
+        number,
+      },
+    });
+
     return { deliveryId: delivery.id, number, moveNumber: move.number };
   });
 }
@@ -462,6 +475,18 @@ export async function cancelDelivery(
         originalMoveNumber: original.number,
         lineCount: originalLines.length,
         notes,
+      },
+    });
+
+    await recordDocumentEvent(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      entityType: "sales_order",
+      entityId: order.id,
+      event: {
+        type: "sales_order.delivery_cancelled",
+        key: `delivery:${delivery.id}:cancel`,
+        number: delivery.number,
       },
     });
 

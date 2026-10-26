@@ -3,8 +3,8 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 5B livré — échanges fournisseurs : compte d'envoi, modèles, journal et PDF.**
-Le lot 5 poursuit avec la discussion interne et les tâches. La douane arrive ensuite.
+**Statut : Lot 5C livré — discussion interne, mentions et notifications.**
+Le lot 5 poursuit avec les tâches et leur suivi. La douane arrive ensuite.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -214,6 +214,27 @@ Le Lot 5B ajoute l'envoi des demandes de prix et des confirmations de commande :
 `LEAN_SECRET_KEY` est obligatoire pour enregistrer un mot de passe SMTP. Les échanges sont
 accessibles depuis `/echanges`, `/parametres/echanges` et la fiche d'une commande.
 
+## Collaboration interne
+
+Le Lot 5C ajoute un fil de discussion interne et une boîte de notifications :
+
+- **Fil par document** — tiers, commande fournisseur, commande client et facture portent un
+  fil append-only. Un commentaire de 1 à 4 000 caractères est signé et horodaté ; il n'est
+  jamais modifiable ni supprimé et n'est jamais envoyé au tiers.
+- **Mentions** — un commentaire mentionne des membres de l'espace, dédupliqués et limités à 50. Une mention hors espace fait échouer le commentaire entier ; l'auto-mention ne notifie
+  personne.
+- **Évènements** — demande, confirmation, clôture, annulation, réception, livraison,
+  validation de facture et paiement s'inscrivent automatiquement dans le fil avec leur numéro
+  et leur montant. Une clé stable rend chaque évènement unique, même rejoué.
+- **Notifications** — chaque évènement notifie tous les membres, auteur compris, une fois par
+  membre ; chaque mention notifie la personne visée. Le texte est borné à 500 caractères.
+- **Bandeau** — la cloche affiche le nombre de non-lues et ouvre `/notifications`, limitée aux
+  100 dernières. Chaque utilisateur ne lit et ne marque que ses propres notifications, de
+  façon idempotente.
+
+Aucune notification n'est envoyée par e-mail dans ce lot : la boîte reste interne à
+l'application.
+
 ## Scripts
 
 | Commande              | Rôle                                          |
@@ -239,13 +260,15 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `import_batches`, `import_rows`, `purchase_orders`, `purchase_order_lines`, `receptions`,
 `stock_locations`, `stock_moves`, `stock_move_lines`, `stock_levels`, puis `sales_orders`,
 `sales_order_lines`, `deliveries`, `delivery_lines`, `invoices`, `invoice_lines`,
-`invoice_payments`, `document_sequences`, `company_settings` et `partner_contacts`. Les
-migrations générées sont commitées dans `drizzle/` : `0001` pour l'identité, `0002` pour le
-catalogue et la traçabilité des imports, `0003` pour les notes de lot, `0004` pour les achats
-et le stock, `0005` pour les ventes et la facturation, `0006` pour la fiche entreprise et les
-contacts tiers. Les contraintes d'unicité, de rôle, de format SH, de quantités, de cohérence
-article/nomenclature et de bloc bancaire sont posées en base, en complément de la validation
-applicative.
+`invoice_payments`, `document_sequences`, `company_settings`, `partner_contacts`,
+`exchange_templates`, `exchange_messages`, `discussion_messages`, `discussion_mentions` et
+`notifications`. Les migrations générées sont commitées dans `drizzle/` : `0001` pour
+l'identité, `0002` pour le catalogue et la traçabilité des imports, `0003` pour les notes de
+lot, `0004` pour les achats et le stock, `0005` pour les ventes et la facturation, `0006` pour
+la fiche entreprise et les contacts tiers, `0007` pour les échanges fournisseurs et `0008`
+pour la collaboration. Les contraintes d'unicité, de rôle, de format SH, de quantités, de
+cohérence article/nomenclature, de bloc bancaire et d'idempotence des évènements sont posées
+en base, en complément de la validation applicative.
 
 ```bash
 npm run db:generate

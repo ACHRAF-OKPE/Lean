@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { ArrowLeft, Mail, Pencil, Phone, UserPlus } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
+import { DiscussionPanel } from "@/components/discussion-panel";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
 import { requirePermission } from "@/lib/auth/session";
@@ -268,6 +269,8 @@ async function PartnerContent({
             )}
           </div>
         </section>
+
+        <DiscussionPanel session={session} entityType="partner" entityId={partner.id} />
       </main>
     </div>
   );

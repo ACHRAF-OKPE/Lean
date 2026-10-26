@@ -6,6 +6,7 @@ import { connection } from "next/server";
 import { ArrowLeft, Info, Mail, Mails, PackagePlus, ReceiptText } from "lucide-react";
 import type { PurchaseOrderStatus, ReceptionStatus } from "@/db/schema";
 import { AppHeader } from "@/components/app-header";
+import { DiscussionPanel } from "@/components/discussion-panel";
 import { ExchangeStatusBadge, ExchangeTypeBadge } from "@/components/exchange-badges";
 import { LoadingShell } from "@/components/loading-shell";
 import { PurchaseStatusBadge, ReceiptStateBadge } from "@/components/purchase-badges";
@@ -490,6 +491,8 @@ async function PurchaseOrderContent({
             La réception sera disponible après confirmation de la commande.
           </p>
         ) : null}
+
+        <DiscussionPanel session={session} entityType="purchase_order" entityId={order.id} />
       </main>
     </div>
   );

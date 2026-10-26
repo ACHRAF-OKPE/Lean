@@ -18,6 +18,7 @@ import {
 import { logoutAction, switchTenantAction } from "@/lib/auth/actions";
 import { can } from "@/modules/identity/permissions";
 import type { MembershipSummary, SessionContext } from "@/modules/identity/queries";
+import { NotificationBell } from "./notification-bell";
 
 export type ActiveSection =
   | "home"
@@ -30,6 +31,7 @@ export type ActiveSection =
   | "invoices"
   | "stock"
   | "settings"
+  | "notifications"
   | "audit";
 
 const NAV_ITEMS = [
@@ -118,6 +120,7 @@ export function AppHeader({
           >
             <GitBranch className="size-4" aria-hidden="true" />
           </a>
+          <NotificationBell session={session} active={active === "notifications"} />
           <form action={logoutAction}>
             <button
               type="submit"
