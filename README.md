@@ -3,8 +3,8 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 3 livré — commandes fournisseur, réceptions, stock et import XLSX des lignes
-de commande.** Le prochain lot couvre le cycle vente → livraison → facture.
+**Statut : Lot 4 livré — commandes client, livraisons, facturation et encours.** Le prochain
+lot couvre la douane : régimes, acquit-à-caution, apurement et liquidation TEDU.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -95,8 +95,9 @@ Les trois référentiels du Lot 2 sont consultables et créables depuis `/tiers`
 Le parcours suit deux temps, sans écriture métier à l'analyse :
 
 1. Télécharger le modèle du domaine : `/api/modeles/tiers`, `/api/modeles/articles`,
-   `/api/modeles/nomenclature` ou `/api/modeles/commandes`. Il contient la feuille `Données`,
-   les en-têtes exacts, les listes déroulantes, un mode d'emploi et le référentiel pays.
+   `/api/modeles/nomenclature`, `/api/modeles/commandes` ou `/api/modeles/ventes`. Il contient
+   la feuille `Données`, les en-têtes exacts, les listes déroulantes, un mode d'emploi et le
+   référentiel pays.
 2. Remplir le fichier puis l'envoyer depuis la page d'import. Lean l'analyse et affiche un
    rapport ligne à ligne : statut, code, erreurs bloquantes et avertissements.
 3. Corriger les lignes en erreur et relancer l'analyse si nécessaire.
@@ -137,6 +138,35 @@ et `/stock` :
 Les quantités sont stockées en `numeric(18,6)`, les montants en XOF entiers et les totaux de
 ligne arrondis HALF_UP. Les lignes de service ne génèrent jamais de mouvement de stock.
 
+## Ventes, livraisons et encours
+
+Le cycle vente prolonge le référentiel du Lot 2 et le stock du Lot 3. Il est accessible depuis
+`/ventes` et `/factures` :
+
+- **Commandes client** — brouillon → confirmée → clôturée, annulable tant qu'aucune livraison
+  ni facture n'est validée. Le numéro `VTE-AAAA-NNNN` est attribué à la confirmation ; un
+  brouillon s'affiche sans numéro définitif. Un incoterm 2020 facultatif, une date de
+  livraison prévue et une référence externe sont conservés.
+- **Livraisons** — sur commande confirmée uniquement, avec une date passée ou du jour et un
+  emplacement interne actif. Les produits seulement : un service n'est jamais livré, le
+  reliquat n'est jamais dépassé et le stock disponible est contrôlé. Le bon `BL-AAAA-NNNN`,
+  le mouvement de sortie vers l'emplacement client virtuel, la baisse du stock, les états et
+  l'audit sont écrits dans une seule transaction.
+- **Factures** — depuis une commande confirmée. Un produit se facture à hauteur de la
+  quantité livrée, un service à hauteur de la quantité commandée. La facture naît en brouillon
+  sans numéro et se valide une seule fois ; la validation attribue `FAC-AAAA-NNNN` et fige les
+  montants.
+- **Règlements et encours** — règlements append-only sur facture validée, plafonnés au solde
+  restant. L'encours additionne les soldes des factures validées ; les brouillons sont exclus
+  et une échéance dépassée est signalée.
+- **Import commandes client** — modèle XLSX, analyse sans écriture et rapport par ligne. Les
+  lignes sont groupées par client, date de livraison prévue et référence externe ; chaque
+  groupe crée une commande en brouillon, jamais une commande existante modifiée, et un même
+  fichier ne s'applique qu'une fois.
+
+Une livraison s'annule par un mouvement inverse : le journal reste immuable. L'annulation est
+refusée si une quantité déjà facturée n'était plus couverte par une livraison.
+
 ## Scripts
 
 | Commande              | Rôle                                          |
@@ -159,13 +189,14 @@ formatage s'y ajoute.
 
 Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, `users`,
 `memberships`, `sessions`, `audit_events`, `hs_codes`, `partners`, `articles`,
-`import_batches`, `import_rows`, puis `purchase_orders`, `purchase_order_lines`,
-`receptions`, `stock_locations`, `stock_moves`, `stock_move_lines`, `stock_levels` et
-`document_sequences`. Les migrations générées sont commitées dans `drizzle/` : `0001` pour
-l'identité, `0002` pour le catalogue et la traçabilité des imports, `0003` pour les notes de
-lot, `0004` pour les achats et le stock. Les contraintes d'unicité, de rôle, de format SH, de
-quantités et de cohérence article/nomenclature sont posées en base, en complément de la
-validation applicative.
+`import_batches`, `import_rows`, `purchase_orders`, `purchase_order_lines`, `receptions`,
+`stock_locations`, `stock_moves`, `stock_move_lines`, `stock_levels`, puis `sales_orders`,
+`sales_order_lines`, `deliveries`, `delivery_lines`, `invoices`, `invoice_lines`,
+`invoice_payments` et `document_sequences`. Les migrations générées sont commitées dans
+`drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
+`0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
+facturation. Les contraintes d'unicité, de rôle, de format SH, de quantités et de cohérence
+article/nomenclature sont posées en base, en complément de la validation applicative.
 
 ```bash
 npm run db:generate
