@@ -69,8 +69,14 @@ const CONTEXT_WITH_HS: ValidationContext = {
 };
 
 describe("ART-005 — modèle XLSX téléchargeable", () => {
-  it("produit les trois modèles avec feuilles, en-têtes, formats et référentiel Pays", async () => {
-    for (const kind of ["partners", "articles", "hs_codes"] as const) {
+  it("produit les cinq modèles avec feuilles, en-têtes, formats et référentiel Pays", async () => {
+    for (const kind of [
+      "partners",
+      "articles",
+      "hs_codes",
+      "purchase_lines",
+      "sales_lines",
+    ] as const) {
       const workbook = await loadWorkbook(await buildTemplate(kind));
       const data = workbook.getWorksheet(SHEET_DATA);
 
@@ -200,6 +206,62 @@ describe("ART-005 — lecture du vrai XLSX", () => {
 
     expect(validation.errorCount).toBe(0);
     expect(parsed.rows[0]?.values["code_parent"]).toBe("090111");
+  });
+
+  it("relit le modèle ventes rempli et rattache le client et un article vendable", async () => {
+    const bytes = await fillTemplate("sales_lines", {
+      client: "CUST001",
+      article: "ART001",
+      quantite: "2",
+      prix_unitaire_xof: 1500,
+      date_livraison_prevue: "2099-12-01",
+      reference_externe: "CLI-2026-001",
+    });
+
+    const parsed = await parseWorkbook("sales_lines", bytes);
+    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.rows[0]?.values).toMatchObject({
+      client: "CUST001",
+      article: "ART001",
+      quantite: "2",
+      prix_unitaire_xof: 1500,
+      date_livraison_prevue: "2099-12-01",
+      reference_externe: "CLI-2026-001",
+    });
+
+    const validation = validateImportRows("sales_lines", parsed.rows, {
+      ...EMPTY_VALIDATION_CONTEXT,
+      customersByCode: new Map([
+        [
+          "CUST001",
+          {
+            id: "customer-1",
+            code: "CUST001",
+            name: "Sahel Client",
+            active: true,
+            isCustomer: true,
+          },
+        ],
+      ]),
+      salesArticlesByCode: new Map([
+        [
+          "ART001",
+          {
+            id: "article-1",
+            code: "ART001",
+            name: "Café vert",
+            type: "product",
+            unitCode: "KG",
+            active: true,
+            isSellable: true,
+            salePriceXof: 1500,
+          },
+        ],
+      ]),
+    });
+    expect(validation.errorCount).toBe(0);
+    expect(validation.warningCount).toBe(0);
+    expect(validation.notes?.join(" ")).toMatch(/1 commande client en brouillon/);
   });
 
   it("refuse un modèle encore vide", async () => {

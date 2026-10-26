@@ -11,6 +11,7 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export interface StockMoveLineInput {
   readonly articleId: string;
   readonly purchaseOrderLineId?: string | null;
+  readonly salesOrderLineId?: string | null;
   readonly qty: string;
   readonly unitPriceXof?: number | null;
 }
@@ -24,6 +25,8 @@ export interface InsertStockMoveInput {
   readonly partnerId?: string | null;
   readonly purchaseOrderId?: string | null;
   readonly receptionId?: string | null;
+  readonly salesOrderId?: string | null;
+  readonly deliveryId?: string | null;
   readonly cancelsMoveId?: string | null;
   readonly realDate: string;
   readonly notes?: string | null;
@@ -163,6 +166,8 @@ export async function insertStockMove(
       partnerId: input.partnerId ?? null,
       purchaseOrderId: input.purchaseOrderId ?? null,
       receptionId: input.receptionId ?? null,
+      salesOrderId: input.salesOrderId ?? null,
+      deliveryId: input.deliveryId ?? null,
       cancelsMoveId: input.cancelsMoveId ?? null,
       realDate: input.realDate,
       notes: input.notes ?? null,
@@ -181,6 +186,7 @@ export async function insertStockMove(
       lineNumber: index + 1,
       articleId: line.articleId,
       purchaseOrderLineId: line.purchaseOrderLineId ?? null,
+      salesOrderLineId: line.salesOrderLineId ?? null,
       qty: line.qty,
       unitPriceXof: line.unitPriceXof ?? null,
     })),

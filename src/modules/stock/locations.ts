@@ -7,10 +7,12 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const DEFAULT_INTERNAL_CODE = "MAG";
 export const DEFAULT_SUPPLIER_CODE = "FOURN";
+export const DEFAULT_CUSTOMER_CODE = "CLIENT";
 
 export interface DefaultLocations {
   readonly internalId: string;
   readonly supplierId: string;
+  readonly customerId: string;
 }
 
 export interface LocationOption {
@@ -33,6 +35,12 @@ export async function ensureDefaultLocations(
         name: "Fournisseur (virtuel)",
         type: "supplier",
       },
+      {
+        tenantId,
+        code: DEFAULT_CUSTOMER_CODE,
+        name: "Client (virtuel)",
+        type: "customer",
+      },
     ])
     .onConflictDoNothing({ target: [stockLocations.tenantId, stockLocations.code] });
 
@@ -46,17 +54,29 @@ export async function ensureDefaultLocations(
     .where(
       and(
         eq(stockLocations.tenantId, tenantId),
-        inArray(stockLocations.code, [DEFAULT_INTERNAL_CODE, DEFAULT_SUPPLIER_CODE]),
+        inArray(stockLocations.code, [
+          DEFAULT_INTERNAL_CODE,
+          DEFAULT_SUPPLIER_CODE,
+          DEFAULT_CUSTOMER_CODE,
+        ]),
       ),
     );
 
   const internal = rows.find((row) => row.code === DEFAULT_INTERNAL_CODE);
   const supplier = rows.find((row) => row.code === DEFAULT_SUPPLIER_CODE);
-  if (!internal || !supplier || internal.type !== "internal" || supplier.type !== "supplier") {
-    throw new StockError("Les emplacements par défaut MAG et FOURN sont introuvables.");
+  const customer = rows.find((row) => row.code === DEFAULT_CUSTOMER_CODE);
+  if (
+    !internal ||
+    !supplier ||
+    !customer ||
+    internal.type !== "internal" ||
+    supplier.type !== "supplier" ||
+    customer.type !== "customer"
+  ) {
+    throw new StockError("Les emplacements par défaut MAG, FOURN et CLIENT sont introuvables.");
   }
 
-  return { internalId: internal.id, supplierId: supplier.id };
+  return { internalId: internal.id, supplierId: supplier.id, customerId: customer.id };
 }
 
 export async function listInternalLocations(

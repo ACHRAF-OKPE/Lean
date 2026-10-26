@@ -6,7 +6,9 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  ReceiptText,
   ScrollText,
+  ShoppingBag,
   ShoppingCart,
   Users,
   Warehouse,
@@ -16,7 +18,15 @@ import { can } from "@/modules/identity/permissions";
 import type { MembershipSummary, SessionContext } from "@/modules/identity/queries";
 
 export type ActiveSection =
-  "home" | "partners" | "articles" | "nomenclature" | "purchases" | "stock" | "audit";
+  | "home"
+  | "partners"
+  | "articles"
+  | "nomenclature"
+  | "purchases"
+  | "sales"
+  | "invoices"
+  | "stock"
+  | "audit";
 
 const NAV_ITEMS = [
   { key: "home", href: "/", label: "Poste de pilotage", icon: LayoutDashboard },
@@ -24,6 +34,8 @@ const NAV_ITEMS = [
   { key: "articles", href: "/articles", label: "Articles", icon: Package },
   { key: "nomenclature", href: "/nomenclature", label: "Nomenclature douanière", icon: Barcode },
   { key: "purchases", href: "/achats", label: "Achats", icon: ShoppingCart },
+  { key: "sales", href: "/ventes", label: "Ventes", icon: ShoppingBag },
+  { key: "invoices", href: "/factures", label: "Factures", icon: ReceiptText },
   { key: "stock", href: "/stock", label: "Stock", icon: Warehouse },
 ] as const;
 

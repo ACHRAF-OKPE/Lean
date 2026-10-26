@@ -35,14 +35,14 @@ export const LOTS: readonly Lot[] = [
   {
     id: 4,
     title: "Vente → livraison → facture",
-    scope: "Commandes client, livraisons, facturation",
-    status: "next",
+    scope: "Commandes client, livraisons, facturation, encours",
+    status: "done",
   },
   {
     id: 5,
     title: "Douane",
     scope: "Régimes ASYCUDA, acquit-à-caution, apurement, TEDU",
-    status: "planned",
+    status: "next",
   },
   {
     id: 6,

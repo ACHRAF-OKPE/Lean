@@ -13,7 +13,7 @@ import {
 import type { ReceiptState } from "@/db/schema";
 import { todayIsoDate } from "@/lib/dates";
 import { computeLineReceiptState, computeOrderReceiptState } from "@/modules/purchases/lifecycle";
-import { parseIsoDate } from "@/modules/purchases/validation";
+import { parseIsoDate } from "@/modules/shared/validation";
 import { PurchaseError } from "@/modules/purchases/errors";
 import {
   addQuantity,

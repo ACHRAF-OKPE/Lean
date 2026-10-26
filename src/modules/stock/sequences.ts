@@ -9,6 +9,9 @@ const PREFIXES: Record<DocumentScope, string> = {
   purchase_order: "CMD",
   reception: "REC",
   stock_move: "MVT",
+  sales_order: "VTE",
+  delivery: "BL",
+  invoice: "FAC",
 };
 
 const MAX_SEQUENCE_VALUE = 9999;

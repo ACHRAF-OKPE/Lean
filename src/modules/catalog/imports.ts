@@ -13,6 +13,8 @@ import {
 } from "@/db/schema";
 import { applyPurchaseLines } from "@/modules/purchases/imports";
 import { PurchaseError } from "@/modules/purchases/errors";
+import { applySalesLines } from "@/modules/sales/imports";
+import { SalesError } from "@/modules/sales/errors";
 import { CatalogError } from "./errors";
 import { loadValidationContext } from "./queries";
 import {
@@ -408,14 +410,14 @@ export async function applyImportBatch(
       );
     }
 
-    if (batch.kind === "purchase_lines") {
+    if (batch.kind === "purchase_lines" || batch.kind === "sales_lines") {
       const [previous] = await tx
         .select({ id: importBatches.id })
         .from(importBatches)
         .where(
           and(
             eq(importBatches.tenantId, input.tenantId),
-            eq(importBatches.kind, "purchase_lines"),
+            eq(importBatches.kind, batch.kind),
             eq(importBatches.fileHash, batch.fileHash),
             eq(importBatches.status, "applied"),
             ne(importBatches.id, batch.id),
@@ -423,9 +425,12 @@ export async function applyImportBatch(
         )
         .limit(1);
       if (previous) {
-        throw new PurchaseError(
-          "Ce fichier a déjà été importé en commandes : un même fichier ne s'applique qu'une fois.",
-        );
+        const message =
+          "Ce fichier a déjà été importé en commandes : un même fichier ne s'applique qu'une fois.";
+        if (batch.kind === "purchase_lines") {
+          throw new PurchaseError(message);
+        }
+        throw new SalesError(message);
       }
     }
 
@@ -454,6 +459,14 @@ export async function applyImportBatch(
         rows,
       });
       orders = result.orders;
+    } else if (batch.kind === "sales_lines") {
+      const result = await applySalesLines(tx, {
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        batchId: batch.id,
+        rows,
+      });
+      orders = result.orders;
     } else if (batch.kind === "partners") {
       await upsertPartners(tx, input.tenantId, rows);
     } else if (batch.kind === "articles") {
@@ -462,7 +475,7 @@ export async function applyImportBatch(
       await upsertHsCodes(tx, input.tenantId, rows);
     }
 
-    if (batch.kind !== "purchase_lines") {
+    if (batch.kind !== "purchase_lines" && batch.kind !== "sales_lines") {
       await tx.execute(sql`
         update ${importRows} as r
         set entity_id = c.id

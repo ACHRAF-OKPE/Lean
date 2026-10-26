@@ -606,7 +606,7 @@ describe("TEN — isolation des achats", () => {
     const [locationRow] = await db
       .select({ code: stockLocations.code })
       .from(stockLocations)
-      .where(eq(stockLocations.tenantId, second.tenantId))
+      .where(and(eq(stockLocations.tenantId, second.tenantId), eq(stockLocations.type, "internal")))
       .limit(1);
     expect(locationRow?.code).toBe("MAG");
   });

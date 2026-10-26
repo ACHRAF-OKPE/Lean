@@ -12,6 +12,7 @@ import {
   MAX_IMPORT_ROWS,
   PARTNER_HEADERS,
   PURCHASE_LINE_HEADERS,
+  SALES_LINE_HEADERS,
   SHEET_DATA,
   SHEET_HELP,
   SHEET_REFERENCES,
@@ -34,6 +35,7 @@ const TEMPLATE_FILE_NAMES: Record<ImportKind, string> = {
   articles: "lean-modele-articles.xlsx",
   hs_codes: "lean-modele-nomenclature.xlsx",
   purchase_lines: "lean-modele-commandes.xlsx",
+  sales_lines: "lean-modele-ventes.xlsx",
 };
 
 export function templateFileName(kind: ImportKind): string {
@@ -308,11 +310,21 @@ const PURCHASE_LINE_COLUMN_META: Record<(typeof PURCHASE_LINE_HEADERS)[number], 
   reference_externe: { width: 24 },
 };
 
+const SALES_LINE_COLUMN_META: Record<(typeof SALES_LINE_HEADERS)[number], ColumnMeta> = {
+  client: { width: 16, text: true },
+  article: { width: 16, text: true },
+  quantite: { width: 14, text: true },
+  prix_unitaire_xof: { width: 18, integer: true },
+  date_livraison_prevue: { width: 20, text: true },
+  reference_externe: { width: 24 },
+};
+
 const COLUMN_META: Record<ImportKind, Record<string, ColumnMeta>> = {
   partners: PARTNER_COLUMN_META,
   articles: ARTICLE_COLUMN_META,
   hs_codes: HS_COLUMN_META,
   purchase_lines: PURCHASE_LINE_COLUMN_META,
+  sales_lines: SALES_LINE_COLUMN_META,
 };
 
 const PARTNER_COLUMN_HELP: Record<(typeof PARTNER_HEADERS)[number], string> = {
@@ -365,11 +377,21 @@ const PURCHASE_LINE_COLUMN_HELP: Record<(typeof PURCHASE_LINE_HEADERS)[number], 
   reference_externe: "Facultative. 60 caractères maximum ; elle sépare les groupes de commande.",
 };
 
+const SALES_LINE_COLUMN_HELP: Record<(typeof SALES_LINE_HEADERS)[number], string> = {
+  client: "Obligatoire. Code d'un tiers existant, actif et portant le rôle client.",
+  article: "Obligatoire. Code d'un article existant, actif et vendable.",
+  quantite: "Obligatoire. Nombre positif, 6 décimales maximum (virgule ou point décimal).",
+  prix_unitaire_xof: "Obligatoire. Montant XOF entier, sans décimale.",
+  date_livraison_prevue: "Facultative. Date AAAA-MM-JJ, aujourd'hui ou future.",
+  reference_externe: "Facultative. 60 caractères maximum ; elle sépare les groupes de commande.",
+};
+
 const COLUMN_HELP: Record<ImportKind, Record<string, string>> = {
   partners: PARTNER_COLUMN_HELP,
   articles: ARTICLE_COLUMN_HELP,
   hs_codes: HS_COLUMN_HELP,
   purchase_lines: PURCHASE_LINE_COLUMN_HELP,
+  sales_lines: SALES_LINE_COLUMN_HELP,
 };
 
 const EXAMPLES: Record<ImportKind, Record<string, string>> = {
@@ -416,6 +438,14 @@ const EXAMPLES: Record<ImportKind, Record<string, string>> = {
     date_reception_prevue: "2026-11-15",
     reference_externe: "PO-SN-2026-014",
   },
+  sales_lines: {
+    client: "CLI001",
+    article: "ART001",
+    quantite: "10",
+    prix_unitaire_xof: "250000",
+    date_livraison_prevue: "2026-11-20",
+    reference_externe: "SO-SN-2026-021",
+  },
 };
 
 const KIND_RULES: Record<ImportKind, readonly string[]> = {
@@ -444,6 +474,14 @@ const KIND_RULES: Record<ImportKind, readonly string[]> = {
     "Chaque groupe crée une commande en brouillon : aucune commande existante n'est modifiée.",
     "Un même fichier ne peut être appliqué qu'une seule fois.",
     "Une date passée ou un prix différent du prix d'achat de la fiche produit un avertissement.",
+  ],
+  sales_lines: [
+    "Chaque ligne référence un client existant, actif et client, et un article existant, actif et vendable.",
+    "Les lignes sont groupées par client, date de livraison prévue et référence externe.",
+    "Chaque groupe crée une commande client en brouillon : aucune commande existante n'est modifiée.",
+    "Un même fichier ne peut être appliqué qu'une seule fois.",
+    "Une date passée ou un prix différent du prix de vente de la fiche produit un avertissement.",
+    "L'incoterm n'est pas transporté par l'import : il se renseigne sur la fiche de la commande.",
   ],
 };
 

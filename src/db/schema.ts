@@ -90,15 +90,22 @@ export const auditEvents = pgTable(
 
 export type PartnerType = "company" | "individual";
 export type ArticleType = "product" | "service";
-export type ImportKind = "partners" | "articles" | "hs_codes" | "purchase_lines";
+export type ImportKind = "partners" | "articles" | "hs_codes" | "purchase_lines" | "sales_lines";
 export type ImportBatchStatus = "analyzed" | "applied";
 export type ImportRowStatus = "valid" | "warning" | "error";
 export type PurchaseOrderStatus = "draft" | "requested" | "confirmed" | "closed" | "cancelled";
 export type ReceiptState = "not_received" | "partially_received" | "received";
 export type ReceptionStatus = "validated" | "cancelled";
-export type StockLocationType = "internal" | "supplier";
+export type SalesOrderStatus = "draft" | "confirmed" | "closed" | "cancelled";
+export type DeliveryState = "not_delivered" | "partially_delivered" | "delivered";
+export type InvoicingState = "not_invoiced" | "partially_invoiced" | "invoiced";
+export type DeliveryStatus = "validated" | "cancelled";
+export type InvoiceStatus = "draft" | "validated" | "cancelled";
+export type PaymentMethod = "transfer" | "cash" | "cheque" | "mobile_money";
+export type StockLocationType = "internal" | "supplier" | "customer";
 export type StockMoveType = "incoming" | "outgoing";
-export type DocumentScope = "purchase_order" | "reception" | "stock_move";
+export type DocumentScope =
+  "purchase_order" | "reception" | "stock_move" | "sales_order" | "delivery" | "invoice";
 
 export const hsCodes = pgTable(
   "hs_codes",
@@ -234,7 +241,7 @@ export const importBatches = pgTable(
     index("import_batches_tenant_created_idx").on(table.tenantId, table.createdAt),
     check(
       "import_batches_kind_check",
-      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines')`,
+      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines')`,
     ),
     check("import_batches_status_check", sql`${table.status} in ('analyzed', 'applied')`),
     check(
@@ -293,7 +300,7 @@ export const stockLocations = pgTable(
     index("stock_locations_tenant_type_idx").on(table.tenantId, table.type),
     check("stock_locations_code_format_check", sql`${table.code} ~ '^[A-Z0-9][A-Z0-9-]{1,11}$'`),
     check("stock_locations_name_check", sql`char_length(${table.name}) between 1 and 80`),
-    check("stock_locations_type_check", sql`${table.type} in ('internal', 'supplier')`),
+    check("stock_locations_type_check", sql`${table.type} in ('internal', 'supplier', 'customer')`),
   ],
 );
 
@@ -437,6 +444,358 @@ export const receptions = pgTable(
   ],
 );
 
+export const salesOrders = pgTable(
+  "sales_orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    number: text("number"),
+    customerId: uuid("customer_id").notNull(),
+    status: text("status").$type<SalesOrderStatus>().notNull().default("draft"),
+    deliveryState: text("delivery_state").$type<DeliveryState>().notNull().default("not_delivered"),
+    invoicingState: text("invoicing_state")
+      .$type<InvoicingState>()
+      .notNull()
+      .default("not_invoiced"),
+    orderDate: date("order_date", { mode: "string" }).notNull(),
+    expectedDeliveryDate: date("expected_delivery_date", { mode: "string" }),
+    externalReference: text("external_reference"),
+    incoterm: text("incoterm"),
+    notes: text("notes"),
+    exTaxTotal: integer("ex_tax_total").notNull().default(0),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    confirmedBy: uuid("confirmed_by").references(() => users.id, { onDelete: "set null" }),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("sales_orders_tenant_number_idx").on(table.tenantId, table.number),
+    uniqueIndex("sales_orders_tenant_id_idx").on(table.tenantId, table.id),
+    index("sales_orders_tenant_status_idx").on(table.tenantId, table.status, table.createdAt),
+    index("sales_orders_tenant_customer_idx").on(table.tenantId, table.customerId),
+    check(
+      "sales_orders_status_check",
+      sql`${table.status} in ('draft', 'confirmed', 'closed', 'cancelled')`,
+    ),
+    check(
+      "sales_orders_delivery_state_check",
+      sql`${table.deliveryState} in ('not_delivered', 'partially_delivered', 'delivered')`,
+    ),
+    check(
+      "sales_orders_invoicing_state_check",
+      sql`${table.invoicingState} in ('not_invoiced', 'partially_invoiced', 'invoiced')`,
+    ),
+    check("sales_orders_total_check", sql`${table.exTaxTotal} between 0 and 2000000000`),
+    check(
+      "sales_orders_reference_check",
+      sql`${table.externalReference} is null or char_length(${table.externalReference}) <= 60`,
+    ),
+    check(
+      "sales_orders_incoterm_check",
+      sql`${table.incoterm} is null or ${table.incoterm} in ('EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP')`,
+    ),
+    check(
+      "sales_orders_notes_check",
+      sql`${table.notes} is null or char_length(${table.notes}) <= 1000`,
+    ),
+    check(
+      "sales_orders_number_check",
+      sql`${table.number} is null or ${table.number} ~ '^VTE-[0-9]{4}-[0-9]{4}$'`,
+    ),
+    foreignKey({
+      name: "sales_orders_tenant_customer_fk",
+      columns: [table.tenantId, table.customerId],
+      foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const salesOrderLines = pgTable(
+  "sales_order_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    orderId: uuid("order_id").notNull(),
+    lineNumber: integer("line_number").notNull(),
+    articleId: uuid("article_id").notNull(),
+    name: text("name").notNull(),
+    unitCode: text("unit_code").notNull(),
+    qty: numeric("qty", { precision: 18, scale: 6 }).notNull(),
+    unitPriceXof: integer("unit_price_xof").notNull(),
+    lineTotalXof: integer("line_total_xof").notNull(),
+    deliveredQty: numeric("delivered_qty", { precision: 18, scale: 6 }).notNull().default("0"),
+    invoicedQty: numeric("invoiced_qty", { precision: 18, scale: 6 }).notNull().default("0"),
+    deliveryState: text("delivery_state").$type<DeliveryState>().notNull().default("not_delivered"),
+    invoicingState: text("invoicing_state")
+      .$type<InvoicingState>()
+      .notNull()
+      .default("not_invoiced"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("sales_order_lines_order_line_idx").on(
+      table.tenantId,
+      table.orderId,
+      table.lineNumber,
+    ),
+    uniqueIndex("sales_order_lines_tenant_id_idx").on(table.tenantId, table.id),
+    index("sales_order_lines_tenant_order_idx").on(table.tenantId, table.orderId),
+    check("sales_order_lines_number_check", sql`${table.lineNumber} > 0`),
+    check("sales_order_lines_qty_check", sql`${table.qty} > 0`),
+    check("sales_order_lines_price_check", sql`${table.unitPriceXof} between 0 and 2000000000`),
+    check("sales_order_lines_total_check", sql`${table.lineTotalXof} between 0 and 2000000000`),
+    check(
+      "sales_order_lines_delivered_check",
+      sql`${table.deliveredQty} >= 0 and ${table.deliveredQty} <= ${table.qty}`,
+    ),
+    check(
+      "sales_order_lines_invoiced_check",
+      sql`${table.invoicedQty} >= 0 and ${table.invoicedQty} <= ${table.qty}`,
+    ),
+    check(
+      "sales_order_lines_delivery_state_check",
+      sql`${table.deliveryState} in ('not_delivered', 'partially_delivered', 'delivered')`,
+    ),
+    check(
+      "sales_order_lines_invoicing_state_check",
+      sql`${table.invoicingState} in ('not_invoiced', 'partially_invoiced', 'invoiced')`,
+    ),
+    foreignKey({
+      name: "sales_order_lines_tenant_order_fk",
+      columns: [table.tenantId, table.orderId],
+      foreignColumns: [salesOrders.tenantId, salesOrders.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "sales_order_lines_tenant_article_fk",
+      columns: [table.tenantId, table.articleId],
+      foreignColumns: [articles.tenantId, articles.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const deliveries = pgTable(
+  "deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    number: text("number").notNull(),
+    orderId: uuid("order_id").notNull(),
+    locationId: uuid("location_id").notNull(),
+    status: text("status").$type<DeliveryStatus>().notNull().default("validated"),
+    deliveredDate: date("delivered_date", { mode: "string" }).notNull(),
+    notes: text("notes"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    cancelledBy: uuid("cancelled_by").references(() => users.id, { onDelete: "set null" }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("deliveries_tenant_number_idx").on(table.tenantId, table.number),
+    uniqueIndex("deliveries_tenant_id_idx").on(table.tenantId, table.id),
+    index("deliveries_tenant_order_idx").on(table.tenantId, table.orderId, table.createdAt),
+    check("deliveries_status_check", sql`${table.status} in ('validated', 'cancelled')`),
+    check("deliveries_number_check", sql`${table.number} ~ '^BL-[0-9]{4}-[0-9]{4}$'`),
+    check(
+      "deliveries_notes_check",
+      sql`${table.notes} is null or char_length(${table.notes}) <= 1000`,
+    ),
+    foreignKey({
+      name: "deliveries_tenant_order_fk",
+      columns: [table.tenantId, table.orderId],
+      foreignColumns: [salesOrders.tenantId, salesOrders.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "deliveries_tenant_location_fk",
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [stockLocations.tenantId, stockLocations.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const deliveryLines = pgTable(
+  "delivery_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    deliveryId: uuid("delivery_id").notNull(),
+    lineNumber: integer("line_number").notNull(),
+    orderLineId: uuid("order_line_id").notNull(),
+    articleId: uuid("article_id").notNull(),
+    qty: numeric("qty", { precision: 18, scale: 6 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("delivery_lines_delivery_line_idx").on(
+      table.tenantId,
+      table.deliveryId,
+      table.lineNumber,
+    ),
+    uniqueIndex("delivery_lines_tenant_id_idx").on(table.tenantId, table.id),
+    index("delivery_lines_tenant_delivery_idx").on(table.tenantId, table.deliveryId),
+    index("delivery_lines_tenant_order_line_idx").on(table.tenantId, table.orderLineId),
+    check("delivery_lines_number_check", sql`${table.lineNumber} > 0`),
+    check("delivery_lines_qty_check", sql`${table.qty} > 0`),
+    foreignKey({
+      name: "delivery_lines_tenant_delivery_fk",
+      columns: [table.tenantId, table.deliveryId],
+      foreignColumns: [deliveries.tenantId, deliveries.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "delivery_lines_tenant_order_line_fk",
+      columns: [table.tenantId, table.orderLineId],
+      foreignColumns: [salesOrderLines.tenantId, salesOrderLines.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "delivery_lines_tenant_article_fk",
+      columns: [table.tenantId, table.articleId],
+      foreignColumns: [articles.tenantId, articles.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    number: text("number"),
+    orderId: uuid("order_id").notNull(),
+    customerId: uuid("customer_id").notNull(),
+    status: text("status").$type<InvoiceStatus>().notNull().default("draft"),
+    invoiceDate: date("invoice_date", { mode: "string" }).notNull(),
+    dueDate: date("due_date", { mode: "string" }).notNull(),
+    notes: text("notes"),
+    exTaxTotal: integer("ex_tax_total").notNull().default(0),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    validatedBy: uuid("validated_by").references(() => users.id, { onDelete: "set null" }),
+    validatedAt: timestamp("validated_at", { withTimezone: true }),
+    cancelledBy: uuid("cancelled_by").references(() => users.id, { onDelete: "set null" }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("invoices_tenant_number_idx").on(table.tenantId, table.number),
+    uniqueIndex("invoices_tenant_id_idx").on(table.tenantId, table.id),
+    index("invoices_tenant_status_idx").on(table.tenantId, table.status, table.invoiceDate),
+    index("invoices_tenant_customer_idx").on(table.tenantId, table.customerId),
+    index("invoices_tenant_order_idx").on(table.tenantId, table.orderId),
+    check("invoices_status_check", sql`${table.status} in ('draft', 'validated', 'cancelled')`),
+    check("invoices_total_check", sql`${table.exTaxTotal} between 0 and 2000000000`),
+    check("invoices_dates_check", sql`${table.dueDate} >= ${table.invoiceDate}`),
+    check(
+      "invoices_notes_check",
+      sql`${table.notes} is null or char_length(${table.notes}) <= 1000`,
+    ),
+    check(
+      "invoices_number_check",
+      sql`${table.number} is null or ${table.number} ~ '^FAC-[0-9]{4}-[0-9]{4}$'`,
+    ),
+    foreignKey({
+      name: "invoices_tenant_order_fk",
+      columns: [table.tenantId, table.orderId],
+      foreignColumns: [salesOrders.tenantId, salesOrders.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "invoices_tenant_customer_fk",
+      columns: [table.tenantId, table.customerId],
+      foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const invoiceLines = pgTable(
+  "invoice_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    invoiceId: uuid("invoice_id").notNull(),
+    lineNumber: integer("line_number").notNull(),
+    orderLineId: uuid("order_line_id").notNull(),
+    articleId: uuid("article_id").notNull(),
+    name: text("name").notNull(),
+    unitCode: text("unit_code").notNull(),
+    qty: numeric("qty", { precision: 18, scale: 6 }).notNull(),
+    unitPriceXof: integer("unit_price_xof").notNull(),
+    lineTotalXof: integer("line_total_xof").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("invoice_lines_invoice_line_idx").on(
+      table.tenantId,
+      table.invoiceId,
+      table.lineNumber,
+    ),
+    uniqueIndex("invoice_lines_tenant_id_idx").on(table.tenantId, table.id),
+    index("invoice_lines_tenant_invoice_idx").on(table.tenantId, table.invoiceId),
+    index("invoice_lines_tenant_order_line_idx").on(table.tenantId, table.orderLineId),
+    check("invoice_lines_number_check", sql`${table.lineNumber} > 0`),
+    check("invoice_lines_qty_check", sql`${table.qty} > 0`),
+    check("invoice_lines_price_check", sql`${table.unitPriceXof} between 0 and 2000000000`),
+    check("invoice_lines_total_check", sql`${table.lineTotalXof} between 0 and 2000000000`),
+    foreignKey({
+      name: "invoice_lines_tenant_invoice_fk",
+      columns: [table.tenantId, table.invoiceId],
+      foreignColumns: [invoices.tenantId, invoices.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "invoice_lines_tenant_order_line_fk",
+      columns: [table.tenantId, table.orderLineId],
+      foreignColumns: [salesOrderLines.tenantId, salesOrderLines.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "invoice_lines_tenant_article_fk",
+      columns: [table.tenantId, table.articleId],
+      foreignColumns: [articles.tenantId, articles.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const invoicePayments = pgTable(
+  "invoice_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    invoiceId: uuid("invoice_id").notNull(),
+    amountXof: integer("amount_xof").notNull(),
+    paidDate: date("paid_date", { mode: "string" }).notNull(),
+    method: text("method").$type<PaymentMethod>().notNull(),
+    reference: text("reference"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("invoice_payments_tenant_invoice_idx").on(
+      table.tenantId,
+      table.invoiceId,
+      table.paidDate,
+    ),
+    check("invoice_payments_amount_check", sql`${table.amountXof} > 0`),
+    check(
+      "invoice_payments_method_check",
+      sql`${table.method} in ('transfer', 'cash', 'cheque', 'mobile_money')`,
+    ),
+    check(
+      "invoice_payments_reference_check",
+      sql`${table.reference} is null or char_length(${table.reference}) <= 60`,
+    ),
+    foreignKey({
+      name: "invoice_payments_tenant_invoice_fk",
+      columns: [table.tenantId, table.invoiceId],
+      foreignColumns: [invoices.tenantId, invoices.id],
+    }).onDelete("restrict"),
+  ],
+);
+
 export const stockMoves = pgTable(
   "stock_moves",
   {
@@ -451,6 +810,8 @@ export const stockMoves = pgTable(
     partnerId: uuid("partner_id"),
     purchaseOrderId: uuid("purchase_order_id"),
     receptionId: uuid("reception_id"),
+    salesOrderId: uuid("sales_order_id"),
+    deliveryId: uuid("delivery_id"),
     cancelsMoveId: uuid("cancels_move_id"),
     realDate: date("real_date", { mode: "string" }).notNull(),
     notes: text("notes"),
@@ -463,7 +824,13 @@ export const stockMoves = pgTable(
     index("stock_moves_tenant_date_idx").on(table.tenantId, table.realDate),
     index("stock_moves_tenant_reception_idx").on(table.tenantId, table.receptionId),
     index("stock_moves_tenant_order_idx").on(table.tenantId, table.purchaseOrderId),
+    index("stock_moves_tenant_sales_order_idx").on(table.tenantId, table.salesOrderId),
+    index("stock_moves_tenant_delivery_idx").on(table.tenantId, table.deliveryId),
     check("stock_moves_type_check", sql`${table.type} in ('incoming', 'outgoing')`),
+    check(
+      "stock_moves_source_check",
+      sql`${table.purchaseOrderId} is null or ${table.salesOrderId} is null`,
+    ),
     check("stock_moves_number_check", sql`${table.number} ~ '^MVT-[0-9]{4}-[0-9]{4}$'`),
     check("stock_moves_locations_check", sql`${table.fromLocationId} <> ${table.toLocationId}`),
     check(
@@ -496,6 +863,16 @@ export const stockMoves = pgTable(
       foreignColumns: [receptions.tenantId, receptions.id],
     }).onDelete("restrict"),
     foreignKey({
+      name: "stock_moves_tenant_sales_order_fk",
+      columns: [table.tenantId, table.salesOrderId],
+      foreignColumns: [salesOrders.tenantId, salesOrders.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "stock_moves_tenant_delivery_fk",
+      columns: [table.tenantId, table.deliveryId],
+      foreignColumns: [deliveries.tenantId, deliveries.id],
+    }).onDelete("restrict"),
+    foreignKey({
       name: "stock_moves_tenant_cancels_fk",
       columns: [table.tenantId, table.cancelsMoveId],
       foreignColumns: [table.tenantId, table.id],
@@ -512,6 +889,7 @@ export const stockMoveLines = pgTable(
     lineNumber: integer("line_number").notNull(),
     articleId: uuid("article_id").notNull(),
     purchaseOrderLineId: uuid("purchase_order_line_id"),
+    salesOrderLineId: uuid("sales_order_line_id"),
     qty: numeric("qty", { precision: 18, scale: 6 }).notNull(),
     unitPriceXof: integer("unit_price_xof"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -544,6 +922,11 @@ export const stockMoveLines = pgTable(
       name: "stock_move_lines_tenant_order_line_fk",
       columns: [table.tenantId, table.purchaseOrderLineId],
       foreignColumns: [purchaseOrderLines.tenantId, purchaseOrderLines.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "stock_move_lines_tenant_sales_line_fk",
+      columns: [table.tenantId, table.salesOrderLineId],
+      foreignColumns: [salesOrderLines.tenantId, salesOrderLines.id],
     }).onDelete("restrict"),
   ],
 );
@@ -601,7 +984,7 @@ export const documentSequences = pgTable(
     ),
     check(
       "document_sequences_scope_check",
-      sql`${table.scope} in ('purchase_order', 'reception', 'stock_move')`,
+      sql`${table.scope} in ('purchase_order', 'reception', 'stock_move', 'sales_order', 'delivery', 'invoice')`,
     ),
     check("document_sequences_period_check", sql`${table.period} between 2000 and 9999`),
     check("document_sequences_value_check", sql`${table.lastValue} >= 0`),
@@ -617,6 +1000,13 @@ export type StockLocationRow = typeof stockLocations.$inferSelect;
 export type PurchaseOrderRow = typeof purchaseOrders.$inferSelect;
 export type PurchaseOrderLineRow = typeof purchaseOrderLines.$inferSelect;
 export type ReceptionRow = typeof receptions.$inferSelect;
+export type SalesOrderRow = typeof salesOrders.$inferSelect;
+export type SalesOrderLineRow = typeof salesOrderLines.$inferSelect;
+export type DeliveryRow = typeof deliveries.$inferSelect;
+export type DeliveryLineRow = typeof deliveryLines.$inferSelect;
+export type InvoiceRow = typeof invoices.$inferSelect;
+export type InvoiceLineRow = typeof invoiceLines.$inferSelect;
+export type InvoicePaymentRow = typeof invoicePayments.$inferSelect;
 export type StockMoveRow = typeof stockMoves.$inferSelect;
 export type StockMoveLineRow = typeof stockMoveLines.$inferSelect;
 export type StockLevelRow = typeof stockLevels.$inferSelect;

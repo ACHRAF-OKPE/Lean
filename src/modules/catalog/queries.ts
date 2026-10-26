@@ -95,6 +95,7 @@ export async function loadValidationContext(
         code: partners.code,
         name: partners.name,
         active: partners.active,
+        isCustomer: partners.isCustomer,
         isSupplier: partners.isSupplier,
       })
       .from(partners)
@@ -109,6 +110,8 @@ export async function loadValidationContext(
         active: articles.active,
         isPurchasable: articles.isPurchasable,
         purchasePriceXof: articles.purchasePriceXof,
+        isSellable: articles.isSellable,
+        salePriceXof: articles.salePriceXof,
       })
       .from(articles)
       .where(eq(articles.tenantId, tenantId)),
@@ -123,7 +126,9 @@ export async function loadValidationContext(
     existingArticleCodes: new Set(articleRows.map((row) => row.code)),
     existingHsCodes: new Map(hsRows.map((row) => [row.code, row.wording])),
     suppliersByCode: new Map(partnerRows.map((row) => [row.code, row])),
+    customersByCode: new Map(partnerRows.map((row) => [row.code, row])),
     articlesByCode: new Map(articleRows.map((row) => [row.code, row])),
+    salesArticlesByCode: new Map(articleRows.map((row) => [row.code, row])),
   };
 }
 

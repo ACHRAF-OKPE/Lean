@@ -12,7 +12,9 @@ import {
   Layers,
   Lock,
   Package,
+  ReceiptText,
   ShieldCheck,
+  ShoppingBag,
   ShoppingCart,
   Users,
   Warehouse,
@@ -21,10 +23,12 @@ import { AppHeader } from "@/components/app-header";
 import { getDb } from "@/db/client";
 import { requireSession } from "@/lib/auth/session";
 import { LOTS, type LotStatus } from "@/lib/lots";
+import { formatXof } from "@/lib/money";
 import { ROLE_LABELS } from "@/modules/identity/labels";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getCatalogCounts } from "@/modules/catalog/queries";
 import { getPurchaseOrderStats } from "@/modules/purchases/queries";
+import { getReceivablesStats, getSalesOrderStats } from "@/modules/sales/queries";
 import { getStockCounts } from "@/modules/stock/queries";
 
 const GATE = [
@@ -101,12 +105,15 @@ async function Cockpit() {
   await connection();
   const session = await requireSession();
   const db = getDb();
-  const [memberships, counts, purchaseStats, stockCounts] = await Promise.all([
-    listMembershipsForUser(db, session.userId),
-    getCatalogCounts(db, session.tenantId),
-    getPurchaseOrderStats(db, session.tenantId),
-    getStockCounts(db, session.tenantId),
-  ]);
+  const [memberships, counts, purchaseStats, salesStats, receivables, stockCounts] =
+    await Promise.all([
+      listMembershipsForUser(db, session.userId),
+      getCatalogCounts(db, session.tenantId),
+      getPurchaseOrderStats(db, session.tenantId),
+      getSalesOrderStats(db, session.tenantId),
+      getReceivablesStats(db, session.tenantId),
+      getStockCounts(db, session.tenantId),
+    ]);
   const deliveredCount = LOTS.filter((lot) => lot.status === "done").length;
   const nextLot = LOTS.find((lot) => lot.status === "next");
 
@@ -118,16 +125,16 @@ async function Cockpit() {
         <section className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] lg:items-end">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-brand uppercase">
-              Lot 03 · livré
+              Lot 04 · livré
             </p>
             <h1 className="mt-5 max-w-2xl text-4xl leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-5xl md:text-[3.25rem]">
-              L&apos;achat devient un flux.
-              <span className="block">Chaque réception laisse une trace.</span>
+              La vente devient un flux.
+              <span className="block">Chaque livraison laisse une trace.</span>
             </h1>
             <p className="mt-5 max-w-xl text-sm leading-6 text-muted">
-              Commandes fournisseur, réceptions et stock partagent le même journal. Une réception
-              valide le stock et les états en une transaction ; un mouvement ne se modifie jamais,
-              une correction écrit son inverse.
+              Commandes client, livraisons, factures et règlements partagent le même journal. Une
+              livraison sort le stock ; une facture validée crée la créance. Rien ne se modifie,
+              chaque correction écrit son inverse.
             </p>
           </div>
 
@@ -135,14 +142,14 @@ async function Cockpit() {
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-medium">Dossier de livraison</p>
               <span className="rounded-full border border-brand/15 bg-brand-soft px-2 py-0.5 font-mono text-[10px] text-brand-strong">
-                L03
+                L04
               </span>
             </div>
 
             <dl className="mt-5 space-y-3">
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Lot courant</dt>
-                <dd className="text-right text-[11px] font-medium">Achat → réception → stock</dd>
+                <dd className="text-right text-[11px] font-medium">Vente → livraison → facture</dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Rôle</dt>
@@ -161,27 +168,31 @@ async function Cockpit() {
                 <dd className="text-right font-mono text-[11px] font-medium">{counts.hsCodes}</dd>
               </div>
               <div className="flex items-baseline justify-between gap-3 border-t border-line pt-3">
-                <dt className="text-[11px] text-muted">Commandes ouvertes</dt>
+                <dt className="text-[11px] text-muted">Commandes client ouvertes</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">{salesStats.open}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[11px] text-muted">À livrer</dt>
                 <dd className="text-right font-mono text-[11px] font-medium">
-                  {purchaseStats.open}
+                  {salesStats.awaitingDelivery}
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-[11px] text-muted">À réceptionner</dt>
+                <dt className="text-[11px] text-muted">À facturer</dt>
                 <dd className="text-right font-mono text-[11px] font-medium">
-                  {purchaseStats.awaitingReceipt}
+                  {salesStats.toInvoice}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[11px] text-muted">Encours client</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">
+                  {formatXof(receivables.outstandingXof)}
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Articles en stock</dt>
                 <dd className="text-right font-mono text-[11px] font-medium">
                   {stockCounts.stockedArticles}
-                </dd>
-              </div>
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-[11px] text-muted">Mouvements</dt>
-                <dd className="text-right font-mono text-[11px] font-medium">
-                  {stockCounts.moves}
                 </dd>
               </div>
             </dl>
@@ -217,7 +228,7 @@ async function Cockpit() {
                 Référentiel
               </p>
               <h2 id="catalog-title" className="mt-1 text-sm font-semibold">
-                Les données prêtes pour les achats.
+                Les données prêtes pour les ventes.
               </h2>
             </div>
             <p className="text-[11px] text-muted">Import XLSX · rapport par ligne</p>
@@ -280,16 +291,40 @@ async function Cockpit() {
                 Opérations
               </p>
               <h2 id="operations-title" className="mt-1 text-sm font-semibold">
-                Le flux achat, de la commande au stock.
+                Le flux vente, de la commande à l&apos;encours.
               </h2>
             </div>
             <p className="text-[11px] text-muted">
-              Réceptions transactionnelles · journal immuable
+              Livraisons transactionnelles · factures numérotées
             </p>
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {[
+              {
+                href: "/ventes",
+                label: "Ventes",
+                description: "Commandes client, cycle de vie et livraisons",
+                count: salesStats.open,
+                tag: null,
+                icon: ShoppingBag,
+              },
+              {
+                href: "/factures",
+                label: "Factures",
+                description: "Validation, règlements et encours client",
+                count: receivables.validatedCount,
+                tag: null,
+                icon: ReceiptText,
+              },
+              {
+                href: "/ventes/import",
+                label: "Import ventes",
+                description: "Modèle XLSX, analyse et rapport par ligne",
+                count: null,
+                tag: "XLSX",
+                icon: FileSpreadsheet,
+              },
               {
                 href: "/achats",
                 label: "Achats",
@@ -442,11 +477,11 @@ async function Cockpit() {
               </p>
               <h2 className="mt-2 text-lg font-medium tracking-tight">{nextLot.title}</h2>
               <p className="mt-2 text-[11px] leading-5 text-white/70">
-                {nextLot.scope}. Les niveaux de stock du Lot 03 deviennent la source des livraisons
-                clients, puis des factures.
+                {nextLot.scope}. Les flux achat et vente alimentent désormais un référentiel unique
+                ; la douane devient la prochaine brique.
               </p>
               <ul className="mt-4 flex flex-wrap gap-1.5">
-                {["Commandes client", "Livraisons", "Factures", "Encours"].map((tag) => (
+                {["Régimes", "Acquit-à-caution", "Apurement", "TEDU"].map((tag) => (
                   <li
                     key={tag}
                     className="rounded-full border border-white/15 px-2.5 py-1 text-[10px] text-white/75"

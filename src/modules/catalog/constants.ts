@@ -15,9 +15,10 @@ export const IMPORT_KIND_LABELS: Record<ImportKind, string> = {
   articles: "Articles",
   hs_codes: "Nomenclature douanière",
   purchase_lines: "Lignes de commande",
+  sales_lines: "Lignes de vente",
 };
 
-const IMPORT_KINDS = ["partners", "articles", "hs_codes", "purchase_lines"] as const;
+const IMPORT_KINDS = ["partners", "articles", "hs_codes", "purchase_lines", "sales_lines"] as const;
 
 export function isImportKind(value: string): value is ImportKind {
   return (IMPORT_KINDS as readonly string[]).includes(value);
@@ -28,6 +29,7 @@ export const IMPORT_KIND_PATHS: Record<ImportKind, string> = {
   articles: "/articles",
   hs_codes: "/nomenclature",
   purchase_lines: "/achats",
+  sales_lines: "/ventes",
 };
 
 export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
@@ -35,6 +37,7 @@ export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
   articles: "/api/modeles/articles",
   hs_codes: "/api/modeles/nomenclature",
   purchase_lines: "/api/modeles/commandes",
+  sales_lines: "/api/modeles/ventes",
 };
 
 const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
@@ -42,6 +45,7 @@ const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
   articles: "articles",
   nomenclature: "hs_codes",
   commandes: "purchase_lines",
+  ventes: "sales_lines",
 };
 
 export function resolveTemplateKind(slug: string): ImportKind | null {
@@ -146,11 +150,21 @@ export const PURCHASE_LINE_HEADERS = [
   "reference_externe",
 ] as const;
 
+export const SALES_LINE_HEADERS = [
+  "client",
+  "article",
+  "quantite",
+  "prix_unitaire_xof",
+  "date_livraison_prevue",
+  "reference_externe",
+] as const;
+
 export const HEADERS_BY_KIND = {
   partners: PARTNER_HEADERS,
   articles: ARTICLE_HEADERS,
   hs_codes: HS_HEADERS,
   purchase_lines: PURCHASE_LINE_HEADERS,
+  sales_lines: SALES_LINE_HEADERS,
 } as const;
 
 export const SHEET_DATA = "Données";

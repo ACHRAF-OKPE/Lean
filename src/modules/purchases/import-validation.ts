@@ -2,7 +2,7 @@ import type { RawImportRow, ValidationContext, ValidatedRow } from "@/modules/ca
 import type { ValidationResult } from "@/modules/catalog/validation";
 import { computeLineTotal, parseQuantity } from "@/modules/stock/quantities";
 import { todayIsoDate } from "@/lib/dates";
-import { parseIsoDate, parseXofPrice } from "./validation";
+import { parseIsoDate, parseXofPrice } from "@/modules/shared/validation";
 
 export interface PurchaseLineImportData {
   supplierCode: string;

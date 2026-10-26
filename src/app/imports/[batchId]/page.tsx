@@ -35,6 +35,7 @@ const ACTIVE_BY_KIND: Record<ImportKind, ActiveSection> = {
   articles: "articles",
   hs_codes: "nomenclature",
   purchase_lines: "purchases",
+  sales_lines: "sales",
 };
 
 const ROW_STATUS_META: Record<
@@ -206,8 +207,10 @@ async function ImportReportContent({
               ) : null}
               . Les lignes ont été écrites dans
               {batch.kind === "purchase_lines"
-                ? " des commandes en brouillon."
-                : " le référentiel."}
+                ? " des commandes fournisseur en brouillon."
+                : batch.kind === "sales_lines"
+                  ? " des commandes client en brouillon."
+                  : " le référentiel."}
             </p>
             <Link
               href={listPath}

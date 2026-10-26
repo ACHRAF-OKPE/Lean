@@ -1,6 +1,8 @@
 import type { ArticleType, ImportKind, ImportRowStatus, PartnerType } from "@/db/schema";
 import type { ArticleReference, SupplierReference } from "@/modules/purchases/validation";
+import type { CustomerReference, SalesArticleReference } from "@/modules/sales/validation";
 import { validatePurchaseLines } from "@/modules/purchases/import-validation";
+import { validateSalesLines } from "@/modules/sales/import-validation";
 import { isCountryCode, isUnitCode, MAX_PAYMENT_TERM_DAYS, MAX_XOF_AMOUNT } from "./constants";
 
 export interface RawImportRow {
@@ -13,7 +15,9 @@ export interface ValidationContext {
   readonly existingArticleCodes: ReadonlySet<string>;
   readonly existingHsCodes: ReadonlyMap<string, string>;
   readonly suppliersByCode?: ReadonlyMap<string, SupplierReference>;
+  readonly customersByCode?: ReadonlyMap<string, CustomerReference>;
   readonly articlesByCode?: ReadonlyMap<string, ArticleReference>;
+  readonly salesArticlesByCode?: ReadonlyMap<string, SalesArticleReference>;
 }
 
 export interface ValidatedRow {
@@ -75,7 +79,9 @@ export const EMPTY_VALIDATION_CONTEXT: ValidationContext = {
   existingArticleCodes: new Set(),
   existingHsCodes: new Map(),
   suppliersByCode: new Map(),
+  customersByCode: new Map(),
   articlesByCode: new Map(),
+  salesArticlesByCode: new Map(),
 };
 
 interface Parsed<T> {
@@ -596,6 +602,9 @@ export function validateImportRows(
 ): ValidationResult {
   if (kind === "purchase_lines") {
     return validatePurchaseLines(rows, context);
+  }
+  if (kind === "sales_lines") {
+    return validateSalesLines(rows, context);
   }
 
   const validated = rows.map((row) => {
