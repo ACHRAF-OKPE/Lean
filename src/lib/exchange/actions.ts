@@ -97,7 +97,7 @@ export async function testEmailAccountAction(
   } catch (error) {
     if (error instanceof ExchangeError) {
       redirect(
-        `/parametres/echanges?test=echec&raison=${encodeURIComponent(error.message.slice(0, 300))}`,
+        `/parametres/echanges?test=echec&raison=${encodeURIComponent(error.message.slice(0, 600))}`,
       );
     }
     throw error;

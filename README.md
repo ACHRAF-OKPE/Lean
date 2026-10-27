@@ -196,7 +196,10 @@ Le Lot 5B ajoute l'envoi des demandes de prix et des confirmations de commande :
 
 - **Compte d'envoi** — un seul compte SMTP par espace, activable, avec TLS implicite,
   STARTTLS ou aucun. Le mot de passe n'est jamais relu par l'interface ; il est chiffré en
-  AES-256-GCM avec `LEAN_SECRET_KEY` et n'apparaît ni dans l'audit ni dans les erreurs.
+  AES-256-GCM avec `LEAN_SECRET_KEY` et n'apparaît ni dans l'audit ni dans les erreurs. Un
+  encart d'aide rappelle les réglages Gmail (`smtp.gmail.com`, 465, TLS implicite) et Outlook,
+  et pointe vers la création d'un **mot de passe d'application** : Google, Microsoft et Yahoo
+  refusent le mot de passe habituel. Un refus `535` ajoute cette consigne au message d'erreur.
 - **Test de connexion** — vérifie l'authentification SMTP sans envoyer de message.
 - **Modèles** — un modèle par type (demande ou confirmation), nom unique, sujet et corps à
   variables fermées. Un seul défaut actif par type ; désactiver un modèle ne le supprime pas.

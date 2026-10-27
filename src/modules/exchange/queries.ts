@@ -116,6 +116,16 @@ function safeError(error: unknown, secret?: string | null): string {
   return message.replace(/\s+/g, " ").trim().slice(0, 900) || "Erreur inconnue.";
 }
 
+const CREDENTIAL_FAILURE_PATTERN =
+  /535|5\.7\.8|BadCredentials|Username and Password not accepted|Invalid login|EAUTH/i;
+
+function credentialHint(message: string): string {
+  if (!CREDENTIAL_FAILURE_PATTERN.test(message)) {
+    return "";
+  }
+  return " Vérifiez l'identifiant et le mot de passe. Gmail et Yahoo exigent un mot de passe d'application ; pour Microsoft 365, l'authentification SMTP doit être autorisée par l'administrateur.";
+}
+
 function isUniqueViolation(error: unknown): boolean {
   const candidate = error as { code?: string; cause?: { code?: string } };
   return candidate?.code === "23505" || candidate?.cause?.code === "23505";
@@ -322,7 +332,7 @@ export async function testEmailAccountConnection(
       entityId: account.id,
       details: { status: "failed", host: account.config.host, error: message },
     });
-    throw new ExchangeError(`Connexion SMTP refusée : ${message}`);
+    throw new ExchangeError(`Connexion SMTP refusée : ${message}${credentialHint(message)}`);
   }
 
   await db.insert(auditEvents).values({
@@ -926,7 +936,7 @@ export async function sendPurchaseExchange(
         },
       });
     }
-    throw new ExchangeError(`Envoi refusé : ${message}`);
+    throw new ExchangeError(`Envoi refusé : ${message}${credentialHint(message)}`);
   }
 
   const [row] = await db

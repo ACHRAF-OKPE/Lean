@@ -34,6 +34,103 @@ export function AccountForm({
 
       <FormErrors errors={state.errors} />
 
+      <details
+        open={!account?.hasPassword}
+        className="rounded-lg border border-line bg-canvas/50 px-4 py-3"
+      >
+        <summary className="cursor-pointer text-[11px] font-semibold text-brand-strong">
+          Aide : quel mot de passe utiliser ?
+        </summary>
+        <div className="mt-3 space-y-3 text-[10px] leading-4 text-muted">
+          <p>
+            Gmail, Outlook, Yahoo et la plupart des hébergeurs n&apos;acceptent plus le mot de passe
+            habituel du compte pour l&apos;envoi depuis une application. Il faut créer un{" "}
+            <strong className="font-semibold text-ink">mot de passe d&apos;application</strong> :
+            une clé de 16 caractères, réservée à Lean, révocable à tout moment sans changer votre
+            mot de passe principal.
+          </p>
+
+          <div className="grid gap-2 md:grid-cols-2">
+            <div className="rounded-md border border-line bg-panel p-3">
+              <p className="text-[11px] font-medium text-ink">Gmail / Google Workspace</p>
+              <ol className="mt-2 list-decimal space-y-1 pl-4">
+                <li>
+                  Activez la validation en deux étapes :{" "}
+                  <a
+                    href="https://myaccount.google.com/security"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-brand underline underline-offset-2 hover:text-brand-strong"
+                  >
+                    myaccount.google.com/security
+                  </a>
+                </li>
+                <li>
+                  Créez un mot de passe d&apos;application nommé « Lean » :{" "}
+                  <a
+                    href="https://myaccount.google.com/apppasswords"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-brand underline underline-offset-2 hover:text-brand-strong"
+                  >
+                    myaccount.google.com/apppasswords
+                  </a>
+                </li>
+                <li>Collez le code de 16 caractères dans le champ Mot de passe ci-dessous.</li>
+              </ol>
+              <p className="mt-2">
+                Serveur <span className="font-mono text-ink">smtp.gmail.com</span>, port{" "}
+                <span className="font-mono text-ink">465</span>, sécurité{" "}
+                <span className="text-ink">TLS implicite</span>.
+              </p>
+              <p className="mt-1">
+                Aide Google :{" "}
+                <a
+                  href="https://support.google.com/accounts/answer/185833"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-brand underline underline-offset-2 hover:text-brand-strong"
+                >
+                  support.google.com/accounts/answer/185833
+                </a>
+              </p>
+            </div>
+
+            <div className="rounded-md border border-line bg-panel p-3">
+              <p className="text-[11px] font-medium text-ink">Outlook / Microsoft 365</p>
+              <p className="mt-2">
+                Créez le mot de passe d&apos;application depuis{" "}
+                <a
+                  href="https://account.microsoft.com/security"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-brand underline underline-offset-2 hover:text-brand-strong"
+                >
+                  account.microsoft.com/security
+                </a>{" "}
+                (Sécurité → Options avancées).
+              </p>
+              <p className="mt-2">
+                Serveur <span className="font-mono text-ink">smtp-mail.outlook.com</span>, port{" "}
+                <span className="font-mono text-ink">587</span>, sécurité{" "}
+                <span className="text-ink">STARTTLS</span>. En entreprise, l&apos;administrateur
+                doit d&apos;abord autoriser l&apos;authentification SMTP.
+              </p>
+            </div>
+          </div>
+
+          <p>
+            Compte Google Workspace : seuls les administrateurs peuvent ouvrir les mots de passe
+            d&apos;application. Si l&apos;option est absente, demandez son activation ou utilisez
+            une adresse Gmail personnelle pour la recette.
+          </p>
+          <p>
+            Le mot de passe d&apos;application ne donne pas accès à votre boîte : il ne sert
+            qu&apos;à l&apos;envoi et se révoque sans toucher au mot de passe principal.
+          </p>
+        </div>
+      </details>
+
       <fieldset disabled={!editable || pending} className="space-y-6">
         <legend className="sr-only">Compte d&apos;envoi SMTP</legend>
 
@@ -115,8 +212,8 @@ export function AccountForm({
               htmlFor="password"
               hint={
                 account?.hasPassword
-                  ? "Laisser vide pour conserver le mot de passe actuel."
-                  : "Chiffré au repos, jamais relu ensuite."
+                  ? "Laisser vide pour conserver le mot de passe actuel. Gmail : mot de passe d'application obligatoire."
+                  : "Chiffré au repos, jamais relu ensuite. Gmail : mot de passe d'application obligatoire."
               }
             >
               <input

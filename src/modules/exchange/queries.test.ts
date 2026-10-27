@@ -282,6 +282,25 @@ describe("ORG-006 — compte d'envoi", () => {
     expect(JSON.stringify(event?.details)).not.toContain(PASSWORD);
   });
 
+  it("ORG-006 oriente vers un mot de passe d'application quand les identifiants sont refusés", async () => {
+    const tenant = await setup(db, "org-006-test-fail-hint");
+    await saveEmailAccount(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      data: accountData(),
+    });
+    const transport = recorder(
+      new Error("Invalid login: 535-5.7.8 Username and Password not accepted"),
+    );
+    await expect(
+      testEmailAccountConnection(
+        db,
+        { tenantId: tenant.tenantId, actorUserId: tenant.userId },
+        transport.factory,
+      ),
+    ).rejects.toThrow(/mot de passe d'application/);
+  });
+
   it("ORG-006 isole les comptes par espace de travail", async () => {
     const first = await setup(db, "org-006-tenant-a");
     const second = await setup(db, "org-006-tenant-b");
