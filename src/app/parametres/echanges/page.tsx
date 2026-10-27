@@ -149,7 +149,11 @@ async function ExchangeSettingsContent({
 
         <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-5">
-            <AccountForm account={account} editable={editable} />
+            <AccountForm
+              account={account}
+              editable={editable}
+              helpOpen={queryText(query, "test") === "echec"}
+            />
 
             <section className="overflow-hidden rounded-xl border border-line bg-panel">
               <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3">

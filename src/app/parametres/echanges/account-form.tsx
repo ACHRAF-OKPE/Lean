@@ -11,9 +11,11 @@ import { EMAIL_SECURITY_MODES } from "@/modules/exchange/validation";
 export function AccountForm({
   account,
   editable,
+  helpOpen = false,
 }: {
   account: EmailAccountSummary | null;
   editable: boolean;
+  helpOpen?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(
     saveEmailAccountAction,
@@ -35,7 +37,7 @@ export function AccountForm({
       <FormErrors errors={state.errors} />
 
       <details
-        open={!account?.hasPassword}
+        open={helpOpen || !account?.hasPassword}
         className="rounded-lg border border-line bg-canvas/50 px-4 py-3"
       >
         <summary className="cursor-pointer text-[11px] font-semibold text-brand-strong">
