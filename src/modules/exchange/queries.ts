@@ -123,7 +123,7 @@ function credentialHint(message: string): string {
   if (!CREDENTIAL_FAILURE_PATTERN.test(message)) {
     return "";
   }
-  return " Vérifiez l'identifiant et le mot de passe. Gmail et Yahoo exigent un mot de passe d'application ; pour Microsoft 365, l'authentification SMTP doit être autorisée par l'administrateur.";
+  return " Vérifiez l'identifiant et le mot de passe. Gmail et Yahoo exigent un mot de passe d'application ; avec Resend, l'identifiant est « resend » et le mot de passe la clé API ; pour Microsoft 365, l'authentification SMTP doit être autorisée par l'administrateur.";
 }
 
 function isUniqueViolation(error: unknown): boolean {

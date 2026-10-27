@@ -41,12 +41,74 @@ export function AccountForm({
         className="rounded-lg border border-line bg-canvas/50 px-4 py-3"
       >
         <summary className="cursor-pointer text-[11px] font-semibold text-brand-strong">
-          Aide : quel mot de passe utiliser ?
+          Aide : choisir le serveur et le mot de passe
         </summary>
         <div className="mt-3 space-y-3 text-[10px] leading-4 text-muted">
           <p>
-            Gmail, Outlook, Yahoo et la plupart des hébergeurs n&apos;acceptent plus le mot de passe
-            habituel du compte pour l&apos;envoi depuis une application. Il faut créer un{" "}
+            <strong className="font-semibold text-ink">Avec votre domaine (recommandé)</strong> : un
+            relais d&apos;envoi signe vos messages et votre domaine les authentifie avec SPF, DKIM
+            et DMARC. Les emails arrivent nettement moins souvent en spam qu&apos;avec une adresse
+            Gmail gratuite.
+          </p>
+
+          <div className="rounded-md border border-brand/20 bg-brand-soft/40 p-3">
+            <p className="text-[11px] font-medium text-ink">Resend — domaine professionnel</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-4">
+              <li>
+                Ajoutez votre domaine et reportez les enregistrements DNS chez votre registrar :{" "}
+                <a
+                  href="https://resend.com/domains"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-brand underline underline-offset-2 hover:text-brand-strong"
+                >
+                  resend.com/domains
+                </a>
+              </li>
+              <li>Attendez que le domaine soit « vérifié » (SPF et DKIM validés).</li>
+              <li>
+                Créez une clé API réservée à l&apos;envoi :{" "}
+                <a
+                  href="https://resend.com/api-keys"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-brand underline underline-offset-2 hover:text-brand-strong"
+                >
+                  resend.com/api-keys
+                </a>
+              </li>
+            </ol>
+            <p className="mt-2">
+              Serveur <span className="font-mono text-ink">smtp.resend.com</span>, port{" "}
+              <span className="font-mono text-ink">465</span>, sécurité{" "}
+              <span className="text-ink">TLS implicite</span>. Identifiant :{" "}
+              <span className="font-mono text-ink">resend</span>. Mot de passe : la clé API{" "}
+              <span className="font-mono text-ink">re_…</span>.
+            </p>
+            <p className="mt-1">
+              Adresse d&apos;expédition : une adresse du domaine vérifié, par exemple{" "}
+              <span className="font-mono text-ink">achats@votredomaine.com</span>. Un expéditeur
+              Gmail ou Outlook reste possible mais repart en spam.
+            </p>
+            <p className="mt-1">
+              Guide SMTP Resend :{" "}
+              <a
+                href="https://resend.com/docs/send-with-smtp"
+                target="_blank"
+                rel="noreferrer"
+                className="text-brand underline underline-offset-2 hover:text-brand-strong"
+              >
+                resend.com/docs/send-with-smtp
+              </a>
+            </p>
+          </div>
+
+          <p className="pt-1 font-medium text-ink">
+            Adresse gratuite (Gmail, Outlook, Yahoo) — pour la recette
+          </p>
+          <p>
+            Ces fournisseurs n&apos;acceptent plus le mot de passe habituel pour l&apos;envoi depuis
+            une application. Il faut créer un{" "}
             <strong className="font-semibold text-ink">mot de passe d&apos;application</strong> :
             une clé de 16 caractères, réservée à Lean, révocable à tout moment sans changer votre
             mot de passe principal.
@@ -214,8 +276,8 @@ export function AccountForm({
               htmlFor="password"
               hint={
                 account?.hasPassword
-                  ? "Laisser vide pour conserver le mot de passe actuel. Gmail : mot de passe d'application obligatoire."
-                  : "Chiffré au repos, jamais relu ensuite. Gmail : mot de passe d'application obligatoire."
+                  ? "Laisser vide pour conserver le mot de passe actuel. Gmail : mot de passe d'application ; Resend : clé API."
+                  : "Chiffré au repos, jamais relu ensuite. Gmail : mot de passe d'application ; Resend : clé API."
               }
             >
               <input

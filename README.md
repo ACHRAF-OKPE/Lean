@@ -200,6 +200,9 @@ Le Lot 5B ajoute l'envoi des demandes de prix et des confirmations de commande :
   encart d'aide rappelle les réglages Gmail (`smtp.gmail.com`, 465, TLS implicite) et Outlook,
   et pointe vers la création d'un **mot de passe d'application** : Google, Microsoft et Yahoo
   refusent le mot de passe habituel. Un refus `535` ajoute cette consigne au message d'erreur.
+  Pour la production, il décrit aussi **Resend** (`smtp.resend.com`, 465, identifiant `resend`,
+  clé API, expéditeur sur un domaine vérifié) : un domaine authentifié par SPF, DKIM et DMARC
+  est le seul moyen durable d'éviter le classement en spam.
 - **Test de connexion** — vérifie l'authentification SMTP sans envoyer de message.
 - **Modèles** — un modèle par type (demande ou confirmation), nom unique, sujet et corps à
   variables fermées. Un seul défaut actif par type ; désactiver un modèle ne le supprime pas.
