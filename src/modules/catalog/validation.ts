@@ -1,8 +1,10 @@
 import type { ArticleType, ImportKind, ImportRowStatus, PartnerType } from "@/db/schema";
 import type { ArticleReference, SupplierReference } from "@/modules/purchases/validation";
 import type { CustomerReference, SalesArticleReference } from "@/modules/sales/validation";
+import type { TaskDocumentMaps, TaskMemberReference } from "@/modules/tasks/import-validation";
 import { validatePurchaseLines } from "@/modules/purchases/import-validation";
 import { validateSalesLines } from "@/modules/sales/import-validation";
+import { validateTaskImportRows } from "@/modules/tasks/import-validation";
 import { isCountryCode, isUnitCode, MAX_PAYMENT_TERM_DAYS, MAX_XOF_AMOUNT } from "./constants";
 
 export interface RawImportRow {
@@ -18,6 +20,9 @@ export interface ValidationContext {
   readonly customersByCode?: ReadonlyMap<string, CustomerReference>;
   readonly articlesByCode?: ReadonlyMap<string, ArticleReference>;
   readonly salesArticlesByCode?: ReadonlyMap<string, SalesArticleReference>;
+  readonly taskMembersByEmail?: ReadonlyMap<string, TaskMemberReference>;
+  readonly taskDocuments?: TaskDocumentMaps;
+  readonly openTaskTitles?: ReadonlySet<string>;
 }
 
 export interface ValidatedRow {
@@ -605,6 +610,9 @@ export function validateImportRows(
   }
   if (kind === "sales_lines") {
     return validateSalesLines(rows, context);
+  }
+  if (kind === "tasks") {
+    return validateTaskImportRows(rows, context);
   }
 
   const validated = rows.map((row) => {

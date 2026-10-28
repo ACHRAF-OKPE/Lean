@@ -12,6 +12,7 @@ const CREATE_LABELS: Record<ImportKind, string> = {
   hs_codes: "Créer un code SH",
   purchase_lines: "Créer une commande",
   sales_lines: "Créer une commande client",
+  tasks: "Créer une tâche",
 };
 
 const IMPORT_LABELS: Record<ImportKind, string> = {
@@ -20,6 +21,7 @@ const IMPORT_LABELS: Record<ImportKind, string> = {
   hs_codes: "Importer la nomenclature",
   purchase_lines: "Importer des lignes de commande",
   sales_lines: "Importer des lignes de vente",
+  tasks: "Importer des tâches",
 };
 
 export function CatalogActions({ kind }: { kind: ImportKind }) {

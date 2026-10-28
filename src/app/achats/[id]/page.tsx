@@ -16,6 +16,7 @@ import {
 import type { PurchaseOrderStatus, ReceptionStatus, SupplierReplyAvailability } from "@/db/schema";
 import { AppHeader } from "@/components/app-header";
 import { DiscussionPanel } from "@/components/discussion-panel";
+import { DocumentTasks } from "@/components/document-tasks";
 import { ExchangeStatusBadge, ExchangeTypeBadge } from "@/components/exchange-badges";
 import { LoadingShell } from "@/components/loading-shell";
 import { PurchaseStatusBadge, ReceiptStateBadge } from "@/components/purchase-badges";
@@ -600,6 +601,12 @@ async function PurchaseOrderContent({
           </p>
         ) : null}
 
+        <DocumentTasks
+          session={session}
+          entityType="purchase_order"
+          entityId={order.id}
+          label={order.number ?? "Commande en brouillon"}
+        />
         <DiscussionPanel session={session} entityType="purchase_order" entityId={order.id} />
       </main>
     </div>

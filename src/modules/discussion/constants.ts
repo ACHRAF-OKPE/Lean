@@ -5,6 +5,7 @@ export const DISCUSSION_ENTITY_TYPES = [
   "purchase_order",
   "sales_order",
   "invoice",
+  "task",
 ] as const satisfies readonly DiscussionEntityType[];
 
 export const DISCUSSION_ENTITY_LABELS: Record<DiscussionEntityType, string> = {
@@ -12,6 +13,7 @@ export const DISCUSSION_ENTITY_LABELS: Record<DiscussionEntityType, string> = {
   purchase_order: "Commande fournisseur",
   sales_order: "Commande client",
   invoice: "Facture",
+  task: "Tâche",
 };
 
 export const MENTION_NOTIFICATION_TITLES: Record<DiscussionEntityType, string> = {
@@ -19,6 +21,7 @@ export const MENTION_NOTIFICATION_TITLES: Record<DiscussionEntityType, string> =
   purchase_order: "Mention sur une commande fournisseur",
   sales_order: "Mention sur une commande client",
   invoice: "Mention sur une facture",
+  task: "Mention sur une tâche",
 };
 
 export const COMMENT_MAX_LENGTH = 4000;

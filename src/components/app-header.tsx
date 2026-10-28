@@ -4,6 +4,7 @@ import {
   Barcode,
   GitBranch,
   LayoutDashboard,
+  ListTodo,
   LogOut,
   Mail,
   Package,
@@ -30,6 +31,7 @@ export type ActiveSection =
   | "sales"
   | "invoices"
   | "stock"
+  | "tasks"
   | "settings"
   | "notifications"
   | "audit";
@@ -44,6 +46,7 @@ const NAV_ITEMS = [
   { key: "sales", href: "/ventes", label: "Ventes", icon: ShoppingBag },
   { key: "invoices", href: "/factures", label: "Factures", icon: ReceiptText },
   { key: "stock", href: "/stock", label: "Stock", icon: Warehouse },
+  { key: "tasks", href: "/taches", label: "Tâches", icon: ListTodo },
   { key: "settings", href: "/parametres", label: "Paramètres", icon: Settings },
 ] as const;
 

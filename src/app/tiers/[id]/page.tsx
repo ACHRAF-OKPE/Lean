@@ -6,6 +6,7 @@ import { connection } from "next/server";
 import { ArrowLeft, Mail, Pencil, Phone, UserPlus } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { DiscussionPanel } from "@/components/discussion-panel";
+import { DocumentTasks } from "@/components/document-tasks";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
 import { requirePermission } from "@/lib/auth/session";
@@ -270,6 +271,12 @@ async function PartnerContent({
           </div>
         </section>
 
+        <DocumentTasks
+          session={session}
+          entityType="partner"
+          entityId={partner.id}
+          label={`${partner.name} (${partner.code})`}
+        />
         <DiscussionPanel session={session} entityType="partner" entityId={partner.id} />
       </main>
     </div>

@@ -27,4 +27,9 @@ export const ACTION_LABELS: Record<string, string> = {
   "settings.logo.delete": "Retrait du logo",
   "catalog.partner.contact.create": "Création d'un contact tiers",
   "catalog.partner.contact.update": "Mise à jour d'un contact tiers",
+  "task.create": "Création d'une tâche",
+  "task.update": "Mise à jour d'une tâche",
+  "task.status": "Changement de statut d'une tâche",
+  "task.assign": "Assignation d'une tâche",
+  "task.import": "Import de tâches",
 };

@@ -1,5 +1,6 @@
-import type { DiscussionEntityType, SupplierReplyAvailability } from "@/db/schema";
+import type { DiscussionEntityType, SupplierReplyAvailability, TaskStatus } from "@/db/schema";
 import { formatXof } from "@/lib/money";
+import { TASK_STATUS_LABELS } from "@/modules/tasks/constants";
 
 export type DocumentEventType =
   | "purchase_order.requested"
@@ -15,7 +16,10 @@ export type DocumentEventType =
   | "sales_order.delivered"
   | "sales_order.delivery_cancelled"
   | "invoice.validated"
-  | "invoice.payment";
+  | "invoice.payment"
+  | "task.created"
+  | "task.status"
+  | "task.assignee";
 
 export interface DocumentEventInput {
   readonly type: DocumentEventType;
@@ -24,6 +28,10 @@ export interface DocumentEventInput {
   readonly number?: string | null;
   readonly amountXof?: number | null;
   readonly availability?: SupplierReplyAvailability;
+  readonly taskTitle?: string | null;
+  readonly status?: TaskStatus;
+  readonly previousStatus?: TaskStatus;
+  readonly assigneeName?: string | null;
 }
 
 export interface DocumentEventDescriptor {
@@ -49,6 +57,9 @@ const TITLES: Record<DocumentEventType, string> = {
   "sales_order.delivery_cancelled": "Livraison annulée",
   "invoice.validated": "Facture validée",
   "invoice.payment": "Paiement enregistré",
+  "task.created": "Tâche créée",
+  "task.status": "Statut de tâche mis à jour",
+  "task.assignee": "Assignation de tâche mise à jour",
 };
 
 function reference(number: string | null | undefined): string {
@@ -60,6 +71,10 @@ const AVAILABILITY_TEXT: Record<SupplierReplyAvailability, string> = {
   partial: "partiellement disponible",
   unavailable: "indisponible",
 };
+
+function taskTitle(input: DocumentEventInput): string {
+  return input.taskTitle?.trim() || "sans titre";
+}
 
 export function describeDocumentEvent(input: DocumentEventInput): DocumentEventDescriptor {
   const suffix = reference(input.number);
@@ -109,6 +124,22 @@ export function describeDocumentEvent(input: DocumentEventInput): DocumentEventD
       break;
     case "invoice.payment":
       body = `Un paiement de ${formatXof(input.amountXof ?? 0)} a été enregistré.`;
+      break;
+    case "task.created":
+      body = input.assigneeName
+        ? `La tâche « ${taskTitle(input)} » a été créée et assignée à ${input.assigneeName}.`
+        : `La tâche « ${taskTitle(input)} » a été créée.`;
+      break;
+    case "task.status":
+      body =
+        input.previousStatus && input.status
+          ? `La tâche « ${taskTitle(input)} » est passée de « ${TASK_STATUS_LABELS[input.previousStatus]} » à « ${TASK_STATUS_LABELS[input.status]} ».`
+          : `Le statut de la tâche « ${taskTitle(input)} » a été mis à jour.`;
+      break;
+    case "task.assignee":
+      body = input.assigneeName
+        ? `La tâche « ${taskTitle(input)} » est assignée à ${input.assigneeName}.`
+        : `La tâche « ${taskTitle(input)} » n'est plus assignée.`;
       break;
   }
 

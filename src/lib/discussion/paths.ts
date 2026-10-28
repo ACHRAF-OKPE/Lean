@@ -10,6 +10,8 @@ export function discussionPath(entityType: DiscussionEntityType, entityId: strin
       return `/ventes/${entityId}`;
     case "invoice":
       return `/factures/${entityId}`;
+    case "task":
+      return `/taches/${entityId}`;
   }
 }
 

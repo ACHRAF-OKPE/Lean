@@ -7,6 +7,7 @@ import { ArrowLeft, FilePlus2, Info, ReceiptText, Truck } from "lucide-react";
 import type { SalesOrderStatus } from "@/db/schema";
 import { AppHeader } from "@/components/app-header";
 import { DiscussionPanel } from "@/components/discussion-panel";
+import { DocumentTasks } from "@/components/document-tasks";
 import { LoadingShell } from "@/components/loading-shell";
 import {
   DeliveryStateBadge,
@@ -528,6 +529,12 @@ async function SalesOrderContent({
           </p>
         ) : null}
 
+        <DocumentTasks
+          session={session}
+          entityType="sales_order"
+          entityId={order.id}
+          label={order.number ?? "Vente en brouillon"}
+        />
         <DiscussionPanel session={session} entityType="sales_order" entityId={order.id} />
       </main>
     </div>

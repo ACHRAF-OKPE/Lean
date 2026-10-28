@@ -15,6 +15,8 @@ import { applyPurchaseLines } from "@/modules/purchases/imports";
 import { PurchaseError } from "@/modules/purchases/errors";
 import { applySalesLines } from "@/modules/sales/imports";
 import { SalesError } from "@/modules/sales/errors";
+import { applyTaskImport, loadTaskImportContext } from "@/modules/tasks/imports";
+import { TasksError } from "@/modules/tasks/errors";
 import { CatalogError } from "./errors";
 import { loadValidationContext } from "./queries";
 import {
@@ -97,7 +99,8 @@ export async function analyzeImport(
   input: AnalyzeImportInput,
 ): Promise<AnalyzeImportResult> {
   const context = await loadValidationContext(db, input.tenantId);
-  const validation = validateImportRows(input.kind, input.rows, context);
+  const taskContext = input.kind === "tasks" ? await loadTaskImportContext(db, input.tenantId) : {};
+  const validation = validateImportRows(input.kind, input.rows, { ...context, ...taskContext });
 
   return db.transaction(async (tx) => {
     const [previous] = await tx
@@ -410,7 +413,7 @@ export async function applyImportBatch(
       );
     }
 
-    if (batch.kind === "purchase_lines" || batch.kind === "sales_lines") {
+    if (batch.kind === "purchase_lines" || batch.kind === "sales_lines" || batch.kind === "tasks") {
       const [previous] = await tx
         .select({ id: importBatches.id })
         .from(importBatches)
@@ -425,12 +428,19 @@ export async function applyImportBatch(
         )
         .limit(1);
       if (previous) {
-        const message =
-          "Ce fichier a déjà été importé en commandes : un même fichier ne s'applique qu'une fois.";
         if (batch.kind === "purchase_lines") {
-          throw new PurchaseError(message);
+          throw new PurchaseError(
+            "Ce fichier a déjà été importé en commandes : un même fichier ne s'applique qu'une fois.",
+          );
         }
-        throw new SalesError(message);
+        if (batch.kind === "sales_lines") {
+          throw new SalesError(
+            "Ce fichier a déjà été importé en commandes : un même fichier ne s'applique qu'une fois.",
+          );
+        }
+        throw new TasksError(
+          "Ce fichier a déjà été importé en tâches : un même fichier ne s'applique qu'une fois.",
+        );
       }
     }
 
@@ -467,6 +477,13 @@ export async function applyImportBatch(
         rows,
       });
       orders = result.orders;
+    } else if (batch.kind === "tasks") {
+      await applyTaskImport(tx, {
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        batchId: batch.id,
+        rows,
+      });
     } else if (batch.kind === "partners") {
       await upsertPartners(tx, input.tenantId, rows);
     } else if (batch.kind === "articles") {
@@ -475,7 +492,7 @@ export async function applyImportBatch(
       await upsertHsCodes(tx, input.tenantId, rows);
     }
 
-    if (batch.kind !== "purchase_lines" && batch.kind !== "sales_lines") {
+    if (batch.kind === "partners" || batch.kind === "articles" || batch.kind === "hs_codes") {
       await tx.execute(sql`
         update ${importRows} as r
         set entity_id = c.id

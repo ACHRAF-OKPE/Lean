@@ -3,8 +3,8 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 5E livré — réponses fournisseurs en ligne.**
-Le lot 5 poursuit avec les tâches et leur suivi. La douane arrive ensuite.
+**Statut : Lot 5 complet — tâches, assignation et suivi (5D) livrés.**
+La douane arrive ensuite.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -258,6 +258,26 @@ Le Lot 5C ajoute un fil de discussion interne et une boîte de notifications :
 Aucune notification n'est envoyée par e-mail dans ce lot : la boîte reste interne à
 l'application.
 
+## Tâches et suivi
+
+Le Lot 5D ajoute les tâches internes, rattachées ou non à un document :
+
+- **Fiche** — titre obligatoire, description en texte brut, priorité Basse/Normale/Haute/
+  Urgente, échéance facultative, assigné membre de l'espace et document facultatif (tiers,
+  commande fournisseur, commande client ou facture).
+- **Cycle de vie** — ouverte, en cours, terminée, annulée, avec des transitions limitées.
+  Terminer conserve l'acteur et la date ; une tâche terminée ou annulée est figée jusqu'à sa
+  réouverture.
+- **Suivi** — `/taches` filtre par statut, priorité, assigné et retard ; les compteurs
+  ouverts, en retard et « mes tâches » sont calculés à l'affichage. Les fiches documentaires
+  listent leurs tâches ouvertes et chaque tâche renvoie à son document.
+- **Collaboration** — création, changement de statut et assignation s'inscrivent dans le fil
+  du document et notifient les membres ; le texte généré ne contient jamais la description.
+- **Import** — modèle XLSX à sept colonnes (titre, description, priorité, échéance, assigné
+  par e-mail, type et référence du document), analyse en deux temps et rapport par ligne.
+  Les tâches importées naissent ouvertes avec l'acteur comme créateur ; un même fichier ne
+  s'applique qu'une fois et l'import n'ouvre ni fil ni notification par tâche.
+
 ## Scripts
 
 | Commande              | Rôle                                          |
@@ -285,11 +305,12 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `sales_order_lines`, `deliveries`, `delivery_lines`, `invoices`, `invoice_lines`,
 `invoice_payments`, `document_sequences`, `company_settings`, `partner_contacts`,
 `exchange_templates`, `exchange_messages`, `supplier_replies`, `discussion_messages`,
-`discussion_mentions` et `notifications`. Les migrations générées sont commitées dans
+`discussion_mentions`, `notifications` et `tasks`. Les migrations générées sont commitées dans
 `drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
 `0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
 facturation, `0006` pour la fiche entreprise et les contacts tiers, `0007` pour les échanges
-fournisseurs, `0008` pour la collaboration et `0009` pour les réponses fournisseurs. Les
+fournisseurs, `0008` pour la collaboration, `0009` pour les réponses fournisseurs et `0010`
+pour les tâches. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire et d'idempotence des évènements sont posées
 en base, en complément de la validation applicative.

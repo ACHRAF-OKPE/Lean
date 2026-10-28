@@ -10,6 +10,7 @@ import {
   partners,
   purchaseOrders,
   salesOrders,
+  tasks,
   users,
   type DiscussionEntityType,
   type DiscussionMessageKind,
@@ -103,6 +104,15 @@ async function assertEntity(
         .select({ id: invoices.id })
         .from(invoices)
         .where(and(eq(invoices.tenantId, tenantId), eq(invoices.id, entityId)))
+        .limit(1);
+      found = Boolean(row);
+      break;
+    }
+    case "task": {
+      const [row] = await tx
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(eq(tasks.tenantId, tenantId), eq(tasks.id, entityId)))
         .limit(1);
       found = Boolean(row);
       break;

@@ -6,6 +6,7 @@ import { connection } from "next/server";
 import { ArrowLeft, ArrowUpRight, Banknote, Info } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { DiscussionPanel } from "@/components/discussion-panel";
+import { DocumentTasks } from "@/components/document-tasks";
 import { LoadingShell } from "@/components/loading-shell";
 import { InvoiceStatusBadge } from "@/components/sales-badges";
 import { getDb } from "@/db/client";
@@ -338,6 +339,12 @@ async function InvoiceContent({
           />
         ) : null}
 
+        <DocumentTasks
+          session={session}
+          entityType="invoice"
+          entityId={invoice.id}
+          label={invoice.number ?? "Facture en brouillon"}
+        />
         <DiscussionPanel session={session} entityType="invoice" entityId={invoice.id} />
       </main>
     </div>

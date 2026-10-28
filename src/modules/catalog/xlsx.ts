@@ -14,6 +14,7 @@ import {
   PURCHASE_LINE_HEADERS,
   SALES_LINE_HEADERS,
   SHEET_DATA,
+  TASK_HEADERS,
   SHEET_HELP,
   SHEET_REFERENCES,
   UNITS,
@@ -36,6 +37,7 @@ const TEMPLATE_FILE_NAMES: Record<ImportKind, string> = {
   hs_codes: "lean-modele-nomenclature.xlsx",
   purchase_lines: "lean-modele-commandes.xlsx",
   sales_lines: "lean-modele-ventes.xlsx",
+  tasks: "lean-modele-taches.xlsx",
 };
 
 export function templateFileName(kind: ImportKind): string {
@@ -319,12 +321,26 @@ const SALES_LINE_COLUMN_META: Record<(typeof SALES_LINE_HEADERS)[number], Column
   reference_externe: { width: 24 },
 };
 
+const TASK_COLUMN_META: Record<(typeof TASK_HEADERS)[number], ColumnMeta> = {
+  titre: { width: 46 },
+  description: { width: 52 },
+  priorite: { width: 14, list: '"Basse,Normale,Haute,Urgente"' },
+  echeance: { width: 16, text: true },
+  assigne_email: { width: 30 },
+  document_type: {
+    width: 24,
+    list: '"Tiers,Commande fournisseur,Commande client,Facture"',
+  },
+  document_reference: { width: 24, text: true },
+};
+
 const COLUMN_META: Record<ImportKind, Record<string, ColumnMeta>> = {
   partners: PARTNER_COLUMN_META,
   articles: ARTICLE_COLUMN_META,
   hs_codes: HS_COLUMN_META,
   purchase_lines: PURCHASE_LINE_COLUMN_META,
   sales_lines: SALES_LINE_COLUMN_META,
+  tasks: TASK_COLUMN_META,
 };
 
 const PARTNER_COLUMN_HELP: Record<(typeof PARTNER_HEADERS)[number], string> = {
@@ -386,12 +402,24 @@ const SALES_LINE_COLUMN_HELP: Record<(typeof SALES_LINE_HEADERS)[number], string
   reference_externe: "Facultative. 60 caractères maximum ; elle sépare les groupes de commande.",
 };
 
+const TASK_COLUMN_HELP: Record<(typeof TASK_HEADERS)[number], string> = {
+  titre: "Obligatoire. 160 caractères maximum.",
+  description: "4000 caractères maximum, facultatif, texte brut.",
+  priorite: "Basse, Normale, Haute ou Urgente. Vide = Normale.",
+  echeance: "Facultative. Date AAAA-MM-JJ (ex. 2026-11-15).",
+  assigne_email: "Facultatif. Adresse e-mail d'un membre de l'espace ; la tâche lui est assignée.",
+  document_type:
+    "Facultatif. Tiers, Commande fournisseur, Commande client ou Facture ; va avec la référence.",
+  document_reference: "Facultatif. Code du tiers ou numéro du document existant ; va avec le type.",
+};
+
 const COLUMN_HELP: Record<ImportKind, Record<string, string>> = {
   partners: PARTNER_COLUMN_HELP,
   articles: ARTICLE_COLUMN_HELP,
   hs_codes: HS_COLUMN_HELP,
   purchase_lines: PURCHASE_LINE_COLUMN_HELP,
   sales_lines: SALES_LINE_COLUMN_HELP,
+  tasks: TASK_COLUMN_HELP,
 };
 
 const EXAMPLES: Record<ImportKind, Record<string, string>> = {
@@ -446,6 +474,15 @@ const EXAMPLES: Record<ImportKind, Record<string, string>> = {
     date_livraison_prevue: "2026-11-20",
     reference_externe: "SO-SN-2026-021",
   },
+  tasks: {
+    titre: "Relancer le règlement de la facture",
+    description: "Contacter le client et confirmer la date de virement.",
+    priorite: "Haute",
+    echeance: "2026-11-05",
+    assigne_email: "associe@exemple.sn",
+    document_type: "Facture",
+    document_reference: "FAC-2026-014",
+  },
 };
 
 const KIND_RULES: Record<ImportKind, readonly string[]> = {
@@ -482,6 +519,13 @@ const KIND_RULES: Record<ImportKind, readonly string[]> = {
     "Un même fichier ne peut être appliqué qu'une seule fois.",
     "Une date passée ou un prix différent du prix de vente de la fiche produit un avertissement.",
     "L'incoterm n'est pas transporté par l'import : il se renseigne sur la fiche de la commande.",
+  ],
+  tasks: [
+    "Chaque ligne crée une tâche ouverte, avec vous comme créateur ; aucune tâche existante n'est modifiée.",
+    "L'assigné se désigne par l'adresse e-mail d'un membre de l'espace.",
+    "Le document lié se désigne par un type et une référence existants ; les deux vont ensemble.",
+    "Une tâche ouverte portant déjà le même titre est signalée, mais reste importable.",
+    "Un même fichier ne peut être appliqué qu'une seule fois.",
   ],
 };
 
@@ -628,7 +672,11 @@ function buildHelpSheet(workbook: Workbook, kind: ImportKind): void {
 
   const exampleNote = sheet.getRow(cursor).getCell(1);
   exampleNote.value =
-    "Exemple illustratif : adaptez-le à vos données. Un code SH d'article doit exister dans votre nomenclature avant l'import.";
+    kind === "articles"
+      ? "Exemple illustratif : adaptez-le à vos données. Un code SH d'article doit exister dans votre nomenclature avant l'import."
+      : kind === "tasks"
+        ? "Exemple illustratif : adaptez-le à vos données. L'e-mail doit être celui d'un membre de l'espace et le document doit exister."
+        : "Exemple illustratif : adaptez-le à vos données.";
   exampleNote.alignment = { wrapText: true, vertical: "top" };
   sheet.mergeCells(cursor, 1, cursor, 2);
   sheet.getRow(cursor).height = 28;

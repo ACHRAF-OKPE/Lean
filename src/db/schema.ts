@@ -202,7 +202,8 @@ export const companySettings = pgTable(
 
 export type PartnerType = "company" | "individual";
 export type ArticleType = "product" | "service";
-export type ImportKind = "partners" | "articles" | "hs_codes" | "purchase_lines" | "sales_lines";
+export type ImportKind =
+  "partners" | "articles" | "hs_codes" | "purchase_lines" | "sales_lines" | "tasks";
 export type ImportBatchStatus = "analyzed" | "applied";
 export type ImportRowStatus = "valid" | "warning" | "error";
 export type PurchaseOrderStatus = "draft" | "requested" | "confirmed" | "closed" | "cancelled";
@@ -483,7 +484,7 @@ export const importBatches = pgTable(
     index("import_batches_tenant_created_idx").on(table.tenantId, table.createdAt),
     check(
       "import_batches_kind_check",
-      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines')`,
+      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines', 'tasks')`,
     ),
     check("import_batches_status_check", sql`${table.status} in ('analyzed', 'applied')`),
     check(
@@ -1409,7 +1410,11 @@ export const documentSequences = pgTable(
   ],
 );
 
-export type DiscussionEntityType = "partner" | "purchase_order" | "sales_order" | "invoice";
+export type DiscussionEntityType =
+  "partner" | "purchase_order" | "sales_order" | "invoice" | "task";
+export type TaskRelatedEntityType = Exclude<DiscussionEntityType, "task">;
+export type TaskStatus = "open" | "in_progress" | "done" | "cancelled";
+export type TaskPriority = "low" | "normal" | "high" | "urgent";
 export type DiscussionMessageKind = "comment" | "event";
 export type NotificationKind = "mention" | "event";
 
@@ -1443,7 +1448,7 @@ export const discussionMessages = pgTable(
     check("discussion_messages_kind_check", sql`${table.kind} in ('comment', 'event')`),
     check(
       "discussion_messages_entity_type_check",
-      sql`${table.entityType} in ('partner', 'purchase_order', 'sales_order', 'invoice')`,
+      sql`${table.entityType} in ('partner', 'purchase_order', 'sales_order', 'invoice', 'task')`,
     ),
     check("discussion_messages_body_check", sql`char_length(${table.body}) between 1 and 4000`),
     check(
@@ -1530,7 +1535,7 @@ export const notifications = pgTable(
     check("notifications_kind_check", sql`${table.kind} in ('mention', 'event')`),
     check(
       "notifications_entity_type_check",
-      sql`${table.entityType} in ('partner', 'purchase_order', 'sales_order', 'invoice')`,
+      sql`${table.entityType} in ('partner', 'purchase_order', 'sales_order', 'invoice', 'task')`,
     ),
     check("notifications_title_check", sql`char_length(${table.title}) between 1 and 200`),
     check("notifications_body_check", sql`char_length(${table.body}) between 1 and 500`),
@@ -1545,6 +1550,70 @@ export const notifications = pgTable(
       columns: [table.tenantId, table.messageId],
       foreignColumns: [discussionMessages.tenantId, discussionMessages.id],
     }).onDelete("restrict"),
+  ],
+);
+
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description").notNull().default(""),
+    status: text("status").$type<TaskStatus>().notNull().default("open"),
+    priority: text("priority").$type<TaskPriority>().notNull().default("normal"),
+    dueDate: date("due_date", { mode: "string" }),
+    assigneeUserId: uuid("assignee_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    relatedEntityType: text("related_entity_type").$type<TaskRelatedEntityType>(),
+    relatedEntityId: uuid("related_entity_id"),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    completedByUserId: uuid("completed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    revision: integer("revision").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("tasks_tenant_id_idx").on(table.tenantId, table.id),
+    index("tasks_tenant_status_due_idx").on(table.tenantId, table.status, table.dueDate),
+    index("tasks_tenant_assignee_status_idx").on(
+      table.tenantId,
+      table.assigneeUserId,
+      table.status,
+    ),
+    index("tasks_tenant_related_idx").on(
+      table.tenantId,
+      table.relatedEntityType,
+      table.relatedEntityId,
+    ),
+    check("tasks_title_check", sql`char_length(${table.title}) between 1 and 160`),
+    check("tasks_description_check", sql`char_length(${table.description}) <= 4000`),
+    check(
+      "tasks_status_check",
+      sql`${table.status} in ('open', 'in_progress', 'done', 'cancelled')`,
+    ),
+    check("tasks_priority_check", sql`${table.priority} in ('low', 'normal', 'high', 'urgent')`),
+    check(
+      "tasks_related_type_check",
+      sql`${table.relatedEntityType} is null or ${table.relatedEntityType} in ('partner', 'purchase_order', 'sales_order', 'invoice')`,
+    ),
+    check(
+      "tasks_related_pair_check",
+      sql`(${table.relatedEntityType} is null) = (${table.relatedEntityId} is null)`,
+    ),
+    check(
+      "tasks_completion_check",
+      sql`(${table.status} = 'done') = (${table.completedAt} is not null) and (${table.completedAt} is null) = (${table.completedByUserId} is null)`,
+    ),
+    check("tasks_revision_check", sql`${table.revision} >= 0`),
   ],
 );
 
@@ -1570,3 +1639,4 @@ export type StockLevelRow = typeof stockLevels.$inferSelect;
 export type DocumentSequenceRow = typeof documentSequences.$inferSelect;
 export type DiscussionMessageRow = typeof discussionMessages.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
+export type TaskRow = typeof tasks.$inferSelect;
