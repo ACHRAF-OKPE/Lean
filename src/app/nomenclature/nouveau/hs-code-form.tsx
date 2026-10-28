@@ -6,6 +6,7 @@ import { ArrowLeft, Check, LoaderCircle } from "lucide-react";
 import { Field, FormErrors, INPUT_CLASS } from "@/components/form-fields";
 import { createHsCodeAction } from "@/lib/catalog/actions";
 import { EMPTY_CATALOG_FORM_STATE } from "@/lib/catalog/form-state";
+import { TEC_RATES } from "@/modules/customs/constants";
 
 export function HsCodeForm() {
   const [state, formAction, pending] = useActionState(createHsCodeAction, EMPTY_CATALOG_FORM_STATE);
@@ -68,6 +69,20 @@ export function HsCodeForm() {
               placeholder="KG"
               className={INPUT_CLASS}
             />
+          </Field>
+          <Field
+            label="Taux TEC"
+            htmlFor="taux_tec"
+            hint="Bande UEMOA. Obligatoire pour liquider une déclaration."
+          >
+            <select id="taux_tec" name="taux_tec" defaultValue="" className={INPUT_CLASS}>
+              <option value="">Non renseigné</option>
+              {TEC_RATES.map((rate) => (
+                <option key={rate} value={rate}>
+                  {rate} %
+                </option>
+              ))}
+            </select>
           </Field>
         </div>
       </fieldset>

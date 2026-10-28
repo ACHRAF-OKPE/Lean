@@ -9,6 +9,7 @@ import {
   CircleDot,
   Database,
   FileSpreadsheet,
+  Landmark,
   Layers,
   Lock,
   Package,
@@ -30,6 +31,7 @@ import { ROLE_LABELS } from "@/modules/identity/labels";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getCatalogCounts } from "@/modules/catalog/queries";
+import { customsCounters } from "@/modules/customs/queries";
 import { getPurchaseOrderStats } from "@/modules/purchases/queries";
 import { getReceivablesStats, getSalesOrderStats } from "@/modules/sales/queries";
 import { getCompanySettings } from "@/modules/settings/queries";
@@ -109,16 +111,25 @@ async function Cockpit() {
   await connection();
   const session = await requireSession();
   const db = getDb();
-  const [memberships, counts, purchaseStats, salesStats, receivables, stockCounts, company] =
-    await Promise.all([
-      listMembershipsForUser(db, session.userId),
-      getCatalogCounts(db, session.tenantId),
-      getPurchaseOrderStats(db, session.tenantId),
-      getSalesOrderStats(db, session.tenantId),
-      getReceivablesStats(db, session.tenantId),
-      getStockCounts(db, session.tenantId),
-      getCompanySettings(db, session.tenantId),
-    ]);
+  const [
+    memberships,
+    counts,
+    purchaseStats,
+    salesStats,
+    receivables,
+    stockCounts,
+    company,
+    customs,
+  ] = await Promise.all([
+    listMembershipsForUser(db, session.userId),
+    getCatalogCounts(db, session.tenantId),
+    getPurchaseOrderStats(db, session.tenantId),
+    getSalesOrderStats(db, session.tenantId),
+    getReceivablesStats(db, session.tenantId),
+    getStockCounts(db, session.tenantId),
+    getCompanySettings(db, session.tenantId),
+    customsCounters(db, session.tenantId),
+  ]);
   const deliveredCount = LOTS.filter((lot) => lot.status === "done").length;
   const nextLot = LOTS.find((lot) => lot.status === "next");
   const companyState = company
@@ -133,31 +144,30 @@ async function Cockpit() {
         <section className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] lg:items-end">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-brand uppercase">
-              Lot 05 · socle ERP
+              Lot 06 · douane
             </p>
             <h1 className="mt-5 max-w-2xl text-4xl leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-5xl md:text-[3.25rem]">
-              L&apos;entreprise prend forme.
-              <span className="block">Chaque contact laisse une trace.</span>
+              La marchandise franchit la frontière.
+              <span className="block">Chaque franc est justifié.</span>
             </h1>
             <p className="mt-5 max-w-xl text-sm leading-6 text-muted">
-              Fiche entreprise, logo, conditions de règlement et carnet de contacts entrent dans le
-              socle. Les paramètres sont lus par tous, modifiés par les rôles autorisés et audités.
-              Les échanges et les tâches suivent.
+              Déclarations ASYCUDA, liquidation au taux TEC, taxes configurables, acquit-à-caution
+              et apurement : la douane rejoint le flux, du dépôt à la mainlevée.
             </p>
           </div>
 
           <div className="rounded-xl border border-line bg-panel p-5">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-medium">Dossier de socle</p>
+              <p className="text-xs font-medium">Dossier douane</p>
               <span className="rounded-full border border-brand/15 bg-brand-soft px-2 py-0.5 font-mono text-[10px] text-brand-strong">
-                L05
+                L06
               </span>
             </div>
 
             <dl className="mt-5 space-y-3">
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Lot courant</dt>
-                <dd className="text-right text-[11px] font-medium">Socle ERP : paramètres</dd>
+                <dd className="text-right text-[11px] font-medium">Douane : déclarations</dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Rôle</dt>
@@ -208,6 +218,20 @@ async function Cockpit() {
                 <dd className="text-right font-mono text-[11px] font-medium">
                   {stockCounts.stockedArticles}
                 </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 border-t border-line pt-3">
+                <dt className="text-[11px] text-muted">Déclarations en douane</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">{customs.total}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[11px] text-muted">Liquidées, à régler</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">
+                  {customs.awaitingPayment}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[11px] text-muted">Mainlevées</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">{customs.cleared}</dd>
               </div>
             </dl>
 
@@ -421,6 +445,80 @@ async function Cockpit() {
                 href: "/achats/import",
                 label: "Import commandes",
                 description: "Modèle XLSX, analyse et rapport par ligne",
+                count: null,
+                tag: "XLSX",
+                icon: FileSpreadsheet,
+              },
+            ].map((card) => {
+              const Icon = card.icon;
+              return (
+                <Link
+                  key={card.href}
+                  href={card.href}
+                  className="group rounded-xl border border-line bg-panel p-4 transition-colors hover:border-brand/30"
+                >
+                  <div className="flex items-center justify-between">
+                    <Icon className="size-4 text-brand" aria-hidden="true" />
+                    <span className="font-mono text-2xl tabular-nums">
+                      {card.count ?? card.tag}
+                    </span>
+                  </div>
+                  <p className="mt-4 text-sm font-medium">{card.label}</p>
+                  <p className="mt-1 text-[10px] leading-4 text-muted">{card.description}</p>
+                  <span className="mt-3 inline-flex items-center gap-1 text-[10px] text-brand">
+                    Ouvrir
+                    <ArrowUpRight
+                      className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
+        <section aria-labelledby="customs-title" className="mt-12">
+          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-line pb-4">
+            <div>
+              <p className="font-mono text-[10px] tracking-[0.18em] text-muted uppercase">Douane</p>
+              <h2 id="customs-title" className="mt-1 text-sm font-semibold">
+                Du dépôt à la mainlevée, chaque franc justifié.
+              </h2>
+            </div>
+            <p className="text-[11px] text-muted">Liquidation au TEC · acquit conditionnel</p>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                href: "/douane",
+                label: "Déclarations",
+                description: "Brouillons, dépôt, liquidation et mainlevée",
+                count: customs.total as number | null,
+                tag: null,
+                icon: Landmark,
+              },
+              {
+                href: "/douane/acquits",
+                label: "Acquits-à-caution",
+                description: "Garanties, apurement et références",
+                count: null,
+                tag: "Suivi",
+                icon: ShieldCheck,
+              },
+              {
+                href: "/douane/referentiels",
+                label: "Référentiels",
+                description: "Bureaux, régimes et taxes configurables",
+                count: null,
+                tag: "Config",
+                icon: Settings,
+              },
+              {
+                href: "/douane/import",
+                label: "Import déclarations",
+                description: "Lignes XLSX groupées par déclaration",
                 count: null,
                 tag: "XLSX",
                 icon: FileSpreadsheet,

@@ -12,6 +12,8 @@ const PREFIXES: Record<DocumentScope, string> = {
   sales_order: "VTE",
   delivery: "BL",
   invoice: "FAC",
+  customs_declaration: "DEC",
+  customs_bond: "AAC",
 };
 
 const MAX_SEQUENCE_VALUE = 9999;

@@ -17,6 +17,7 @@ export const IMPORT_KIND_LABELS: Record<ImportKind, string> = {
   purchase_lines: "Lignes de commande",
   sales_lines: "Lignes de vente",
   tasks: "Tâches",
+  customs_lines: "Lignes de déclaration",
 };
 
 const IMPORT_KINDS = [
@@ -26,6 +27,7 @@ const IMPORT_KINDS = [
   "purchase_lines",
   "sales_lines",
   "tasks",
+  "customs_lines",
 ] as const;
 
 export function isImportKind(value: string): value is ImportKind {
@@ -39,6 +41,7 @@ export const IMPORT_KIND_PATHS: Record<ImportKind, string> = {
   purchase_lines: "/achats",
   sales_lines: "/ventes",
   tasks: "/taches",
+  customs_lines: "/douane",
 };
 
 export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
@@ -48,6 +51,7 @@ export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
   purchase_lines: "/api/modeles/commandes",
   sales_lines: "/api/modeles/ventes",
   tasks: "/api/modeles/taches",
+  customs_lines: "/api/modeles/declarations",
 };
 
 const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
@@ -57,6 +61,7 @@ const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
   commandes: "purchase_lines",
   ventes: "sales_lines",
   taches: "tasks",
+  declarations: "customs_lines",
 };
 
 export function resolveTemplateKind(slug: string): ImportKind | null {
@@ -135,7 +140,13 @@ export const PARTNER_HEADERS = [
   "actif",
 ] as const;
 
-export const HS_HEADERS = ["code", "libelle", "code_parent", "unite_complementaire"] as const;
+export const HS_HEADERS = [
+  "code",
+  "libelle",
+  "code_parent",
+  "unite_complementaire",
+  "taux_tec",
+] as const;
 
 export const ARTICLE_HEADERS = [
   "code",
@@ -180,6 +191,17 @@ export const TASK_HEADERS = [
   "document_reference",
 ] as const;
 
+export const CUSTOMS_LINE_HEADERS = [
+  "numero_declaration",
+  "code_sh",
+  "designation",
+  "quantite",
+  "unite",
+  "valeur_xof",
+  "poids_kg",
+  "pays_origine",
+] as const;
+
 export const HEADERS_BY_KIND = {
   partners: PARTNER_HEADERS,
   articles: ARTICLE_HEADERS,
@@ -187,6 +209,7 @@ export const HEADERS_BY_KIND = {
   purchase_lines: PURCHASE_LINE_HEADERS,
   sales_lines: SALES_LINE_HEADERS,
   tasks: TASK_HEADERS,
+  customs_lines: CUSTOMS_LINE_HEADERS,
 } as const;
 
 export const SHEET_DATA = "Données";

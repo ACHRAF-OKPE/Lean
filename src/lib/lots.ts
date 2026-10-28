@@ -42,19 +42,19 @@ export const LOTS: readonly Lot[] = [
     id: 5,
     title: "Socle ERP",
     scope: "Paramètres entreprise, contacts, échanges, collaboration et tâches",
-    status: "next",
+    status: "done",
   },
   {
     id: 6,
     title: "Douane",
     scope: "Régimes ASYCUDA, acquit-à-caution, apurement, TEDU",
-    status: "planned",
+    status: "done",
   },
   {
     id: 7,
     title: "Comptabilité SYSCOHADA",
     scope: "Écritures, cut-off, rapprochements",
-    status: "planned",
+    status: "next",
   },
   {
     id: 8,

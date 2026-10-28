@@ -296,6 +296,48 @@ describe("ART-003 — nomenclature douanière", () => {
       "Code SH : valeur lue comme nombre ; formater la colonne en texte.",
     );
   });
+
+  it("accepte les bandes TEC UEMOA et retire un signe pourcentage", () => {
+    const result = validateImportRows("hs_codes", [
+      row(2, { code: "090111", libelle: "Café", taux_tec: "0" }),
+      row(3, { code: "170199", libelle: "Sucre", taux_tec: "5" }),
+      row(4, { code: "010121", libelle: "Chevaux", taux_tec: "10%" }),
+      row(5, { code: "240220", libelle: "Tabac", taux_tec: "20" }),
+      row(6, { code: "220300", libelle: "Bière", taux_tec: "35" }),
+    ]);
+
+    expect(result.errorCount).toBe(0);
+    expect(
+      result.rows.map((validated) => (validated.data as { tecRate: number | null }).tecRate),
+    ).toEqual([0, 5, 10, 20, 35]);
+    expect(result.rows[2]?.warnings).toContain("Taux TEC : signe pourcentage retiré.");
+  });
+
+  it("refuse une bande TEC hors 0, 5, 10, 20 et 35", () => {
+    const result = validateImportRows("hs_codes", [
+      row(2, { code: "090111", libelle: "Café", taux_tec: "12" }),
+      row(3, { code: "170199", libelle: "Sucre", taux_tec: "7,5" }),
+    ]);
+
+    expect(result.errorCount).toBe(2);
+    expect(result.rows[0]?.errors).toContain("Taux TEC : bande UEMOA 0, 5, 10, 20 ou 35 attendue.");
+  });
+
+  it("conserve le taux TEC existant quand la colonne est vide", () => {
+    const result = validateImportRows(
+      "hs_codes",
+      [row(2, { code: "090111", libelle: "Café", taux_tec: "" })],
+      {
+        ...EMPTY_VALIDATION_CONTEXT,
+        existingHsCodes: new Map([["090111", "Café non torréfié"]]),
+      },
+    );
+
+    expect(result.errorCount).toBe(0);
+    expect(result.rows[0]?.warnings).toContain(
+      "Taux TEC vide : le taux déjà enregistré est conservé.",
+    );
+  });
 });
 
 describe("ART-004 — lien entre article et nomenclature", () => {

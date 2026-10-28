@@ -405,9 +405,9 @@ describe("ART-005 — refus des fichiers non exploitables", () => {
   it("refuse plus de lignes que la limite", async () => {
     const workbook = new Workbook();
     const sheet = workbook.addWorksheet(SHEET_DATA);
-    sheet.addRow(["code", "libelle", "code_parent", "unite_complementaire"]);
+    sheet.addRow(["code", "libelle", "code_parent", "unite_complementaire", "taux_tec"]);
     for (let index = 0; index <= MAX_IMPORT_ROWS; index += 1) {
-      sheet.addRow([String(100000 + index), `Libellé ${index}`, null, null]);
+      sheet.addRow([String(100000 + index), `Libellé ${index}`, null, null, null]);
     }
 
     await expect(parseWorkbook("hs_codes", await workbookBytes(workbook))).rejects.toThrow(

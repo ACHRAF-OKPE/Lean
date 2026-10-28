@@ -4,6 +4,7 @@ import type { ImportKind } from "@/db/schema";
 import {
   ARTICLE_HEADERS,
   COUNTRY_CODES,
+  CUSTOMS_LINE_HEADERS,
   HEADERS_BY_KIND,
   HS_HEADERS,
   IMPORT_KIND_LABELS,
@@ -38,6 +39,7 @@ const TEMPLATE_FILE_NAMES: Record<ImportKind, string> = {
   purchase_lines: "lean-modele-commandes.xlsx",
   sales_lines: "lean-modele-ventes.xlsx",
   tasks: "lean-modele-taches.xlsx",
+  customs_lines: "lean-modele-declarations.xlsx",
 };
 
 export function templateFileName(kind: ImportKind): string {
@@ -301,6 +303,7 @@ const HS_COLUMN_META: Record<(typeof HS_HEADERS)[number], ColumnMeta> = {
   libelle: { width: 52 },
   code_parent: { width: 16, text: true },
   unite_complementaire: { width: 24 },
+  taux_tec: { width: 12, list: '"0,5,10,20,35"' },
 };
 
 const PURCHASE_LINE_COLUMN_META: Record<(typeof PURCHASE_LINE_HEADERS)[number], ColumnMeta> = {
@@ -334,6 +337,21 @@ const TASK_COLUMN_META: Record<(typeof TASK_HEADERS)[number], ColumnMeta> = {
   document_reference: { width: 24, text: true },
 };
 
+const CUSTOMS_LINE_COLUMN_META: Record<(typeof CUSTOMS_LINE_HEADERS)[number], ColumnMeta> = {
+  numero_declaration: { width: 20, text: true },
+  code_sh: { width: 16, text: true },
+  designation: { width: 44 },
+  quantite: { width: 14, text: true },
+  unite: { width: 10, list: '"PCE,KG,G,T,L,ML,M,M2,M3,H,J,KWH,BX,CT,SAC,PAL,ROL,SET,PAQ,DZ"' },
+  valeur_xof: { width: 16, integer: true },
+  poids_kg: { width: 12, text: true },
+  pays_origine: {
+    width: 14,
+    listRange: "Pays",
+    listError: "Choisissez un code pays ISO 3166-1 à deux lettres (ex. SN).",
+  },
+};
+
 const COLUMN_META: Record<ImportKind, Record<string, ColumnMeta>> = {
   partners: PARTNER_COLUMN_META,
   articles: ARTICLE_COLUMN_META,
@@ -341,6 +359,7 @@ const COLUMN_META: Record<ImportKind, Record<string, ColumnMeta>> = {
   purchase_lines: PURCHASE_LINE_COLUMN_META,
   sales_lines: SALES_LINE_COLUMN_META,
   tasks: TASK_COLUMN_META,
+  customs_lines: CUSTOMS_LINE_COLUMN_META,
 };
 
 const PARTNER_COLUMN_HELP: Record<(typeof PARTNER_HEADERS)[number], string> = {
@@ -382,6 +401,8 @@ const HS_COLUMN_HELP: Record<(typeof HS_HEADERS)[number], string> = {
   code_parent:
     "Facultatif. Doit être un préfixe strict du code et déjà présent dans la nomenclature ou dans ce fichier.",
   unite_complementaire: "30 caractères maximum, facultatif.",
+  taux_tec:
+    "Facultatif ici, obligatoire pour liquider une déclaration : bande UEMOA 0, 5, 10, 20 ou 35. Vide conserve un taux existant.",
 };
 
 const PURCHASE_LINE_COLUMN_HELP: Record<(typeof PURCHASE_LINE_HEADERS)[number], string> = {
@@ -413,6 +434,20 @@ const TASK_COLUMN_HELP: Record<(typeof TASK_HEADERS)[number], string> = {
   document_reference: "Facultatif. Code du tiers ou numéro du document existant ; va avec le type.",
 };
 
+const CUSTOMS_LINE_COLUMN_HELP: Record<(typeof CUSTOMS_LINE_HEADERS)[number], string> = {
+  numero_declaration:
+    "Obligatoire. Numéro d'une déclaration existante en brouillon (ex. DEC-2026-0001).",
+  code_sh:
+    "Obligatoire. 6, 8 ou 10 chiffres, déjà présent dans la nomenclature ; le taux TEC de la fiche sert à la liquidation.",
+  designation: "Obligatoire. 160 caractères maximum.",
+  quantite: "Obligatoire. Nombre positif, 6 décimales maximum (virgule ou point décimal).",
+  unite:
+    "Code d'unité de la liste : PCE, KG, G, T, L, ML, M, M2, M3, H, J, KWH, BX, CT, SAC, PAL, ROL, SET, PAQ, DZ.",
+  valeur_xof: "Obligatoire. Valeur en douane, montant XOF entier, sans décimale.",
+  poids_kg: "Facultatif. Poids net en kilogrammes, trois décimales maximum.",
+  pays_origine: "Obligatoire. Code ISO 3166-1 à deux lettres (ex. CI).",
+};
+
 const COLUMN_HELP: Record<ImportKind, Record<string, string>> = {
   partners: PARTNER_COLUMN_HELP,
   articles: ARTICLE_COLUMN_HELP,
@@ -420,6 +455,7 @@ const COLUMN_HELP: Record<ImportKind, Record<string, string>> = {
   purchase_lines: PURCHASE_LINE_COLUMN_HELP,
   sales_lines: SALES_LINE_COLUMN_HELP,
   tasks: TASK_COLUMN_HELP,
+  customs_lines: CUSTOMS_LINE_COLUMN_HELP,
 };
 
 const EXAMPLES: Record<ImportKind, Record<string, string>> = {
@@ -457,6 +493,7 @@ const EXAMPLES: Record<ImportKind, Record<string, string>> = {
     libelle: "Café non torréfié, non décaféiné",
     code_parent: "",
     unite_complementaire: "KG",
+    taux_tec: "20",
   },
   purchase_lines: {
     fournisseur: "FOUR001",
@@ -482,6 +519,16 @@ const EXAMPLES: Record<ImportKind, Record<string, string>> = {
     assigne_email: "associe@exemple.sn",
     document_type: "Facture",
     document_reference: "FAC-2026-014",
+  },
+  customs_lines: {
+    numero_declaration: "DEC-2026-0001",
+    code_sh: "0901110000",
+    designation: "Café vert en sacs de 60 kg",
+    quantite: "120",
+    unite: "SAC",
+    valeur_xof: "18000000",
+    poids_kg: "7200",
+    pays_origine: "CI",
   },
 };
 
@@ -525,6 +572,13 @@ const KIND_RULES: Record<ImportKind, readonly string[]> = {
     "L'assigné se désigne par l'adresse e-mail d'un membre de l'espace.",
     "Le document lié se désigne par un type et une référence existants ; les deux vont ensemble.",
     "Une tâche ouverte portant déjà le même titre est signalée, mais reste importable.",
+    "Un même fichier ne peut être appliqué qu'une seule fois.",
+  ],
+  customs_lines: [
+    "Chaque ligne s'ajoute en fin de liste d'une déclaration existante en brouillon, regroupées par numéro de déclaration.",
+    "L'import ne crée aucune déclaration : préparez d'abord la déclaration et ses référentiels.",
+    "Le code SH doit exister dans la nomenclature ; un code sans taux TEC est signalé, car la liquidation l'exigera.",
+    "Les totaux, la liquidation et l'acquit-à-caution se calculent ensuite dans la fiche de la déclaration.",
     "Un même fichier ne peut être appliqué qu'une seule fois.",
   ],
 };
@@ -676,7 +730,9 @@ function buildHelpSheet(workbook: Workbook, kind: ImportKind): void {
       ? "Exemple illustratif : adaptez-le à vos données. Un code SH d'article doit exister dans votre nomenclature avant l'import."
       : kind === "tasks"
         ? "Exemple illustratif : adaptez-le à vos données. L'e-mail doit être celui d'un membre de l'espace et le document doit exister."
-        : "Exemple illustratif : adaptez-le à vos données.";
+        : kind === "customs_lines"
+          ? "Exemple illustratif : adaptez-le à vos données. La déclaration doit exister en brouillon et le code SH doit figurer dans la nomenclature."
+          : "Exemple illustratif : adaptez-le à vos données.";
   exampleNote.alignment = { wrapText: true, vertical: "top" };
   sheet.mergeCells(cursor, 1, cursor, 2);
   sheet.getRow(cursor).height = 28;

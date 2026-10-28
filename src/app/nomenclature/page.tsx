@@ -91,6 +91,9 @@ async function HsCodesContent({ searchParams }: Pick<PageProps<"/nomenclature">,
                     <th scope="col" className={TH}>
                       Unité complémentaire
                     </th>
+                    <th scope="col" className={TH}>
+                      TEC
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -105,6 +108,9 @@ async function HsCodesContent({ searchParams }: Pick<PageProps<"/nomenclature">,
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap text-muted">
                         {row.supplementaryUnit ?? "—"}
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap text-muted tabular-nums">
+                        {row.tecRate === null ? "—" : `${row.tecRate} %`}
                       </td>
                     </tr>
                   ))}

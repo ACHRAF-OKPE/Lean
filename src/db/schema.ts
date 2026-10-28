@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   customType,
@@ -203,7 +204,13 @@ export const companySettings = pgTable(
 export type PartnerType = "company" | "individual";
 export type ArticleType = "product" | "service";
 export type ImportKind =
-  "partners" | "articles" | "hs_codes" | "purchase_lines" | "sales_lines" | "tasks";
+  | "partners"
+  | "articles"
+  | "hs_codes"
+  | "purchase_lines"
+  | "sales_lines"
+  | "tasks"
+  | "customs_lines";
 export type ImportBatchStatus = "analyzed" | "applied";
 export type ImportRowStatus = "valid" | "warning" | "error";
 export type PurchaseOrderStatus = "draft" | "requested" | "confirmed" | "closed" | "cancelled";
@@ -218,7 +225,19 @@ export type PaymentMethod = "transfer" | "cash" | "cheque" | "mobile_money";
 export type StockLocationType = "internal" | "supplier" | "customer";
 export type StockMoveType = "incoming" | "outgoing";
 export type DocumentScope =
-  "purchase_order" | "reception" | "stock_move" | "sales_order" | "delivery" | "invoice";
+  | "purchase_order"
+  | "reception"
+  | "stock_move"
+  | "sales_order"
+  | "delivery"
+  | "invoice"
+  | "customs_declaration"
+  | "customs_bond";
+export type CustomsRegimeKind = "import" | "export" | "suspensive" | "transit";
+export type CustomsTaxBase = "cif" | "cif_plus_duty";
+export type CustomsDeclarationStatus =
+  "draft" | "deposited" | "liquidated" | "cleared" | "cancelled";
+export type CustomsBondStatus = "open" | "apured";
 export type EmailSecurity = "tls" | "starttls" | "none";
 export type ExchangeType = "purchase_request" | "purchase_confirmation";
 export type ExchangeMessageStatus = "sent" | "failed";
@@ -235,6 +254,7 @@ export const hsCodes = pgTable(
     wording: text("wording").notNull(),
     parentCode: text("parent_code"),
     supplementaryUnit: text("supplementary_unit"),
+    tecRate: integer("tec_rate"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -244,6 +264,10 @@ export const hsCodes = pgTable(
     index("hs_codes_tenant_idx").on(table.tenantId),
     check("hs_codes_code_format_check", sql`${table.code} ~ '^[0-9]{6}([0-9]{2}([0-9]{2})?)?$'`),
     check("hs_codes_wording_check", sql`char_length(${table.wording}) between 1 and 240`),
+    check(
+      "hs_codes_tec_rate_check",
+      sql`${table.tecRate} is null or ${table.tecRate} in (0, 5, 10, 20, 35)`,
+    ),
   ],
 );
 
@@ -484,7 +508,7 @@ export const importBatches = pgTable(
     index("import_batches_tenant_created_idx").on(table.tenantId, table.createdAt),
     check(
       "import_batches_kind_check",
-      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines', 'tasks')`,
+      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines', 'tasks', 'customs_lines')`,
     ),
     check("import_batches_status_check", sql`${table.status} in ('analyzed', 'applied')`),
     check(
@@ -1403,7 +1427,7 @@ export const documentSequences = pgTable(
     ),
     check(
       "document_sequences_scope_check",
-      sql`${table.scope} in ('purchase_order', 'reception', 'stock_move', 'sales_order', 'delivery', 'invoice')`,
+      sql`${table.scope} in ('purchase_order', 'reception', 'stock_move', 'sales_order', 'delivery', 'invoice', 'customs_declaration', 'customs_bond')`,
     ),
     check("document_sequences_period_check", sql`${table.period} between 2000 and 9999`),
     check("document_sequences_value_check", sql`${table.lastValue} >= 0`),
@@ -1624,6 +1648,348 @@ export const tasks = pgTable(
   ],
 );
 
+export const customsOffices = pgTable(
+  "customs_offices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("customs_offices_tenant_code_idx").on(table.tenantId, table.code),
+    uniqueIndex("customs_offices_tenant_id_idx").on(table.tenantId, table.id),
+    index("customs_offices_tenant_idx").on(table.tenantId),
+    check("customs_offices_code_check", sql`${table.code} ~ '^[A-Z]{2}[A-Z0-9]{3}$'`),
+    check("customs_offices_name_check", sql`char_length(${table.name}) between 1 and 120`),
+  ],
+);
+
+export const customsRegimes = pgTable(
+  "customs_regimes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    kind: text("kind").$type<CustomsRegimeKind>().notNull(),
+    requiresBond: boolean("requires_bond").notNull().default(false),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("customs_regimes_tenant_code_idx").on(table.tenantId, table.code),
+    uniqueIndex("customs_regimes_tenant_id_idx").on(table.tenantId, table.id),
+    index("customs_regimes_tenant_idx").on(table.tenantId),
+    check("customs_regimes_code_check", sql`${table.code} ~ '^[A-Z0-9]{2,6}$'`),
+    check("customs_regimes_label_check", sql`char_length(${table.label}) between 1 and 120`),
+    check(
+      "customs_regimes_kind_check",
+      sql`${table.kind} in ('import', 'export', 'suspensive', 'transit')`,
+    ),
+  ],
+);
+
+export const customsTaxes = pgTable(
+  "customs_taxes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    base: text("base").$type<CustomsTaxBase>().notNull(),
+    rateBp: integer("rate_bp").notNull(),
+    position: integer("position").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("customs_taxes_tenant_code_idx").on(table.tenantId, table.code),
+    uniqueIndex("customs_taxes_tenant_id_idx").on(table.tenantId, table.id),
+    index("customs_taxes_tenant_idx").on(table.tenantId),
+    check("customs_taxes_code_check", sql`${table.code} ~ '^[A-Z0-9]{2,6}$'`),
+    check("customs_taxes_label_check", sql`char_length(${table.label}) between 1 and 120`),
+    check("customs_taxes_base_check", sql`${table.base} in ('cif', 'cif_plus_duty')`),
+    check("customs_taxes_rate_check", sql`${table.rateBp} between 0 and 10000`),
+    check("customs_taxes_position_check", sql`${table.position} between 0 and 999`),
+  ],
+);
+
+export const customsDeclarations = pgTable(
+  "customs_declarations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    number: text("number").notNull(),
+    regimeId: uuid("regime_id").notNull(),
+    officeId: uuid("office_id").notNull(),
+    partnerId: uuid("partner_id").notNull(),
+    status: text("status").$type<CustomsDeclarationStatus>().notNull().default("draft"),
+    declarationDate: date("declaration_date", { mode: "string" }).notNull(),
+    externalReference: text("external_reference"),
+    freightAmount: integer("freight_amount").notNull().default(0),
+    insuranceAmount: integer("insurance_amount").notNull().default(0),
+    cifTotal: bigint("cif_total", { mode: "number" }).notNull().default(0),
+    dutyTotal: bigint("duty_total", { mode: "number" }).notNull().default(0),
+    taxTotal: bigint("tax_total", { mode: "number" }).notNull().default(0),
+    grandTotal: bigint("grand_total", { mode: "number" }).notNull().default(0),
+    paidTotal: bigint("paid_total", { mode: "number" }).notNull().default(0),
+    liquidatedAt: timestamp("liquidated_at", { withTimezone: true }),
+    clearedAt: timestamp("cleared_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("customs_declarations_tenant_number_idx").on(table.tenantId, table.number),
+    uniqueIndex("customs_declarations_tenant_id_idx").on(table.tenantId, table.id),
+    index("customs_declarations_tenant_status_idx").on(
+      table.tenantId,
+      table.status,
+      table.declarationDate,
+    ),
+    check("customs_declarations_number_check", sql`${table.number} ~ '^DEC-[0-9]{4}-[0-9]{4}$'`),
+    check(
+      "customs_declarations_status_check",
+      sql`${table.status} in ('draft', 'deposited', 'liquidated', 'cleared', 'cancelled')`,
+    ),
+    check(
+      "customs_declarations_reference_check",
+      sql`${table.externalReference} is null or char_length(${table.externalReference}) between 1 and 60`,
+    ),
+    check(
+      "customs_declarations_amounts_check",
+      sql`${table.freightAmount} between 0 and 2000000000 and ${table.insuranceAmount} between 0 and 2000000000`,
+    ),
+    check(
+      "customs_declarations_totals_check",
+      sql`${table.cifTotal} >= 0 and ${table.dutyTotal} >= 0 and ${table.taxTotal} >= 0 and ${table.grandTotal} >= 0 and ${table.paidTotal} >= 0 and ${table.paidTotal} <= ${table.grandTotal}`,
+    ),
+    check(
+      "customs_declarations_cleared_check",
+      sql`(${table.status} = 'cleared') = (${table.clearedAt} is not null)`,
+    ),
+    check(
+      "customs_declarations_cancelled_check",
+      sql`(${table.status} = 'cancelled') = (${table.cancelledAt} is not null)`,
+    ),
+    foreignKey({
+      name: "customs_declarations_tenant_regime_fk",
+      columns: [table.tenantId, table.regimeId],
+      foreignColumns: [customsRegimes.tenantId, customsRegimes.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "customs_declarations_tenant_office_fk",
+      columns: [table.tenantId, table.officeId],
+      foreignColumns: [customsOffices.tenantId, customsOffices.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "customs_declarations_tenant_partner_fk",
+      columns: [table.tenantId, table.partnerId],
+      foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const customsDeclarationLines = pgTable(
+  "customs_declaration_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    declarationId: uuid("declaration_id").notNull(),
+    lineNumber: integer("line_number").notNull(),
+    hsCodeId: uuid("hs_code_id").notNull(),
+    hsCode: text("hs_code").notNull(),
+    designation: text("designation").notNull(),
+    quantity: numeric("quantity", { precision: 18, scale: 6 }).notNull(),
+    unitCode: text("unit_code").notNull(),
+    valueXof: integer("value_xof").notNull(),
+    weightKg: numeric("weight_kg", { precision: 18, scale: 3 }),
+    originCountry: text("origin_country").notNull(),
+    cifValue: bigint("cif_value", { mode: "number" }).notNull().default(0),
+    dutyRate: integer("duty_rate"),
+    dutyAmount: bigint("duty_amount", { mode: "number" }).notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("customs_declaration_lines_tenant_declaration_line_idx").on(
+      table.tenantId,
+      table.declarationId,
+      table.lineNumber,
+    ),
+    uniqueIndex("customs_declaration_lines_tenant_id_idx").on(table.tenantId, table.id),
+    check("customs_declaration_lines_number_check", sql`${table.lineNumber} >= 1`),
+    check(
+      "customs_declaration_lines_designation_check",
+      sql`char_length(${table.designation}) between 1 and 160`,
+    ),
+    check("customs_declaration_lines_quantity_check", sql`${table.quantity} > 0`),
+    check("customs_declaration_lines_value_check", sql`${table.valueXof} between 0 and 2000000000`),
+    check(
+      "customs_declaration_lines_weight_check",
+      sql`${table.weightKg} is null or ${table.weightKg} >= 0`,
+    ),
+    check("customs_declaration_lines_origin_check", sql`${table.originCountry} ~ '^[A-Z]{2}$'`),
+    check("customs_declaration_lines_cif_check", sql`${table.cifValue} >= 0`),
+    check(
+      "customs_declaration_lines_duty_rate_check",
+      sql`${table.dutyRate} is null or ${table.dutyRate} in (0, 5, 10, 20, 35)`,
+    ),
+    check("customs_declaration_lines_duty_check", sql`${table.dutyAmount} >= 0`),
+    foreignKey({
+      name: "customs_declaration_lines_tenant_declaration_fk",
+      columns: [table.tenantId, table.declarationId],
+      foreignColumns: [customsDeclarations.tenantId, customsDeclarations.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "customs_declaration_lines_tenant_hs_code_fk",
+      columns: [table.tenantId, table.hsCodeId],
+      foreignColumns: [hsCodes.tenantId, hsCodes.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const customsDeclarationTaxes = pgTable(
+  "customs_declaration_taxes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    declarationId: uuid("declaration_id").notNull(),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    base: text("base").$type<CustomsTaxBase>().notNull(),
+    baseAmount: bigint("base_amount", { mode: "number" }).notNull(),
+    rateBp: integer("rate_bp").notNull(),
+    amount: bigint("amount", { mode: "number" }).notNull(),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("customs_declaration_taxes_tenant_declaration_code_idx").on(
+      table.tenantId,
+      table.declarationId,
+      table.code,
+    ),
+    uniqueIndex("customs_declaration_taxes_tenant_id_idx").on(table.tenantId, table.id),
+    check("customs_declaration_taxes_base_check", sql`${table.base} in ('cif', 'cif_plus_duty')`),
+    check("customs_declaration_taxes_base_amount_check", sql`${table.baseAmount} >= 0`),
+    check("customs_declaration_taxes_rate_check", sql`${table.rateBp} between 0 and 10000`),
+    check("customs_declaration_taxes_amount_check", sql`${table.amount} >= 0`),
+    foreignKey({
+      name: "customs_declaration_taxes_tenant_declaration_fk",
+      columns: [table.tenantId, table.declarationId],
+      foreignColumns: [customsDeclarations.tenantId, customsDeclarations.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const customsBonds = pgTable(
+  "customs_bonds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    number: text("number").notNull(),
+    declarationId: uuid("declaration_id").notNull(),
+    status: text("status").$type<CustomsBondStatus>().notNull().default("open"),
+    guaranteeAmount: bigint("guarantee_amount", { mode: "number" }).notNull(),
+    guaranteeReference: text("guarantee_reference").notNull(),
+    amountAtRisk: bigint("amount_at_risk", { mode: "number" }).notNull(),
+    openedByUserId: uuid("opened_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    apuredAt: timestamp("apured_at", { withTimezone: true }),
+    apuredByUserId: uuid("apured_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    apurementReference: text("apurement_reference"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("customs_bonds_tenant_number_idx").on(table.tenantId, table.number),
+    uniqueIndex("customs_bonds_tenant_declaration_idx").on(table.tenantId, table.declarationId),
+    uniqueIndex("customs_bonds_tenant_id_idx").on(table.tenantId, table.id),
+    index("customs_bonds_tenant_status_idx").on(table.tenantId, table.status),
+    check("customs_bonds_number_check", sql`${table.number} ~ '^AAC-[0-9]{4}-[0-9]{4}$'`),
+    check("customs_bonds_status_check", sql`${table.status} in ('open', 'apured')`),
+    check("customs_bonds_guarantee_check", sql`${table.guaranteeAmount} > 0`),
+    check(
+      "customs_bonds_guarantee_reference_check",
+      sql`char_length(${table.guaranteeReference}) between 1 and 120`,
+    ),
+    check("customs_bonds_amount_at_risk_check", sql`${table.amountAtRisk} >= 0`),
+    check(
+      "customs_bonds_apurement_check",
+      sql`(${table.status} = 'apured') = (${table.apuredAt} is not null) and (${table.apuredAt} is null) = (${table.apuredByUserId} is null) and (${table.status} = 'apured') = (${table.apurementReference} is not null)`,
+    ),
+    check(
+      "customs_bonds_apurement_reference_check",
+      sql`${table.apurementReference} is null or char_length(${table.apurementReference}) between 1 and 120`,
+    ),
+    foreignKey({
+      name: "customs_bonds_tenant_declaration_fk",
+      columns: [table.tenantId, table.declarationId],
+      foreignColumns: [customsDeclarations.tenantId, customsDeclarations.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const customsPayments = pgTable(
+  "customs_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    declarationId: uuid("declaration_id").notNull(),
+    amount: bigint("amount", { mode: "number" }).notNull(),
+    method: text("method").$type<PaymentMethod>().notNull(),
+    paidAt: date("paid_at", { mode: "string" }).notNull(),
+    reference: text("reference"),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("customs_payments_tenant_id_idx").on(table.tenantId, table.id),
+    index("customs_payments_tenant_declaration_idx").on(
+      table.tenantId,
+      table.declarationId,
+      table.paidAt,
+    ),
+    check("customs_payments_amount_check", sql`${table.amount} > 0`),
+    check(
+      "customs_payments_method_check",
+      sql`${table.method} in ('transfer', 'cash', 'cheque', 'mobile_money')`,
+    ),
+    check(
+      "customs_payments_reference_check",
+      sql`${table.reference} is null or char_length(${table.reference}) between 1 and 120`,
+    ),
+    foreignKey({
+      name: "customs_payments_tenant_declaration_fk",
+      columns: [table.tenantId, table.declarationId],
+      foreignColumns: [customsDeclarations.tenantId, customsDeclarations.id],
+    }).onDelete("cascade"),
+  ],
+);
+
 export type HsCodeRow = typeof hsCodes.$inferSelect;
 export type PartnerRow = typeof partners.$inferSelect;
 export type ArticleRow = typeof articles.$inferSelect;
@@ -1647,3 +2013,11 @@ export type DocumentSequenceRow = typeof documentSequences.$inferSelect;
 export type DiscussionMessageRow = typeof discussionMessages.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type TaskRow = typeof tasks.$inferSelect;
+export type CustomsOfficeRow = typeof customsOffices.$inferSelect;
+export type CustomsRegimeRow = typeof customsRegimes.$inferSelect;
+export type CustomsTaxRow = typeof customsTaxes.$inferSelect;
+export type CustomsDeclarationRow = typeof customsDeclarations.$inferSelect;
+export type CustomsDeclarationLineRow = typeof customsDeclarationLines.$inferSelect;
+export type CustomsDeclarationTaxRow = typeof customsDeclarationTaxes.$inferSelect;
+export type CustomsBondRow = typeof customsBonds.$inferSelect;
+export type CustomsPaymentRow = typeof customsPayments.$inferSelect;

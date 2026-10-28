@@ -51,6 +51,7 @@ export interface HsCodeSummary {
   readonly wording: string;
   readonly parentCode: string | null;
   readonly supplementaryUnit: string | null;
+  readonly tecRate: number | null;
 }
 
 export interface CatalogPage<T> {
@@ -116,7 +117,12 @@ export async function loadValidationContext(
       .from(articles)
       .where(eq(articles.tenantId, tenantId)),
     db
-      .select({ code: hsCodes.code, wording: hsCodes.wording })
+      .select({
+        id: hsCodes.id,
+        code: hsCodes.code,
+        wording: hsCodes.wording,
+        tecRate: hsCodes.tecRate,
+      })
       .from(hsCodes)
       .where(eq(hsCodes.tenantId, tenantId)),
   ]);
@@ -129,6 +135,9 @@ export async function loadValidationContext(
     customersByCode: new Map(partnerRows.map((row) => [row.code, row])),
     articlesByCode: new Map(articleRows.map((row) => [row.code, row])),
     salesArticlesByCode: new Map(articleRows.map((row) => [row.code, row])),
+    customsHsCodesByCode: new Map(
+      hsRows.map((row) => [row.code, { id: row.id, tecRate: row.tecRate }]),
+    ),
   };
 }
 
@@ -239,6 +248,7 @@ export async function listHsCodes(
         wording: hsCodes.wording,
         parentCode: hsCodes.parentCode,
         supplementaryUnit: hsCodes.supplementaryUnit,
+        tecRate: hsCodes.tecRate,
       })
       .from(hsCodes)
       .where(eq(hsCodes.tenantId, tenantId))
@@ -392,6 +402,7 @@ export async function createHsCode(
           wording: data.wording,
           parentCode: data.parentCode,
           supplementaryUnit: data.supplementaryUnit,
+          tecRate: data.tecRate,
         })
         .returning({ id: hsCodes.id, code: hsCodes.code });
 

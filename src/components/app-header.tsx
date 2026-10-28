@@ -3,6 +3,7 @@ import {
   ArrowLeftRight,
   Barcode,
   GitBranch,
+  Landmark,
   LayoutDashboard,
   ListTodo,
   LogOut,
@@ -26,6 +27,7 @@ export type ActiveSection =
   | "partners"
   | "articles"
   | "nomenclature"
+  | "customs"
   | "purchases"
   | "exchanges"
   | "sales"
@@ -41,6 +43,7 @@ const NAV_ITEMS = [
   { key: "partners", href: "/tiers", label: "Tiers", icon: Users },
   { key: "articles", href: "/articles", label: "Articles", icon: Package },
   { key: "nomenclature", href: "/nomenclature", label: "Nomenclature douanière", icon: Barcode },
+  { key: "customs", href: "/douane", label: "Douane", icon: Landmark },
   { key: "purchases", href: "/achats", label: "Achats", icon: ShoppingCart },
   { key: "exchanges", href: "/echanges", label: "Échanges", icon: Mail },
   { key: "sales", href: "/ventes", label: "Ventes", icon: ShoppingBag },

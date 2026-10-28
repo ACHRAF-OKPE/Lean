@@ -37,6 +37,7 @@ const ACTIVE_BY_KIND: Record<ImportKind, ActiveSection> = {
   purchase_lines: "purchases",
   sales_lines: "sales",
   tasks: "tasks",
+  customs_lines: "customs",
 };
 
 const ROW_STATUS_META: Record<
@@ -213,7 +214,9 @@ async function ImportReportContent({
                   ? " des commandes client en brouillon."
                   : batch.kind === "tasks"
                     ? " des tâches ouvertes."
-                    : " le référentiel."}
+                    : batch.kind === "customs_lines"
+                      ? " des déclarations en brouillon."
+                      : " le référentiel."}
             </p>
             <Link
               href={listPath}

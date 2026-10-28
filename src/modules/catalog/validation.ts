@@ -1,6 +1,13 @@
 import type { ArticleType, ImportKind, ImportRowStatus, PartnerType } from "@/db/schema";
 import type { ArticleReference, SupplierReference } from "@/modules/purchases/validation";
 import type { CustomerReference, SalesArticleReference } from "@/modules/sales/validation";
+import type {
+  CustomsDeclarationLinesReference,
+  CustomsDeclarationReference,
+  CustomsHsCodeReference,
+} from "@/modules/customs/import-validation";
+import { validateCustomsLineImportRows } from "@/modules/customs/import-validation";
+import { isTecRate } from "@/modules/customs/constants";
 import type { TaskDocumentMaps, TaskMemberReference } from "@/modules/tasks/import-validation";
 import { validatePurchaseLines } from "@/modules/purchases/import-validation";
 import { validateSalesLines } from "@/modules/sales/import-validation";
@@ -23,6 +30,9 @@ export interface ValidationContext {
   readonly taskMembersByEmail?: ReadonlyMap<string, TaskMemberReference>;
   readonly taskDocuments?: TaskDocumentMaps;
   readonly openTaskTitles?: ReadonlySet<string>;
+  readonly customsDeclarationsByNumber?: ReadonlyMap<string, CustomsDeclarationReference>;
+  readonly customsHsCodesByCode?: ReadonlyMap<string, CustomsHsCodeReference>;
+  readonly customsLinesByDeclaration?: ReadonlyMap<string, CustomsDeclarationLinesReference>;
 }
 
 export interface ValidatedRow {
@@ -62,6 +72,7 @@ export interface HsImportData {
   wording: string;
   parentCode: string | null;
   supplementaryUnit: string | null;
+  tecRate: number | null;
 }
 
 export interface ArticleImportData {
@@ -365,6 +376,30 @@ export function hsCodeField(raw: unknown, required: boolean): Parsed<string | nu
   return { value, errors, warnings };
 }
 
+function tecRateField(raw: unknown): Parsed<number | null> {
+  const { text } = rawToText(raw);
+  let trimmed = text.trim();
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  if (!trimmed) {
+    return { value: null, errors, warnings };
+  }
+  if (trimmed.endsWith("%")) {
+    trimmed = trimmed.slice(0, -1).trim();
+    warnings.push("Taux TEC : signe pourcentage retiré.");
+  }
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) {
+    errors.push("Taux TEC : bande 0, 5, 10, 20 ou 35 attendue.");
+    return { value: null, errors, warnings };
+  }
+  const value = Number(trimmed);
+  if (!isTecRate(value)) {
+    errors.push("Taux TEC : bande UEMOA 0, 5, 10, 20 ou 35 attendue.");
+    return { value: null, errors, warnings };
+  }
+  return { value, errors, warnings };
+}
+
 function validatePartnerRow(row: RawImportRow, context: ValidationContext): ValidatedRow {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -452,8 +487,9 @@ function validateHsCodeRow(row: RawImportRow, context: ValidationContext): Valid
   const supplementaryUnit = textField(row.values["unite_complementaire"], "Unité complémentaire", {
     maxLength: 30,
   });
+  const tecRate = tecRateField(row.values["taux_tec"]);
 
-  for (const field of [code, wording, parentCode, supplementaryUnit]) {
+  for (const field of [code, wording, parentCode, supplementaryUnit, tecRate]) {
     errors.push(...field.errors);
     warnings.push(...field.warnings);
   }
@@ -465,6 +501,9 @@ function validateHsCodeRow(row: RawImportRow, context: ValidationContext): Valid
   }
   if (code.value && context.existingHsCodes.has(code.value)) {
     warnings.push("Code déjà présent : libellé et parent seront mis à jour.");
+    if (tecRate.value === null) {
+      warnings.push("Taux TEC vide : le taux déjà enregistré est conservé.");
+    }
   }
 
   return {
@@ -478,6 +517,7 @@ function validateHsCodeRow(row: RawImportRow, context: ValidationContext): Valid
       wording: wording.value ?? "",
       parentCode: parentCode.value,
       supplementaryUnit: supplementaryUnit.value,
+      tecRate: tecRate.value,
     } satisfies HsImportData,
   };
 }
@@ -613,6 +653,9 @@ export function validateImportRows(
   }
   if (kind === "tasks") {
     return validateTaskImportRows(rows, context);
+  }
+  if (kind === "customs_lines") {
+    return validateCustomsLineImportRows(rows, context);
   }
 
   const validated = rows.map((row) => {

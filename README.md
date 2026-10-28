@@ -3,8 +3,8 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 5 complet — tâches, assignation et suivi (5D) livrés.**
-La douane arrive ensuite.
+**Statut : Lot 6 complet — déclarations, liquidation, acquits et mainlevée livrés.**
+Le socle comptable du Lot 7 arrive ensuite.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -282,6 +282,32 @@ Le Lot 5D ajoute les tâches internes, rattachées ou non à un document :
   Les tâches importées naissent ouvertes avec l'acteur comme créateur ; un même fichier ne
   s'applique qu'une fois et l'import n'ouvre ni fil ni notification par tâche.
 
+## Douane
+
+Le Lot 6 ajoute le passage en douane, du référentiel à la mainlevée :
+
+- **Référentiels** — `/douane/referentiels` gère les bureaux (code UN/LOCODE), les régimes
+  ASYCUDA (nature, acquit obligatoire) et les taxes paramétrables (assiette CIF ou CIF +
+  droits, taux à deux décimales). Le taux TEC d'un code SH reste limité aux bandes UEMOA 0,
+  5, 10, 20 et 35 ; il s'importe avec la nomenclature et se conserve si la colonne est vide.
+- **Déclaration** — `/douane` liste les déclarations brouillon, déposées, liquidées,
+  réglées et annulées. Une déclaration porte un numéro DEC-AAAA-NNNN, un régime, un bureau,
+  le tiers déclaré, une date et les frais de transport et d'assurance ; elle s'enrichit de
+  lignes jusqu'au dépôt, qui fige l'en-tête et les lignes.
+- **Liquidation** — le fret et l'assurance sont répartis au prorata des valeurs de ligne au
+  franc près (plus fort reste) ; le droit de douane applique le TEC de chaque code SH, puis
+  les taxes actives sont calculées sur leur assiette. L'instantané fige lignes, taxes et
+  totaux ; une modification ultérieure du référentiel ne le change pas.
+- **Acquit-à-caution** — un régime suspensif exige un acquit AAC-AAAA-NNNN, unique, dont la
+  garantie couvre au moins le montant à payer ; l'apurement est unique et lève le blocage de
+  la mainlevée.
+- **Paiements** — append-only, au plus égaux au montant à payer, datés d'aujourd'hui ou
+  avant ; la mainlevée exige le paiement intégral et, si le régime l'exige, l'acquit apuré.
+- **Import** — modèle XLSX à huit colonnes (numéro de déclaration, code SH, désignation,
+  quantité, unité, valeur, poids, pays d'origine), regroupé par déclaration brouillon. Un
+  code SH ou une désignation déjà présent sur la déclaration est signalé ; un fichier ne
+  s'applique qu'une fois.
+
 ## Scripts
 
 | Commande              | Rôle                                          |
@@ -309,12 +335,15 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `sales_order_lines`, `deliveries`, `delivery_lines`, `invoices`, `invoice_lines`,
 `invoice_payments`, `document_sequences`, `company_settings`, `partner_contacts`,
 `exchange_templates`, `exchange_messages`, `supplier_replies`, `discussion_messages`,
-`discussion_mentions`, `notifications` et `tasks`. Les migrations générées sont commitées dans
+`discussion_mentions`, `notifications`, `tasks`, puis `customs_offices`, `customs_regimes`,
+`customs_taxes`, `customs_declarations`, `customs_declaration_lines`,
+`customs_declaration_taxes`, `customs_bonds` et `customs_payments`. Les migrations générées
+sont commitées dans
 `drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
 `0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
 facturation, `0006` pour la fiche entreprise et les contacts tiers, `0007` pour les échanges
 fournisseurs, `0008` pour la collaboration, `0009` pour les réponses fournisseurs, `0010`
-pour les tâches et `0011` pour leur chronomètre. Les
+pour les tâches, `0011` pour leur chronomètre et `0012` pour la douane. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire et d'idempotence des évènements sont posées
 en base, en complément de la validation applicative.

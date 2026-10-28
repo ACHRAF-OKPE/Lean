@@ -17,6 +17,8 @@ import { applySalesLines } from "@/modules/sales/imports";
 import { SalesError } from "@/modules/sales/errors";
 import { applyTaskImport, loadTaskImportContext } from "@/modules/tasks/imports";
 import { TasksError } from "@/modules/tasks/errors";
+import { CustomsError } from "@/modules/customs/errors";
+import { applyCustomsLineImport, loadCustomsImportContext } from "@/modules/customs/imports";
 import { CatalogError } from "./errors";
 import { loadValidationContext } from "./queries";
 import {
@@ -100,7 +102,13 @@ export async function analyzeImport(
 ): Promise<AnalyzeImportResult> {
   const context = await loadValidationContext(db, input.tenantId);
   const taskContext = input.kind === "tasks" ? await loadTaskImportContext(db, input.tenantId) : {};
-  const validation = validateImportRows(input.kind, input.rows, { ...context, ...taskContext });
+  const customsContext =
+    input.kind === "customs_lines" ? await loadCustomsImportContext(db, input.tenantId) : {};
+  const validation = validateImportRows(input.kind, input.rows, {
+    ...context,
+    ...taskContext,
+    ...customsContext,
+  });
 
   return db.transaction(async (tx) => {
     const [previous] = await tx
@@ -368,6 +376,7 @@ async function upsertHsCodes(
           wording: data.wording,
           parentCode: data.parentCode,
           supplementaryUnit: data.supplementaryUnit,
+          tecRate: data.tecRate,
         };
       }),
     )
@@ -377,6 +386,7 @@ async function upsertHsCodes(
         wording: sql`excluded.wording`,
         parentCode: sql`excluded.parent_code`,
         supplementaryUnit: sql`excluded.supplementary_unit`,
+        tecRate: sql`coalesce(excluded.tec_rate, hs_codes.tec_rate)`,
         updatedAt: sql`now()`,
       },
     });
@@ -413,7 +423,12 @@ export async function applyImportBatch(
       );
     }
 
-    if (batch.kind === "purchase_lines" || batch.kind === "sales_lines" || batch.kind === "tasks") {
+    if (
+      batch.kind === "purchase_lines" ||
+      batch.kind === "sales_lines" ||
+      batch.kind === "tasks" ||
+      batch.kind === "customs_lines"
+    ) {
       const [previous] = await tx
         .select({ id: importBatches.id })
         .from(importBatches)
@@ -436,6 +451,11 @@ export async function applyImportBatch(
         if (batch.kind === "sales_lines") {
           throw new SalesError(
             "Ce fichier a déjà été importé en commandes : un même fichier ne s'applique qu'une fois.",
+          );
+        }
+        if (batch.kind === "customs_lines") {
+          throw new CustomsError(
+            "Ce fichier a déjà été importé en lignes de déclaration : un même fichier ne s'applique qu'une fois.",
           );
         }
         throw new TasksError(
@@ -488,8 +508,15 @@ export async function applyImportBatch(
       await upsertPartners(tx, input.tenantId, rows);
     } else if (batch.kind === "articles") {
       await upsertArticles(tx, input.tenantId, rows);
-    } else {
+    } else if (batch.kind === "hs_codes") {
       await upsertHsCodes(tx, input.tenantId, rows);
+    } else {
+      await applyCustomsLineImport(tx, {
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        batchId: batch.id,
+        rows,
+      });
     }
 
     if (batch.kind === "partners" || batch.kind === "articles" || batch.kind === "hs_codes") {
