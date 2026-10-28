@@ -160,6 +160,13 @@ describe("CUS-006 — analyse et application par déclaration", () => {
     const second = await createDraft(tenant, "2026-10-16");
     await addLine(first.id, tenant);
 
+    const single = await analyze(
+      tenant,
+      [lineRow(2, { numero_declaration: first.number })],
+      hashOf("cus-006-single"),
+    );
+    expect(single.notes.join(" ")).toContain("1 déclaration en brouillon recevra des lignes");
+
     const hash = hashOf("cus-006-apply");
     const rows = [
       lineRow(2, { numero_declaration: first.number }),

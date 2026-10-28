@@ -154,8 +154,9 @@ export function validateCustomsLineImportRows(
       countsByDeclaration.size > labels.length
         ? ` et ${countsByDeclaration.size - labels.length} autre(s)`
         : "";
+    const plural = countsByDeclaration.size > 1;
     notes.push(
-      `${countsByDeclaration.size} déclaration${countsByDeclaration.size > 1 ? "s" : ""} en brouillon recevront des lignes à la confirmation : ${labels.join(" ; ")}${extra}.`,
+      `${countsByDeclaration.size} déclaration${plural ? "s" : ""} en brouillon ${plural ? "recevront" : "recevra"} des lignes à la confirmation : ${labels.join(" ; ")}${extra}.`,
     );
   }
 
