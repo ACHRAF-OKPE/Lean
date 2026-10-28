@@ -3,7 +3,7 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 5C livré — discussion interne, mentions et notifications.**
+**Statut : Lot 5E livré — réponses fournisseurs en ligne.**
 Le lot 5 poursuit avec les tâches et leur suivi. La douane arrive ensuite.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
@@ -220,6 +220,23 @@ Le Lot 5B ajoute l'envoi des demandes de prix et des confirmations de commande :
 `LEAN_SECRET_KEY` est obligatoire pour enregistrer un mot de passe SMTP. Les échanges sont
 accessibles depuis `/echanges`, `/parametres/echanges` et la fiche d'une commande.
 
+## Réponses fournisseurs
+
+Le Lot 5E ramène la réponse du fournisseur dans l'application, sans lui imposer de compte :
+
+- **Lien par message** — chaque demande ou confirmation remise au serveur SMTP contient un
+  lien `/repondre/<jeton>`. Le jeton fait 256 bits, n'est stocké qu'en empreinte SHA-256 et
+  vaut 90 jours ; un renvoi crée un nouveau lien sans invalider l'ancien.
+- **Page publique** — le fournisseur voit le numéro, les dates, la référence, les notes, les
+  lignes et le total, puis indique sa disponibilité, un commentaire, un délai, un montant
+  proposé et, s'il le souhaite, une pièce jointe PDF, PNG, JPEG ou XLSX de 5 Mio au plus. Un
+  lien inconnu ou expiré affiche une réponse neutre.
+- **Retour dans l'application** — chaque réponse apparaît sur la commande, s'inscrit dans le
+  fil comme évènement et notifie tous les membres. L'audit conserve la disponibilité et la
+  présence d'une pièce jointe, jamais le commentaire.
+- **Pièce jointe** — téléchargeable uniquement par un membre authentifié de l'espace, via une
+  route qui force le téléchargement.
+
 ## Collaboration interne
 
 Le Lot 5C ajoute un fil de discussion interne et une boîte de notifications :
@@ -267,12 +284,13 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `stock_locations`, `stock_moves`, `stock_move_lines`, `stock_levels`, puis `sales_orders`,
 `sales_order_lines`, `deliveries`, `delivery_lines`, `invoices`, `invoice_lines`,
 `invoice_payments`, `document_sequences`, `company_settings`, `partner_contacts`,
-`exchange_templates`, `exchange_messages`, `discussion_messages`, `discussion_mentions` et
-`notifications`. Les migrations générées sont commitées dans `drizzle/` : `0001` pour
-l'identité, `0002` pour le catalogue et la traçabilité des imports, `0003` pour les notes de
-lot, `0004` pour les achats et le stock, `0005` pour les ventes et la facturation, `0006` pour
-la fiche entreprise et les contacts tiers, `0007` pour les échanges fournisseurs et `0008`
-pour la collaboration. Les contraintes d'unicité, de rôle, de format SH, de quantités, de
+`exchange_templates`, `exchange_messages`, `supplier_replies`, `discussion_messages`,
+`discussion_mentions` et `notifications`. Les migrations générées sont commitées dans
+`drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
+`0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
+facturation, `0006` pour la fiche entreprise et les contacts tiers, `0007` pour les échanges
+fournisseurs, `0008` pour la collaboration et `0009` pour les réponses fournisseurs. Les
+contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire et d'idempotence des évènements sont posées
 en base, en complément de la validation applicative.
 

@@ -208,7 +208,7 @@ export async function recordDocumentEvent(
   tx: Transaction,
   input: {
     readonly tenantId: string;
-    readonly actorUserId: string;
+    readonly actorUserId: string | null;
     readonly entityType: DiscussionEntityType;
     readonly entityId: string;
     readonly event: Omit<DocumentEventInput, "entityType">;

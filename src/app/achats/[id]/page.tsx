@@ -3,8 +3,17 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { ArrowLeft, Info, Mail, Mails, PackagePlus, ReceiptText } from "lucide-react";
-import type { PurchaseOrderStatus, ReceptionStatus } from "@/db/schema";
+import {
+  ArrowLeft,
+  Info,
+  Mail,
+  Mails,
+  PackagePlus,
+  Paperclip,
+  ReceiptText,
+  Reply,
+} from "lucide-react";
+import type { PurchaseOrderStatus, ReceptionStatus, SupplierReplyAvailability } from "@/db/schema";
 import { AppHeader } from "@/components/app-header";
 import { DiscussionPanel } from "@/components/discussion-panel";
 import { ExchangeStatusBadge, ExchangeTypeBadge } from "@/components/exchange-badges";
@@ -19,6 +28,7 @@ import { listMembershipsForUser } from "@/modules/identity/queries";
 import { canApplyAction, statusLabel } from "@/modules/purchases/lifecycle";
 import { getPurchaseOrder } from "@/modules/purchases/queries";
 import { listExchangeMessages } from "@/modules/exchange/queries";
+import { listSupplierReplies } from "@/modules/exchange/reply-queries";
 import { listInternalLocations } from "@/modules/stock/locations";
 import { compareQuantity, formatQuantity } from "@/modules/stock/quantities";
 import { CancelReceptionButton } from "./cancel-reception-button";
@@ -51,6 +61,24 @@ const RECEPTION_STATUS_META: Record<ReceptionStatus, { label: string; className:
   },
   cancelled: {
     label: "Annulée",
+    className: "border-line bg-canvas text-muted",
+  },
+};
+
+const REPLY_AVAILABILITY_META: Record<
+  SupplierReplyAvailability,
+  { label: string; className: string }
+> = {
+  available: {
+    label: "Disponible",
+    className: "border-brand/15 bg-brand-soft text-brand-strong",
+  },
+  partial: {
+    label: "Partielle",
+    className: "border-copper/20 bg-copper-soft text-copper",
+  },
+  unavailable: {
+    label: "Indisponible",
     className: "border-line bg-canvas text-muted",
   },
 };
@@ -113,11 +141,12 @@ async function PurchaseOrderContent({
   }
 
   const db = getDb();
-  const [detail, memberships, query, exchangeMessages] = await Promise.all([
+  const [detail, memberships, query, exchangeMessages, supplierReplies] = await Promise.all([
     getPurchaseOrder(db, { tenantId: session.tenantId, orderId }),
     listMembershipsForUser(db, session.userId),
     searchParams,
     listExchangeMessages(db, { tenantId: session.tenantId, orderId, limit: 5 }),
+    listSupplierReplies(db, { tenantId: session.tenantId, orderId }),
   ]);
   if (!detail) {
     notFound();
@@ -383,6 +412,85 @@ async function PurchaseOrderContent({
                   </span>
                 </li>
               ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="mt-6 overflow-hidden rounded-xl border border-line bg-panel">
+          <div className="flex items-center gap-2 border-b border-line px-5 py-3">
+            <Reply className="size-4 text-brand" aria-hidden="true" />
+            <h2 className="text-sm font-semibold">Réponses fournisseur</h2>
+            <span className="font-mono text-[10px] text-muted">{supplierReplies.length}</span>
+          </div>
+
+          {supplierReplies.length === 0 ? (
+            <p className="px-5 py-6 text-center text-[11px] text-muted">
+              Aucune réponse. Chaque envoi ajoute un lien de réponse en ligne au message.
+            </p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {supplierReplies.map((reply) => {
+                const meta = REPLY_AVAILABILITY_META[reply.availability];
+                return (
+                  <li key={reply.id} className="px-5 py-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-medium">{reply.authorName}</span>
+                      {reply.authorEmail ? (
+                        <span className="font-mono text-[10px] text-muted">
+                          {reply.authorEmail}
+                        </span>
+                      ) : null}
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] whitespace-nowrap ${meta.className}`}
+                      >
+                        {meta.label}
+                      </span>
+                      <span className="ml-auto text-[10px] text-muted tabular-nums">
+                        {EXCHANGE_DATE.format(reply.createdAt)}
+                      </span>
+                    </div>
+
+                    {reply.comment ? (
+                      <p className="mt-1.5 text-[11px] leading-5 whitespace-pre-line">
+                        {reply.comment}
+                      </p>
+                    ) : null}
+
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-muted">
+                      {reply.leadTimeDays !== null ? (
+                        <span>
+                          Délai proposé :{" "}
+                          <span className="text-ink tabular-nums">{reply.leadTimeDays} j</span>
+                        </span>
+                      ) : null}
+                      {reply.proposedTotalXof !== null ? (
+                        <span>
+                          Montant proposé :{" "}
+                          <span className="text-ink tabular-nums">
+                            {formatXof(reply.proposedTotalXof)}
+                          </span>
+                        </span>
+                      ) : null}
+                      {reply.attachmentName ? (
+                        <a
+                          href={`/api/echanges/reponses/${reply.id}/piece-jointe`}
+                          className="inline-flex items-center gap-1 font-medium text-brand-strong hover:underline"
+                        >
+                          <Paperclip className="size-3" aria-hidden="true" />
+                          {reply.attachmentName}
+                        </a>
+                      ) : null}
+                      <Link
+                        href={`/echanges/${reply.exchangeMessageId}`}
+                        className="inline-flex items-center gap-1 text-brand hover:underline"
+                      >
+                        <Mail className="size-3" aria-hidden="true" />
+                        Message d&apos;origine
+                      </Link>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

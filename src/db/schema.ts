@@ -221,6 +221,7 @@ export type DocumentScope =
 export type EmailSecurity = "tls" | "starttls" | "none";
 export type ExchangeType = "purchase_request" | "purchase_confirmation";
 export type ExchangeMessageStatus = "sent" | "failed";
+export type SupplierReplyAvailability = "available" | "partial" | "unavailable";
 
 export const hsCodes = pgTable(
   "hs_codes",
@@ -619,6 +620,8 @@ export const exchangeMessages = pgTable(
     errorMessage: text("error_message"),
     actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
     resentFromId: uuid("resent_from_id"),
+    replyTokenHash: text("reply_token_hash"),
+    replyTokenExpiresAt: timestamp("reply_token_expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     sentAt: timestamp("sent_at", { withTimezone: true }),
   },
@@ -626,6 +629,9 @@ export const exchangeMessages = pgTable(
     uniqueIndex("exchange_messages_tenant_id_idx").on(table.tenantId, table.id),
     index("exchange_messages_tenant_created_idx").on(table.tenantId, table.createdAt),
     index("exchange_messages_tenant_order_idx").on(table.tenantId, table.orderId, table.createdAt),
+    uniqueIndex("exchange_messages_reply_token_idx")
+      .on(table.replyTokenHash)
+      .where(sql`${table.replyTokenHash} is not null`),
     check(
       "exchange_messages_type_check",
       sql`${table.type} in ('purchase_request', 'purchase_confirmation')`,
@@ -664,6 +670,10 @@ export const exchangeMessages = pgTable(
       "exchange_messages_error_check",
       sql`${table.errorMessage} is null or char_length(${table.errorMessage}) <= 1000`,
     ),
+    check(
+      "exchange_messages_reply_token_check",
+      sql`(${table.replyTokenHash} is null) = (${table.replyTokenExpiresAt} is null) and (${table.replyTokenHash} is null or ${table.replyTokenHash} ~ '^[0-9a-f]{64}$')`,
+    ),
     foreignKey({
       name: "exchange_messages_tenant_order_fk",
       columns: [table.tenantId, table.orderId],
@@ -678,6 +688,88 @@ export const exchangeMessages = pgTable(
       name: "exchange_messages_tenant_resent_fk",
       columns: [table.tenantId, table.resentFromId],
       foreignColumns: [table.tenantId, table.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const supplierReplies = pgTable(
+  "supplier_replies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id").notNull(),
+    exchangeMessageId: uuid("exchange_message_id").notNull(),
+    authorName: text("author_name").notNull(),
+    authorEmail: text("author_email"),
+    availability: text("availability").$type<SupplierReplyAvailability>().notNull(),
+    comment: text("comment"),
+    leadTimeDays: integer("lead_time_days"),
+    proposedTotalXof: integer("proposed_total_xof"),
+    attachmentName: text("attachment_name"),
+    attachmentMime: text("attachment_mime"),
+    attachmentSize: integer("attachment_size"),
+    attachmentData: bytea("attachment_data"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("supplier_replies_tenant_id_idx").on(table.tenantId, table.id),
+    index("supplier_replies_tenant_order_idx").on(table.tenantId, table.orderId, table.createdAt),
+    index("supplier_replies_tenant_message_idx").on(
+      table.tenantId,
+      table.exchangeMessageId,
+      table.createdAt,
+    ),
+    check(
+      "supplier_replies_availability_check",
+      sql`${table.availability} in ('available', 'partial', 'unavailable')`,
+    ),
+    check(
+      "supplier_replies_author_name_check",
+      sql`char_length(${table.authorName}) between 1 and 120`,
+    ),
+    check(
+      "supplier_replies_author_email_check",
+      sql`${table.authorEmail} is null or char_length(${table.authorEmail}) <= 160`,
+    ),
+    check(
+      "supplier_replies_comment_check",
+      sql`${table.comment} is null or char_length(${table.comment}) <= 2000`,
+    ),
+    check(
+      "supplier_replies_lead_time_check",
+      sql`${table.leadTimeDays} is null or ${table.leadTimeDays} between 0 and 365`,
+    ),
+    check(
+      "supplier_replies_total_check",
+      sql`${table.proposedTotalXof} is null or ${table.proposedTotalXof} between 0 and 2000000000`,
+    ),
+    check(
+      "supplier_replies_attachment_check",
+      sql`(${table.attachmentName} is null) = (${table.attachmentMime} is null) and (${table.attachmentName} is null) = (${table.attachmentSize} is null) and (${table.attachmentName} is null) = (${table.attachmentData} is null) and (${table.attachmentName} is null or (char_length(${table.attachmentName}) between 1 and 200 and ${table.attachmentName} !~ '[/\\\\]'))`,
+    ),
+    check(
+      "supplier_replies_attachment_mime_check",
+      sql`${table.attachmentMime} is null or ${table.attachmentMime} in ('application/pdf', 'image/png', 'image/jpeg', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')`,
+    ),
+    check(
+      "supplier_replies_attachment_size_check",
+      sql`${table.attachmentSize} is null or ${table.attachmentSize} between 1 and 5242880`,
+    ),
+    check(
+      "supplier_replies_attachment_data_check",
+      sql`${table.attachmentData} is null or octet_length(${table.attachmentData}) = ${table.attachmentSize}`,
+    ),
+    foreignKey({
+      name: "supplier_replies_tenant_order_fk",
+      columns: [table.tenantId, table.orderId],
+      foreignColumns: [purchaseOrders.tenantId, purchaseOrders.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "supplier_replies_tenant_message_fk",
+      columns: [table.tenantId, table.exchangeMessageId],
+      foreignColumns: [exchangeMessages.tenantId, exchangeMessages.id],
     }).onDelete("restrict"),
   ],
 );

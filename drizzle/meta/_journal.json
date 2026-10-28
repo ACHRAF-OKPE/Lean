@@ -64,6 +64,13 @@
       "when": 1793056416381,
       "tag": "0008_little_tigra",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793181533406,
+      "tag": "0009_polite_wind_dancer",
+      "breakpoints": true
     }
   ]
 }

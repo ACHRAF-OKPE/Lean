@@ -1,4 +1,4 @@
-import type { DiscussionEntityType } from "@/db/schema";
+import type { DiscussionEntityType, SupplierReplyAvailability } from "@/db/schema";
 import { formatXof } from "@/lib/money";
 
 export type DocumentEventType =
@@ -8,6 +8,7 @@ export type DocumentEventType =
   | "purchase_order.cancelled"
   | "purchase_order.received"
   | "purchase_order.reception_cancelled"
+  | "purchase_order.supplier_reply"
   | "sales_order.confirmed"
   | "sales_order.closed"
   | "sales_order.cancelled"
@@ -22,6 +23,7 @@ export interface DocumentEventInput {
   readonly key: string;
   readonly number?: string | null;
   readonly amountXof?: number | null;
+  readonly availability?: SupplierReplyAvailability;
 }
 
 export interface DocumentEventDescriptor {
@@ -39,6 +41,7 @@ const TITLES: Record<DocumentEventType, string> = {
   "purchase_order.cancelled": "Commande fournisseur annulée",
   "purchase_order.received": "Réception enregistrée",
   "purchase_order.reception_cancelled": "Réception annulée",
+  "purchase_order.supplier_reply": "Réponse fournisseur reçue",
   "sales_order.confirmed": "Commande client confirmée",
   "sales_order.closed": "Commande client clôturée",
   "sales_order.cancelled": "Commande client annulée",
@@ -51,6 +54,12 @@ const TITLES: Record<DocumentEventType, string> = {
 function reference(number: string | null | undefined): string {
   return number ? ` ${number}` : "";
 }
+
+const AVAILABILITY_TEXT: Record<SupplierReplyAvailability, string> = {
+  available: "disponible",
+  partial: "partiellement disponible",
+  unavailable: "indisponible",
+};
 
 export function describeDocumentEvent(input: DocumentEventInput): DocumentEventDescriptor {
   const suffix = reference(input.number);
@@ -74,6 +83,11 @@ export function describeDocumentEvent(input: DocumentEventInput): DocumentEventD
       break;
     case "purchase_order.reception_cancelled":
       body = `La réception${suffix} a été annulée.`;
+      break;
+    case "purchase_order.supplier_reply":
+      body = input.availability
+        ? `Le fournisseur a indiqué que la commande fournisseur${suffix} est ${AVAILABILITY_TEXT[input.availability]}.`
+        : `Le fournisseur a répondu à la commande fournisseur${suffix}.`;
       break;
     case "sales_order.confirmed":
       body = `La commande client${suffix} a été confirmée.`;

@@ -52,7 +52,8 @@ export async function DiscussionPanel({
             >
               <div className="flex flex-wrap items-baseline gap-2">
                 <span className="text-[11px] font-medium">
-                  {message.authorName ?? "Utilisateur supprimé"}
+                  {message.authorName ??
+                    (message.kind === "event" ? "Système" : "Utilisateur supprimé")}
                 </span>
                 <span className="font-mono text-[10px] text-muted">
                   {DATE_TIME.format(message.createdAt)}

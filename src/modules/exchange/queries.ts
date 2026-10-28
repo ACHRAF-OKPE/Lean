@@ -26,6 +26,7 @@ import { defaultTransportFactory } from "./mailer";
 import { buildPurchaseDocument, countryLabel } from "./document-model";
 import { renderPurchaseDocumentPdf } from "./document";
 import { ExchangeError } from "./errors";
+import { appendReplyLink, buildReplyLink, createReplyToken } from "./replies";
 import { renderExchangeLines, renderExchangeTemplate } from "./render";
 import { decryptSecret, encryptSecret } from "./secrets";
 import { builtinExchangeTemplate } from "./templates";
@@ -860,6 +861,13 @@ export async function sendPurchaseExchange(
     throw new ExchangeError("Sujet : 200 caractères maximum après remplacement des variables.");
   }
 
+  const replyToken = createReplyToken();
+  const replyBody = appendReplyLink(
+    rendered.text,
+    rendered.html,
+    buildReplyLink(input.appUrl, replyToken.token),
+  );
+
   const document = buildPurchaseDocument({
     type: input.type,
     company,
@@ -892,8 +900,8 @@ export async function sendPurchaseExchange(
       to: input.recipient,
       toName: input.recipientName,
       subject,
-      text: rendered.text,
-      html: rendered.html,
+      text: replyBody.text,
+      html: replyBody.html,
       attachments: [{ filename: pdf.fileName, content: pdf.bytes, contentType: "application/pdf" }],
     });
     providerMessageId = sent.messageId ?? null;
@@ -911,12 +919,14 @@ export async function sendPurchaseExchange(
         recipient: input.recipient,
         recipientName: input.recipientName,
         subject,
-        bodyText: rendered.text.slice(0, 20000) || subject,
-        bodyHtml: rendered.html.slice(0, 60000) || subject,
+        bodyText: replyBody.text.slice(0, 20000) || subject,
+        bodyHtml: replyBody.html.slice(0, 60000) || subject,
         attachmentName: pdf.fileName,
         errorMessage: message,
         actorUserId: input.actorUserId,
         resentFromId: input.resentFromId ?? null,
+        replyTokenHash: replyToken.hash,
+        replyTokenExpiresAt: replyToken.expiresAt,
       })
       .returning({ id: exchangeMessages.id });
     if (row) {
@@ -951,12 +961,14 @@ export async function sendPurchaseExchange(
       recipient: input.recipient,
       recipientName: input.recipientName,
       subject,
-      bodyText: rendered.text.slice(0, 20000),
-      bodyHtml: rendered.html.slice(0, 60000),
+      bodyText: replyBody.text.slice(0, 20000),
+      bodyHtml: replyBody.html.slice(0, 60000),
       attachmentName: pdf.fileName,
       providerMessageId,
       actorUserId: input.actorUserId,
       resentFromId: input.resentFromId ?? null,
+      replyTokenHash: replyToken.hash,
+      replyTokenExpiresAt: replyToken.expiresAt,
       sentAt: new Date(),
     })
     .returning({ id: exchangeMessages.id });
