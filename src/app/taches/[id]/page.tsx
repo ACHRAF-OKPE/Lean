@@ -3,10 +3,11 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { ArrowLeft, ArrowUpRight, Lock, Paperclip } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Lock, Paperclip, Timer } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { DiscussionPanel } from "@/components/discussion-panel";
 import { LoadingShell } from "@/components/loading-shell";
+import { TaskChrono } from "@/components/task-chrono";
 import { TaskAssigneeForm, TaskStatusActions } from "@/components/task-controls";
 import { TaskPriorityBadge, TaskStatusBadge } from "@/components/task-badges";
 import { TaskForm } from "@/components/task-form";
@@ -23,6 +24,7 @@ import {
   relatedHref,
 } from "@/modules/tasks/constants";
 import { getTask } from "@/modules/tasks/queries";
+import { deadlineLabel, elapsedSecondsAt, secondsUntilDeadline } from "@/modules/tasks/time";
 
 export const metadata: Metadata = {
   title: "Tâche",
@@ -73,9 +75,14 @@ async function TaskContent({
 
   const canWrite = can(session.role, "data.write");
   const closed = isTaskClosed(task.status);
-  const overdue = isTaskOverdue(task, todayIsoDate());
+  const now = new Date();
+  const overdue = isTaskOverdue(task, todayIsoDate(now));
   const created = query.cree === "1";
   const updated = query.maj === "1";
+  const running = task.status === "in_progress";
+  const chronoVisible = running || task.elapsedSeconds > 0;
+  const deadline = task.dueDate ? deadlineLabel(task.dueDate, now) : null;
+  const deadlineMissed = task.dueDate ? secondsUntilDeadline(task.dueDate, now) < 0 : false;
 
   return (
     <div className="min-h-dvh">
@@ -95,7 +102,13 @@ async function TaskContent({
             <p className="font-mono text-[10px] tracking-[0.18em] text-brand uppercase">Tâche</p>
             <h1 className="mt-1 text-2xl font-medium tracking-tight break-words">{task.title}</h1>
           </div>
-          {canWrite ? <TaskStatusActions taskId={task.id} status={task.status} /> : null}
+          {canWrite ? (
+            <TaskStatusActions
+              taskId={task.id}
+              status={task.status}
+              assigneeUserId={task.assigneeUserId}
+            />
+          ) : null}
         </div>
 
         {created || updated ? (
@@ -147,6 +160,49 @@ async function TaskContent({
             Terminée par {task.completedByName ?? "un utilisateur supprimé"} le{" "}
             {DATE.format(task.completedAt)}.
           </p>
+        ) : null}
+
+        {!closed && !task.assigneeUserId ? (
+          <p className="mt-2 text-[10px] text-copper">
+            Tâche non assignée : assignez-la à un membre pour la démarrer et lancer le chronomètre.
+          </p>
+        ) : null}
+
+        {chronoVisible ? (
+          <section className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-brand/20 bg-brand-soft px-5 py-4">
+            <div>
+              <p className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.18em] text-brand uppercase">
+                <Timer className="size-3.5" aria-hidden="true" />
+                Chronomètre
+              </p>
+              <p className="mt-1 text-3xl">
+                <TaskChrono
+                  status={task.status}
+                  startedAt={task.startedAt ? task.startedAt.toISOString() : null}
+                  elapsedSeconds={task.elapsedSeconds}
+                  initialSeconds={elapsedSecondsAt(task, now)}
+                />
+              </p>
+            </div>
+            <div className="text-right">
+              {running ? (
+                <>
+                  <p className="text-[11px] font-medium">
+                    {task.assigneeName ?? "L'assigné"} travaille sur cette tâche.
+                  </p>
+                  <p
+                    className={`mt-1 text-[10px] tabular-nums ${deadlineMissed ? "text-copper" : "text-muted"}`}
+                  >
+                    {deadline ?? "Aucune échéance fixée."}
+                  </p>
+                </>
+              ) : (
+                <p className="text-[10px] text-muted">
+                  Chronomètre arrêté : temps cumulé des passages précédents.
+                </p>
+              )}
+            </div>
+          </section>
         ) : null}
 
         {task.relatedEntityType && task.relatedEntityId ? (

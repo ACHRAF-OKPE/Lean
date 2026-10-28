@@ -7,7 +7,7 @@ import { assignTaskAction, changeTaskStatusAction } from "@/lib/tasks/actions";
 import { EMPTY_TASKS_FORM_STATE } from "@/lib/tasks/form-state";
 import type { TaskStatus } from "@/db/schema";
 import type { MentionableMember } from "@/modules/discussion/queries";
-import { TASK_TRANSITIONS } from "@/modules/tasks/lifecycle";
+import { START_WITHOUT_ASSIGNEE, TASK_TRANSITIONS } from "@/modules/tasks/lifecycle";
 import { ROLE_LABELS } from "@/modules/identity/labels";
 
 const STATUS_ACTION_META: Record<
@@ -36,13 +36,22 @@ const STATUS_ACTION_META: Record<
   },
 };
 
-function StatusButton({ taskId, target }: { taskId: string; target: TaskStatus }) {
+function StatusButton({
+  taskId,
+  target,
+  blockedReason,
+}: {
+  taskId: string;
+  target: TaskStatus;
+  blockedReason?: string;
+}) {
   const [state, formAction, pending] = useActionState(
     changeTaskStatusAction,
     EMPTY_TASKS_FORM_STATE,
   );
   const meta = STATUS_ACTION_META[target];
   const Icon = meta.icon;
+  const label = blockedReason ?? meta.label;
 
   return (
     <div>
@@ -51,10 +60,10 @@ function StatusButton({ taskId, target }: { taskId: string; target: TaskStatus }
         <input type="hidden" name="status" value={target} />
         <button
           type="submit"
-          disabled={pending}
-          aria-label={meta.label}
-          title={meta.label}
-          className={`grid size-9 place-items-center rounded-md border transition-colors disabled:opacity-50 ${meta.className}`}
+          disabled={pending || Boolean(blockedReason)}
+          aria-label={label}
+          title={label}
+          className={`grid size-9 place-items-center rounded-md border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${meta.className}`}
         >
           {pending ? (
             <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
@@ -72,12 +81,28 @@ function StatusButton({ taskId, target }: { taskId: string; target: TaskStatus }
   );
 }
 
-export function TaskStatusActions({ taskId, status }: { taskId: string; status: TaskStatus }) {
+export function TaskStatusActions({
+  taskId,
+  status,
+  assigneeUserId,
+}: {
+  taskId: string;
+  status: TaskStatus;
+  assigneeUserId: string | null;
+}) {
   const targets = TASK_TRANSITIONS[status];
+  const startBlocked = !assigneeUserId;
   return (
     <div className="flex flex-wrap items-start gap-2">
       {targets.map((target) => (
-        <StatusButton key={target} taskId={taskId} target={target} />
+        <StatusButton
+          key={target}
+          taskId={taskId}
+          target={target}
+          blockedReason={
+            target === "in_progress" && startBlocked ? START_WITHOUT_ASSIGNEE : undefined
+          }
+        />
       ))}
     </div>
   );

@@ -7,6 +7,7 @@ import { todayIsoDate } from "@/lib/dates";
 import { seedCollaborationTenant, type CollaborationTenant } from "@/test/collaboration";
 import { createTestDatabase, type TestDatabase } from "@/test/pglite";
 import { TasksError } from "./errors";
+import { START_WITHOUT_ASSIGNEE, UNASSIGN_RUNNING } from "./lifecycle";
 import {
   assignTask,
   changeTaskStatus,
@@ -173,6 +174,12 @@ describe("TSK-002 — cycle de vie", () => {
   it("accepte les transitions prévues et refuse les autres", async () => {
     const tenant = await setup("tsk-002-transitions");
     const taskId = await makeTask(tenant);
+    await assignTask(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      taskId,
+      assigneeUserId: tenant.memberUserId,
+    });
 
     await changeTaskStatus(db, {
       tenantId: tenant.tenantId,
@@ -285,7 +292,7 @@ describe("TSK-002 — cycle de vie", () => {
 
   it("écrit un événement de fil et un audit avant/après par transition", async () => {
     const tenant = await setup("tsk-002-events");
-    const taskId = await makeTask(tenant);
+    const taskId = await makeTask(tenant, { assigneeUserId: tenant.memberUserId });
 
     await changeTaskStatus(db, {
       tenantId: tenant.tenantId,
@@ -550,5 +557,100 @@ describe("TSK-004 — suivi et isolation", () => {
         status: "in_progress",
       }),
     ).rejects.toThrow("Tâche introuvable dans cet espace de travail.");
+  });
+});
+
+describe("TSK-006 — chronométrage et démarrage conditionné", () => {
+  it("refuse de démarrer une tâche non assignée puis arme le chronomètre", async () => {
+    const tenant = await setup("tsk-006-start");
+    const taskId = await makeTask(tenant);
+
+    await expect(
+      changeTaskStatus(db, {
+        tenantId: tenant.tenantId,
+        actorUserId: tenant.userId,
+        taskId,
+        status: "in_progress",
+      }),
+    ).rejects.toThrow(START_WITHOUT_ASSIGNEE);
+
+    let task = await getTask(db, { tenantId: tenant.tenantId, taskId });
+    expect(task?.status).toBe("open");
+    expect(task?.startedAt).toBeNull();
+    expect(task?.elapsedSeconds).toBe(0);
+
+    await assignTask(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      taskId,
+      assigneeUserId: tenant.memberUserId,
+    });
+    await changeTaskStatus(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      taskId,
+      status: "in_progress",
+    });
+
+    task = await getTask(db, { tenantId: tenant.tenantId, taskId });
+    expect(task?.status).toBe("in_progress");
+    expect(task?.startedAt).not.toBeNull();
+    expect(task?.elapsedSeconds).toBe(0);
+  });
+
+  it("interdit de désassigner une tâche en cours et conserve le cumul à la réouverture", async () => {
+    const tenant = await setup("tsk-006-unassign");
+    const taskId = await makeTask(tenant, { assigneeUserId: tenant.memberUserId });
+
+    await changeTaskStatus(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      taskId,
+      status: "in_progress",
+    });
+
+    await expect(
+      assignTask(db, {
+        tenantId: tenant.tenantId,
+        actorUserId: tenant.userId,
+        taskId,
+        assigneeUserId: null,
+      }),
+    ).rejects.toThrow(UNASSIGN_RUNNING);
+    expect((await getTask(db, { tenantId: tenant.tenantId, taskId }))?.assigneeUserId).toBe(
+      tenant.memberUserId,
+    );
+
+    await assignTask(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      taskId,
+      assigneeUserId: tenant.userId,
+    });
+    const reassigned = await getTask(db, { tenantId: tenant.tenantId, taskId });
+    expect(reassigned?.status).toBe("in_progress");
+    expect(reassigned?.assigneeUserId).toBe(tenant.userId);
+    expect(reassigned?.startedAt).not.toBeNull();
+
+    await changeTaskStatus(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      taskId,
+      status: "done",
+    });
+    const done = await getTask(db, { tenantId: tenant.tenantId, taskId });
+    expect(done?.startedAt).toBeNull();
+    expect(done?.elapsedSeconds).toBeGreaterThanOrEqual(0);
+
+    await changeTaskStatus(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      taskId,
+      status: "open",
+    });
+    const reopened = await getTask(db, { tenantId: tenant.tenantId, taskId });
+    expect(reopened?.status).toBe("open");
+    expect(reopened?.startedAt).toBeNull();
+    expect(reopened?.elapsedSeconds).toBe(done?.elapsedSeconds);
   });
 });

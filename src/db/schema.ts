@@ -1577,6 +1577,8 @@ export const tasks = pgTable(
     completedByUserId: uuid("completed_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    elapsedSeconds: integer("elapsed_seconds").notNull().default(0),
     revision: integer("revision").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1613,6 +1615,11 @@ export const tasks = pgTable(
       "tasks_completion_check",
       sql`(${table.status} = 'done') = (${table.completedAt} is not null) and (${table.completedAt} is null) = (${table.completedByUserId} is null)`,
     ),
+    check(
+      "tasks_started_check",
+      sql`(${table.status} = 'in_progress') = (${table.startedAt} is not null)`,
+    ),
+    check("tasks_elapsed_check", sql`${table.elapsedSeconds} >= 0`),
     check("tasks_revision_check", sql`${table.revision} >= 0`),
   ],
 );

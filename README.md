@@ -267,7 +267,11 @@ Le Lot 5D ajoute les tâches internes, rattachées ou non à un document :
   commande fournisseur, commande client ou facture).
 - **Cycle de vie** — ouverte, en cours, terminée, annulée, avec des transitions limitées.
   Terminer conserve l'acteur et la date ; une tâche terminée ou annulée est figée jusqu'à sa
-  réouverture.
+  réouverture. Une tâche non assignée ne peut pas être démarrée.
+- **Chronomètre** — le démarrage arme un compteur propre à la tâche ; terminer, annuler ou
+  rouvrir conserve le temps cumulé des passages. La fiche affiche le temps en cours et le
+  reste avant l'échéance, la liste affiche le chrono de chaque tâche. Désassigner une tâche
+  en cours est refusé ; une réassignation ne l'interrompt pas.
 - **Suivi** — `/taches` filtre par statut, priorité, assigné et retard ; les compteurs
   ouverts, en retard et « mes tâches » sont calculés à l'affichage. Les fiches documentaires
   listent leurs tâches ouvertes et chaque tâche renvoie à son document.
@@ -309,8 +313,8 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
 `0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
 facturation, `0006` pour la fiche entreprise et les contacts tiers, `0007` pour les échanges
-fournisseurs, `0008` pour la collaboration, `0009` pour les réponses fournisseurs et `0010`
-pour les tâches. Les
+fournisseurs, `0008` pour la collaboration, `0009` pour les réponses fournisseurs, `0010`
+pour les tâches et `0011` pour leur chronomètre. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire et d'idempotence des évènements sont posées
 en base, en complément de la validation applicative.

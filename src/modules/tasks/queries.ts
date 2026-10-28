@@ -18,7 +18,14 @@ import type { DocumentEventType } from "@/modules/discussion/events";
 import { todayIsoDate } from "@/lib/dates";
 import { TASK_ENTITY_PAGE_SIZE, TASK_PAGE_SIZE } from "./constants";
 import { TasksError } from "./errors";
-import { completionPatch, taskEditError, transitionError } from "./lifecycle";
+import {
+  completionPatch,
+  taskEditError,
+  taskStartError,
+  taskUnassignError,
+  transitionError,
+} from "./lifecycle";
+import { runPatch } from "./time";
 import { validateTaskInput, type TaskInput, type TaskInputRaw } from "./validation";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -36,6 +43,8 @@ export interface TaskSummary {
   readonly relatedEntityId: string | null;
   readonly relatedLabel: string | null;
   readonly completedAt: Date | null;
+  readonly startedAt: Date | null;
+  readonly elapsedSeconds: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly revision: number;
@@ -353,9 +362,14 @@ export async function changeTaskStatus(
     if (error) {
       throw new TasksError(error);
     }
+    const startError = taskStartError(input.status, task.assigneeUserId);
+    if (startError) {
+      throw new TasksError(startError);
+    }
 
     const now = new Date();
     const completion = completionPatch(input.status, input.actorUserId, now);
+    const chrono = runPatch(task, input.status, now);
     const revision = task.revision + 1;
 
     await tx
@@ -363,6 +377,7 @@ export async function changeTaskStatus(
       .set({
         status: input.status,
         ...completion,
+        ...chrono,
         revision,
         updatedAt: now,
       })
@@ -417,6 +432,10 @@ export async function assignTask(
     }
     if (task.assigneeUserId === input.assigneeUserId) {
       return { changed: false };
+    }
+    const unassignError = input.assigneeUserId ? null : taskUnassignError(task.status);
+    if (unassignError) {
+      throw new TasksError(unassignError);
     }
     if (input.assigneeUserId) {
       await assertAssignee(tx, input.tenantId, input.assigneeUserId);
@@ -550,6 +569,8 @@ const SUMMARY_COLUMNS = {
   relatedEntityType: tasks.relatedEntityType,
   relatedEntityId: tasks.relatedEntityId,
   completedAt: tasks.completedAt,
+  startedAt: tasks.startedAt,
+  elapsedSeconds: tasks.elapsedSeconds,
   createdAt: tasks.createdAt,
   updatedAt: tasks.updatedAt,
   revision: tasks.revision,

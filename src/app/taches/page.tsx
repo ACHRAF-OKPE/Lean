@@ -7,6 +7,7 @@ import type { TaskPriority } from "@/db/schema";
 import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
+import { TaskChrono } from "@/components/task-chrono";
 import { TaskPriorityBadge, TaskStatusBadge } from "@/components/task-badges";
 import { getDb } from "@/db/client";
 import { requirePermission } from "@/lib/auth/session";
@@ -25,6 +26,7 @@ import {
   relatedHref,
 } from "@/modules/tasks/constants";
 import { listTasks, taskCounters, type TaskFilters } from "@/modules/tasks/queries";
+import { elapsedSecondsAt } from "@/modules/tasks/time";
 
 export const metadata: Metadata = {
   title: "Tâches",
@@ -90,7 +92,8 @@ async function TasksContent({ searchParams }: Pick<PageProps<"/taches">, "search
     listTasks(db, { tenantId: session.tenantId, userId: session.userId, filters }),
     taskCounters(db, { tenantId: session.tenantId, userId: session.userId }),
   ]);
-  const today = todayIsoDate();
+  const now = new Date();
+  const today = todayIsoDate(now);
   const filtered =
     filters.status !== "active" ||
     Boolean(filters.priority) ||
@@ -108,7 +111,9 @@ async function TasksContent({ searchParams }: Pick<PageProps<"/taches">, "search
             <h1 className="mt-2 text-2xl font-medium tracking-tight">Suivi des tâches</h1>
             <p className="mt-1 max-w-xl text-[11px] leading-5 text-muted">
               Chaque tâche porte un statut, une priorité, une échéance et un assigné de
-              l&apos;espace. Le fil de discussion et les documents liés sont sur la fiche.
+              l&apos;espace. Le chronomètre démarre au lancement ; la fiche rappelle le temps
+              restant avant l&apos;échéance. Le fil de discussion et les documents liés sont sur la
+              fiche.
             </p>
           </div>
           <CatalogActions kind="tasks" />
@@ -229,6 +234,9 @@ async function TasksContent({ searchParams }: Pick<PageProps<"/taches">, "search
                       Statut
                     </th>
                     <th scope="col" className={TH}>
+                      Chrono
+                    </th>
+                    <th scope="col" className={TH}>
                       Assigné
                     </th>
                     <th scope="col" className={TH}>
@@ -260,6 +268,15 @@ async function TasksContent({ searchParams }: Pick<PageProps<"/taches">, "search
                         </td>
                         <td className="px-4 py-2.5">
                           <TaskStatusBadge status={task.status} />
+                        </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          <TaskChrono
+                            compact
+                            status={task.status}
+                            startedAt={task.startedAt ? task.startedAt.toISOString() : null}
+                            elapsedSeconds={task.elapsedSeconds}
+                            initialSeconds={elapsedSecondsAt(task, now)}
+                          />
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap text-muted">
                           {task.assigneeName ?? "—"}
