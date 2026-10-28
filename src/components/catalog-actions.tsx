@@ -15,6 +15,10 @@ const CREATE_LABELS: Record<ImportKind, string> = {
   tasks: "Créer une tâche",
 };
 
+const CREATE_PATHS: Partial<Record<ImportKind, string>> = {
+  tasks: "/taches/nouvelle",
+};
+
 const IMPORT_LABELS: Record<ImportKind, string> = {
   partners: "Importer des tiers",
   articles: "Importer des articles",
@@ -28,7 +32,7 @@ export function CatalogActions({ kind }: { kind: ImportKind }) {
   return (
     <div className="flex items-center gap-1.5">
       <Link
-        href={`${IMPORT_KIND_PATHS[kind]}/nouveau`}
+        href={CREATE_PATHS[kind] ?? `${IMPORT_KIND_PATHS[kind]}/nouveau`}
         aria-label={CREATE_LABELS[kind]}
         title={CREATE_LABELS[kind]}
         className={ACTION_LINK}
