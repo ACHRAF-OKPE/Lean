@@ -7,6 +7,7 @@ import {
   tenants,
   users,
 } from "@/db/schema";
+import { saveAccountingSettings } from "@/modules/accounting/settings";
 
 let tenantCounter = 0;
 
@@ -168,5 +169,109 @@ export async function seedAccountingTenant(
     bankJournalId: required.bankJournal!,
     inactiveJournalId: required.inactiveJournal!,
     partnerId: partner.id,
+  };
+}
+
+export interface AccountingRefs {
+  readonly fiscalYear2026Id: string;
+  readonly clientAccountId: string;
+  readonly supplierAccountId: string;
+  readonly bankAccountId: string;
+  readonly purchaseAccountId: string;
+  readonly salesAccountId: string;
+  readonly saleJournalId: string;
+  readonly purchaseJournalId: string;
+  readonly bankJournalId: string;
+}
+
+export async function enableAccounting(
+  db: Database,
+  input: { readonly tenantId: string; readonly userId: string },
+): Promise<AccountingRefs> {
+  const [year] = await db
+    .insert(fiscalYears)
+    .values({
+      tenantId: input.tenantId,
+      label: "Exercice 2026",
+      startsOn: "2026-01-01",
+      endsOn: "2026-12-31",
+      status: "open" as const,
+    })
+    .returning({ id: fiscalYears.id });
+
+  const accountRows = await db
+    .insert(ledgerAccounts)
+    .values([
+      { tenantId: input.tenantId, code: "411000", label: "Clients", accountClass: 4 },
+      { tenantId: input.tenantId, code: "401000", label: "Fournisseurs", accountClass: 4 },
+      { tenantId: input.tenantId, code: "521000", label: "Banque", accountClass: 5 },
+      { tenantId: input.tenantId, code: "601000", label: "Achats", accountClass: 6 },
+      { tenantId: input.tenantId, code: "701000", label: "Ventes", accountClass: 7 },
+    ])
+    .returning({ id: ledgerAccounts.id, code: ledgerAccounts.code });
+  const accountByCode = new Map(accountRows.map((row) => [row.code, row.id]));
+
+  const journalRows = await db
+    .insert(accountingJournals)
+    .values([
+      { tenantId: input.tenantId, code: "VE", label: "Journal des ventes", type: "sale" as const },
+      {
+        tenantId: input.tenantId,
+        code: "AC",
+        label: "Journal des achats",
+        type: "purchase" as const,
+      },
+      { tenantId: input.tenantId, code: "BQ", label: "Journal de banque", type: "bank" as const },
+    ])
+    .returning({ id: accountingJournals.id, code: accountingJournals.code });
+  const journalByCode = new Map(journalRows.map((row) => [row.code, row.id]));
+
+  const clientAccountId = accountByCode.get("411000");
+  const supplierAccountId = accountByCode.get("401000");
+  const bankAccountId = accountByCode.get("521000");
+  const purchaseAccountId = accountByCode.get("601000");
+  const salesAccountId = accountByCode.get("701000");
+  const saleJournalId = journalByCode.get("VE");
+  const purchaseJournalId = journalByCode.get("AC");
+  const bankJournalId = journalByCode.get("BQ");
+  if (
+    !year ||
+    !clientAccountId ||
+    !supplierAccountId ||
+    !bankAccountId ||
+    !purchaseAccountId ||
+    !salesAccountId ||
+    !saleJournalId ||
+    !purchaseJournalId ||
+    !bankJournalId
+  ) {
+    throw new Error("Référentiel comptable de test non créé.");
+  }
+
+  await saveAccountingSettings(db, {
+    tenantId: input.tenantId,
+    actorUserId: input.userId,
+    raw: {
+      salesJournalId: saleJournalId,
+      purchaseJournalId,
+      bankJournalId,
+      customerAccountId: clientAccountId,
+      supplierAccountId,
+      salesAccountId,
+      purchaseAccountId,
+      bankAccountId,
+    },
+  });
+
+  return {
+    fiscalYear2026Id: year.id,
+    clientAccountId,
+    supplierAccountId,
+    bankAccountId,
+    purchaseAccountId,
+    salesAccountId,
+    saleJournalId,
+    purchaseJournalId,
+    bankJournalId,
   };
 }

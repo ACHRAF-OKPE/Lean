@@ -1,4 +1,9 @@
-import type { AccountingJournalType, FiscalYearStatus, JournalEntryStatus } from "@/db/schema";
+import type {
+  AccountingJournalType,
+  FiscalYearStatus,
+  JournalEntrySource,
+  JournalEntryStatus,
+} from "@/db/schema";
 
 export const FISCAL_YEAR_STATUSES = ["open", "closed"] as const;
 
@@ -20,6 +25,15 @@ export const ACCOUNTING_JOURNAL_TYPE_LABELS: Record<AccountingJournalType, strin
 export const JOURNAL_ENTRY_STATUS_LABELS: Record<JournalEntryStatus, string> = {
   draft: "Brouillon",
   validated: "Validée",
+};
+
+export const JOURNAL_ENTRY_SOURCE_LABELS: Record<JournalEntrySource, string> = {
+  manual: "Saisie manuelle",
+  import: "Import XLSX",
+  sale_invoice: "Facture de vente",
+  sale_payment: "Règlement client",
+  purchase_reception: "Réception d'achat",
+  purchase_reception_cancel: "Annulation de réception",
 };
 
 export const ACCOUNT_CODE_PATTERN = /^[1-8][0-9]{1,9}$/;

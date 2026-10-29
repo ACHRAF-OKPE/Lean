@@ -7,9 +7,12 @@ import {
   BookMarked,
   BookOpenCheck,
   CalendarRange,
+  GitCompareArrows,
+  Handshake,
   ListTree,
   NotebookPen,
   Scale,
+  Settings2,
 } from "lucide-react";
 import { EntryStatusBadge } from "@/components/accounting-badges";
 import { AppHeader } from "@/components/app-header";
@@ -37,6 +40,13 @@ const SECTIONS = [
   { href: "/comptabilite/ecritures", label: "Écritures", icon: NotebookPen },
   { href: "/comptabilite/balance", label: "Balance générale", icon: Scale },
   { href: "/comptabilite/grand-livre", label: "Grand livre", icon: BookOpenCheck },
+  { href: "/comptabilite/lettrage", label: "Lettrage", icon: Handshake },
+  {
+    href: "/comptabilite/rapprochement",
+    label: "Rapprochement de cut-off",
+    icon: GitCompareArrows,
+  },
+  { href: "/comptabilite/parametres", label: "Paramètres comptables", icon: Settings2 },
 ] as const;
 
 export default function AccountingPage() {

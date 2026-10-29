@@ -4,6 +4,9 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { requirePermission } from "@/lib/auth/session";
 import { AccountingError } from "@/modules/accounting/errors";
+import { letterLines, unletterGroup } from "@/modules/accounting/lettering";
+import { postCutoffDocuments } from "@/modules/accounting/posting";
+import { saveAccountingSettings } from "@/modules/accounting/settings";
 import {
   closeFiscalYear,
   createAccount,
@@ -241,4 +244,91 @@ export async function deleteEntryAction(
     return failure(error);
   }
   redirect("/comptabilite/ecritures?supprime=1");
+}
+
+export async function saveAccountingSettingsAction(
+  _state: AccountingFormState,
+  formData: FormData,
+): Promise<AccountingFormState> {
+  const session = await requirePermission("data.write");
+  try {
+    await saveAccountingSettings(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      raw: {
+        salesJournalId: text(formData, "salesJournalId"),
+        purchaseJournalId: text(formData, "purchaseJournalId"),
+        bankJournalId: text(formData, "bankJournalId"),
+        customerAccountId: text(formData, "customerAccountId"),
+        supplierAccountId: text(formData, "supplierAccountId"),
+        salesAccountId: text(formData, "salesAccountId"),
+        purchaseAccountId: text(formData, "purchaseAccountId"),
+        bankAccountId: text(formData, "bankAccountId"),
+      },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  redirect("/comptabilite/parametres?enregistre=1");
+}
+
+export async function letterLinesAction(
+  _state: AccountingFormState,
+  formData: FormData,
+): Promise<AccountingFormState> {
+  const session = await requirePermission("data.write");
+  const lineIds = values(formData, "ligne");
+  if (lineIds.length < 2) {
+    return { errors: ["Sélectionnez au moins deux lignes de tiers."] };
+  }
+  try {
+    await letterLines(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      lineIds,
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  redirect("/comptabilite/lettrage?lettre=1");
+}
+
+export async function unletterGroupAction(
+  _state: AccountingFormState,
+  formData: FormData,
+): Promise<AccountingFormState> {
+  const session = await requirePermission("data.write");
+  try {
+    await unletterGroup(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      code: text(formData, "code"),
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  redirect("/comptabilite/lettrage?delettre=1");
+}
+
+export async function postCutoffAction(
+  _state: AccountingFormState,
+  formData: FormData,
+): Promise<AccountingFormState> {
+  const session = await requirePermission("data.write");
+  const fiscalYearId = text(formData, "fiscalYearId");
+  if (!UUID_PATTERN.test(fiscalYearId)) {
+    return { errors: ["Exercice invalide."] };
+  }
+  let posted = 0;
+  try {
+    const result = await postCutoffDocuments(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      fiscalYearId,
+    });
+    posted = result.posted;
+  } catch (error) {
+    return failure(error);
+  }
+  redirect(`/comptabilite/rapprochement?exercice=${fiscalYearId}&comptabilise=${posted}`);
 }

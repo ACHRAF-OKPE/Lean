@@ -3,6 +3,7 @@ import type { Database } from "@/db/client";
 import { auditEvents, invoicePayments, invoices } from "@/db/schema";
 import { formatXof } from "@/lib/money";
 import { todayIsoDate } from "@/lib/dates";
+import { postSalePayment } from "@/modules/accounting/posting";
 import { parseIsoDate, parseXofPrice } from "@/modules/shared/validation";
 import { recordDocumentEvent } from "@/modules/discussion/queries";
 import { SalesError } from "./errors";
@@ -108,6 +109,17 @@ export async function createInvoicePayment(
     if (!payment) {
       throw new SalesError("Le règlement n'a pas pu être écrit.");
     }
+
+    await postSalePayment(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      paymentId: payment.id,
+      invoiceNumber: invoice.number ?? "",
+      paidDate: date.value,
+      customerId: invoice.customerId,
+      amountXof: amount.value,
+      reference: referenceText || null,
+    });
 
     await tx.insert(auditEvents).values({
       tenantId: input.tenantId,

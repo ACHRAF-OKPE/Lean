@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import type { InvoicingState } from "@/db/schema";
 import { todayIsoDate } from "@/lib/dates";
+import { postSaleInvoice } from "@/modules/accounting/posting";
 import { MAX_XOF_AMOUNT } from "@/modules/catalog/constants";
 import { parseIsoDate } from "@/modules/shared/validation";
 import { recordDocumentEvent } from "@/modules/discussion/queries";
@@ -362,6 +363,16 @@ export async function validateInvoice(
       .update(salesOrders)
       .set({ invoicingState: orderInvoicingState, updatedAt: new Date() })
       .where(and(eq(salesOrders.tenantId, input.tenantId), eq(salesOrders.id, order.id)));
+
+    await postSaleInvoice(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      invoiceId: invoice.id,
+      number,
+      invoiceDate: invoice.invoiceDate,
+      customerId: order.customerId,
+      totalXof: invoice.exTaxTotal,
+    });
 
     await tx.insert(auditEvents).values({
       tenantId: input.tenantId,

@@ -5,12 +5,15 @@ import {
   BookOpen,
   CalendarPlus,
   Check,
+  Link2,
   LoaderCircle,
   Lock,
   Plus,
   Power,
+  RefreshCw,
   Save,
   Trash2,
+  Unlink,
   type LucideIcon,
 } from "lucide-react";
 import { CheckboxField, Field, FormErrors, INPUT_CLASS } from "@/components/form-fields";
@@ -22,8 +25,12 @@ import {
   createFiscalYearAction,
   createJournalAction,
   deleteEntryAction,
+  letterLinesAction,
+  postCutoffAction,
+  saveAccountingSettingsAction,
   toggleAccountAction,
   toggleJournalAction,
+  unletterGroupAction,
   validateEntryAction,
 } from "@/lib/accounting/actions";
 import { formatXof } from "@/lib/money";
@@ -655,6 +662,342 @@ export function DeleteEntryButton({ entryId, number }: { entryId: string; number
         ) : (
           <Trash2 className="size-4" aria-hidden="true" />
         )}
+      </button>
+    </form>
+  );
+}
+
+export interface SettingsJournalOption {
+  readonly id: string;
+  readonly code: string;
+  readonly label: string;
+  readonly type: string;
+}
+
+export interface SettingsAccountOption {
+  readonly id: string;
+  readonly code: string;
+  readonly label: string;
+  readonly accountClass: number;
+}
+
+export interface SettingsValues {
+  readonly salesJournalId: string | null;
+  readonly purchaseJournalId: string | null;
+  readonly bankJournalId: string | null;
+  readonly customerAccountId: string | null;
+  readonly supplierAccountId: string | null;
+  readonly salesAccountId: string | null;
+  readonly purchaseAccountId: string | null;
+  readonly bankAccountId: string | null;
+}
+
+export function AccountingSettingsForm({
+  journals,
+  accounts,
+  values,
+}: {
+  journals: readonly SettingsJournalOption[];
+  accounts: readonly SettingsAccountOption[];
+  values: SettingsValues | null;
+}) {
+  const [state, formAction, pending] = useActionState(
+    saveAccountingSettingsAction,
+    EMPTY_ACCOUNTING_FORM_STATE,
+  );
+
+  const journalsOfType = (type: string) => journals.filter((journal) => journal.type === type);
+  const accountsOfClass = (accountClass: number) =>
+    accounts.filter((account) => account.accountClass === accountClass);
+
+  const selects = [
+    {
+      name: "salesJournalId",
+      label: "Journal des ventes",
+      hint: "Type vente, actif.",
+      options: journalsOfType("sale"),
+      current: values?.salesJournalId ?? null,
+    },
+    {
+      name: "purchaseJournalId",
+      label: "Journal des achats",
+      hint: "Type achat, actif.",
+      options: journalsOfType("purchase"),
+      current: values?.purchaseJournalId ?? null,
+    },
+    {
+      name: "bankJournalId",
+      label: "Journal de banque",
+      hint: "Type banque, actif.",
+      options: journalsOfType("bank"),
+      current: values?.bankJournalId ?? null,
+    },
+    {
+      name: "customerAccountId",
+      label: "Compte client",
+      hint: "Classe 4, actif.",
+      options: accountsOfClass(4),
+      current: values?.customerAccountId ?? null,
+    },
+    {
+      name: "supplierAccountId",
+      label: "Compte fournisseur",
+      hint: "Classe 4, actif.",
+      options: accountsOfClass(4),
+      current: values?.supplierAccountId ?? null,
+    },
+    {
+      name: "salesAccountId",
+      label: "Compte de vente",
+      hint: "Classe 7, actif.",
+      options: accountsOfClass(7),
+      current: values?.salesAccountId ?? null,
+    },
+    {
+      name: "purchaseAccountId",
+      label: "Compte d'achat",
+      hint: "Classe 6, actif.",
+      options: accountsOfClass(6),
+      current: values?.purchaseAccountId ?? null,
+    },
+    {
+      name: "bankAccountId",
+      label: "Compte de banque",
+      hint: "Classe 5, actif.",
+      options: accountsOfClass(5),
+      current: values?.bankAccountId ?? null,
+    },
+  ] as const;
+
+  return (
+    <form action={formAction} className="mt-4 space-y-4">
+      <FormErrors errors={state.errors} />
+      <fieldset disabled={pending} className="space-y-4">
+        <legend className="sr-only">Paramétrage comptable</legend>
+        <div className="grid gap-4 md:grid-cols-3">
+          {selects.map((select) => (
+            <Field
+              key={select.name}
+              label={select.label}
+              htmlFor={`settings-${select.name}`}
+              hint={select.hint}
+            >
+              <select
+                id={`settings-${select.name}`}
+                name={select.name}
+                required
+                defaultValue={select.current ?? ""}
+                className={INPUT_CLASS}
+              >
+                <option value="" disabled>
+                  Sélectionner
+                </option>
+                {select.options.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.code} · {option.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ))}
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={pending}
+            aria-label="Enregistrer le paramétrage comptable"
+            title="Enregistrer"
+            className={SUBMIT}
+          >
+            <SubmitIcon pending={pending} icon={Save} />
+          </button>
+        </div>
+      </fieldset>
+    </form>
+  );
+}
+
+export interface LetteringCandidateRow {
+  readonly lineId: string;
+  readonly entryId: string;
+  readonly entryNumber: string;
+  readonly entryDate: string;
+  readonly accountCode: string;
+  readonly partnerName: string | null;
+  readonly label: string | null;
+  readonly debit: number;
+  readonly credit: number;
+}
+
+export function LetteringTable({ candidates }: { candidates: readonly LetteringCandidateRow[] }) {
+  const [state, formAction, pending] = useActionState(
+    letterLinesAction,
+    EMPTY_ACCOUNTING_FORM_STATE,
+  );
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+
+  function toggle(lineId: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(lineId)) {
+        next.delete(lineId);
+      } else {
+        next.add(lineId);
+      }
+      return next;
+    });
+  }
+
+  const chosen = candidates.filter((candidate) => selected.has(candidate.lineId));
+  const debitTotal = chosen.reduce((sum, candidate) => sum + candidate.debit, 0);
+  const creditTotal = chosen.reduce((sum, candidate) => sum + candidate.credit, 0);
+  const balanced = debitTotal > 0 && debitTotal === creditTotal;
+
+  return (
+    <form action={formAction}>
+      <FormErrors errors={state.errors} />
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-[11px]">
+          <caption className="sr-only">Lignes de tiers à lettrer</caption>
+          <thead>
+            <tr className="border-b border-line font-mono text-[10px] tracking-[0.12em] text-muted uppercase">
+              <th scope="col" className="px-4 py-2.5 font-normal">
+                Lettre
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-normal">
+                Écriture
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-normal">
+                Compte
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-normal">
+                Tiers
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-normal">
+                Libellé
+              </th>
+              <th scope="col" className="px-4 py-2.5 text-right font-normal">
+                Débit
+              </th>
+              <th scope="col" className="px-4 py-2.5 text-right font-normal">
+                Crédit
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {candidates.map((candidate) => (
+              <tr key={candidate.lineId} className="border-b border-line last:border-b-0">
+                <td className="px-4 py-2.5">
+                  <input
+                    type="checkbox"
+                    name="ligne"
+                    value={candidate.lineId}
+                    checked={selected.has(candidate.lineId)}
+                    onChange={() => toggle(candidate.lineId)}
+                    aria-label={`Sélectionner la ligne ${candidate.entryNumber}`}
+                    className="size-3.5 accent-brand"
+                  />
+                </td>
+                <td className="px-4 py-2.5 font-mono text-[10px] whitespace-nowrap">
+                  {candidate.entryNumber}
+                  <span className="block font-sans text-[10px] text-muted tabular-nums">
+                    {candidate.entryDate}
+                  </span>
+                </td>
+                <td className="px-4 py-2.5 font-mono text-[10px]">{candidate.accountCode}</td>
+                <td className="px-4 py-2.5">{candidate.partnerName ?? "—"}</td>
+                <td className="px-4 py-2.5 text-[10px] text-muted">{candidate.label ?? "—"}</td>
+                <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+                  {candidate.debit > 0 ? formatXof(candidate.debit) : "—"}
+                </td>
+                <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+                  {candidate.credit > 0 ? formatXof(candidate.credit) : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
+        <div className="flex items-center gap-4 text-[11px] tabular-nums">
+          <span>
+            Sélection <span className="font-mono">{chosen.length}</span>
+          </span>
+          <span>
+            Débit <span className="font-mono">{formatXof(debitTotal)}</span>
+          </span>
+          <span>
+            Crédit <span className="font-mono">{formatXof(creditTotal)}</span>
+          </span>
+          <span className={balanced ? "text-brand-strong" : "text-muted"}>
+            {balanced ? "Équilibrée" : "Sélection déséquilibrée"}
+          </span>
+        </div>
+        <button
+          type="submit"
+          disabled={pending || !balanced}
+          aria-label="Lettrer les lignes sélectionnées"
+          title="Lettrer"
+          className={`${SUBMIT} disabled:opacity-40`}
+        >
+          <SubmitIcon pending={pending} icon={Link2} />
+        </button>
+      </div>
+    </form>
+  );
+}
+
+export function UnletterButton({ code }: { code: string }) {
+  const [state, formAction, pending] = useActionState(
+    unletterGroupAction,
+    EMPTY_ACCOUNTING_FORM_STATE,
+  );
+
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="code" value={code} />
+      {state.errors.length > 0 ? <FormErrors errors={state.errors} /> : null}
+      <button
+        type="submit"
+        disabled={pending}
+        aria-label={`Délettrer ${code}`}
+        title="Délettrer le groupe"
+        className={SECONDARY}
+      >
+        {pending ? (
+          <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <Unlink className="size-4" aria-hidden="true" />
+        )}
+      </button>
+    </form>
+  );
+}
+
+export function PostCutoffButton({
+  fiscalYearId,
+  unpostedCount,
+}: {
+  fiscalYearId: string;
+  unpostedCount: number;
+}) {
+  const [state, formAction, pending] = useActionState(
+    postCutoffAction,
+    EMPTY_ACCOUNTING_FORM_STATE,
+  );
+
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="fiscalYearId" value={fiscalYearId} />
+      {state.errors.length > 0 ? <FormErrors errors={state.errors} /> : null}
+      <button
+        type="submit"
+        disabled={pending || unpostedCount === 0}
+        aria-label="Comptabiliser les documents non comptabilisés"
+        title="Comptabiliser les documents en attente"
+        className={`${SUBMIT} disabled:opacity-40`}
+      >
+        <SubmitIcon pending={pending} icon={RefreshCw} />
       </button>
     </form>
   );

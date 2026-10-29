@@ -128,7 +128,7 @@ export async function applyAccountImport(
     entityType: "import_batch",
     entityId: input.batchId,
     details: {
-      source: "xlsx_import",
+      source: "import",
       written: values.length,
       codes: values.map((value) => value.code),
     },
@@ -271,7 +271,7 @@ export async function applyJournalEntryImport(
       reference: data.reference,
       label: data.label,
       lines,
-      source: "xlsx_import",
+      source: "import",
       batchId: input.batchId,
     });
 

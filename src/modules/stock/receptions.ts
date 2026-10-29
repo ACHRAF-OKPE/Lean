@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import type { ReceiptState } from "@/db/schema";
 import { todayIsoDate } from "@/lib/dates";
+import { postPurchaseReception, postPurchaseReceptionCancel } from "@/modules/accounting/posting";
 import { computeLineReceiptState, computeOrderReceiptState } from "@/modules/purchases/lifecycle";
 import { parseIsoDate } from "@/modules/shared/validation";
 import { PurchaseError } from "@/modules/purchases/errors";
@@ -280,6 +281,19 @@ export async function createReception(
       .set({ receiptState: orderReceiptState, updatedAt: new Date() })
       .where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.id, order.id)));
 
+    await postPurchaseReception(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      receptionId: reception.id,
+      number,
+      receivedDate: date.value,
+      supplierId: order.supplierId,
+      lines: steps.map((step) => ({
+        qty: step.qty,
+        unitPriceXof: step.line.unitPriceXof,
+      })),
+    });
+
     await tx.insert(auditEvents).values({
       tenantId: input.tenantId,
       actorUserId: input.actorUserId,
@@ -456,6 +470,20 @@ export async function cancelReception(
         cancelledAt: new Date(),
       })
       .where(and(eq(receptions.tenantId, input.tenantId), eq(receptions.id, reception.id)));
+
+    await postPurchaseReceptionCancel(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      receptionId: reception.id,
+      number: reception.number,
+      receivedDate: reception.receivedDate,
+      supplierId: order.supplierId,
+      cancelDate: todayIsoDate(),
+      lines: originalLines.map((line) => ({
+        qty: line.qty,
+        unitPriceXof: line.unitPriceXof ?? 0,
+      })),
+    });
 
     await tx.insert(auditEvents).values({
       tenantId: input.tenantId,

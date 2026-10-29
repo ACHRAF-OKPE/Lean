@@ -5,16 +5,20 @@ import {
   auditEvents,
   fiscalYears,
   journalEntries,
+  journalEntryLineLetterings,
   journalEntryLines,
   ledgerAccounts,
   partners,
   tenants,
   type AccountingJournalType,
   type FiscalYearStatus,
+  type JournalEntrySource,
   type JournalEntryStatus,
 } from "@/db/schema";
 import { ACCOUNTING_LIST_LIMIT, LEDGER_LINE_LIMIT } from "./constants";
+import { countUnpostedDocuments } from "./cutoff";
 import { AccountingError } from "./errors";
+import { loadAccountingSettings } from "./settings";
 import { nextJournalEntryNumber } from "./sequences";
 import {
   accountClassOf,
@@ -93,11 +97,14 @@ export interface JournalEntryLineDetail {
   readonly label: string | null;
   readonly debit: number;
   readonly credit: number;
+  readonly letteringCode: string | null;
 }
 
 export interface JournalEntryDetail extends JournalEntrySummary {
   readonly fiscalYearId: string;
   readonly journalId: string;
+  readonly source: JournalEntrySource;
+  readonly sourceId: string | null;
   readonly lines: readonly JournalEntryLineDetail[];
 }
 
@@ -306,6 +313,29 @@ export async function closeFiscalYear(
       throw new AccountingError(
         `Clôture refusée : ${draftCount} écriture${draftCount > 1 ? "s" : ""} en brouillon sur l'exercice ${year.label}. Validez-les ou supprimez-les d'abord.`,
       );
+    }
+
+    const settings = await loadAccountingSettings(tx, input.tenantId);
+    if (settings) {
+      const unposted = await countUnpostedDocuments(tx, {
+        tenantId: input.tenantId,
+        fiscalYearId: year.id,
+      });
+      if (unposted.total > 0) {
+        const parts: string[] = [];
+        if (unposted.invoices > 0) {
+          parts.push(`${unposted.invoices} facture${unposted.invoices > 1 ? "s" : ""}`);
+        }
+        if (unposted.payments > 0) {
+          parts.push(`${unposted.payments} règlement${unposted.payments > 1 ? "s" : ""}`);
+        }
+        if (unposted.receptions > 0) {
+          parts.push(`${unposted.receptions} réception${unposted.receptions > 1 ? "s" : ""}`);
+        }
+        throw new AccountingError(
+          `Clôture refusée : ${unposted.total} document${unposted.total > 1 ? "s" : ""} daté${unposted.total > 1 ? "s" : ""} dans l'exercice ${year.label} ne sont pas comptabilisés (${parts.join(", ")}). Comptabilisez-les depuis le rapprochement avant de clôturer.`,
+        );
+      }
     }
 
     await tx
@@ -636,6 +666,8 @@ export async function getJournalEntry(
       totalCredit: journalEntries.totalCredit,
       journalId: journalEntries.journalId,
       fiscalYearId: journalEntries.fiscalYearId,
+      source: journalEntries.source,
+      sourceId: journalEntries.sourceId,
       journalCode: accountingJournals.code,
       journalLabel: accountingJournals.label,
       fiscalYearLabel: fiscalYears.label,
@@ -673,6 +705,7 @@ export async function getJournalEntry(
       label: journalEntryLines.label,
       debit: journalEntryLines.debit,
       credit: journalEntryLines.credit,
+      letteringCode: journalEntryLineLetterings.code,
     })
     .from(journalEntryLines)
     .innerJoin(
@@ -680,6 +713,13 @@ export async function getJournalEntry(
       and(
         eq(ledgerAccounts.tenantId, journalEntryLines.tenantId),
         eq(ledgerAccounts.id, journalEntryLines.accountId),
+      ),
+    )
+    .leftJoin(
+      journalEntryLineLetterings,
+      and(
+        eq(journalEntryLineLetterings.tenantId, journalEntryLines.tenantId),
+        eq(journalEntryLineLetterings.lineId, journalEntryLines.id),
       ),
     )
     .leftJoin(
@@ -711,7 +751,9 @@ export interface InsertJournalEntryInput {
   readonly reference: string | null;
   readonly label: string;
   readonly lines: readonly EntryLineInput[];
-  readonly source?: "manual" | "xlsx_import";
+  readonly source?: JournalEntrySource;
+  readonly sourceId?: string;
+  readonly validated?: boolean;
   readonly batchId?: string;
 }
 
@@ -743,10 +785,14 @@ export async function insertJournalEntry(
       entryDate: input.entryDate,
       reference: input.reference,
       label: input.label,
-      status: "draft",
+      status: input.validated ? "validated" : "draft",
+      source: input.source ?? "manual",
+      sourceId: input.sourceId ?? null,
       totalDebit: totals.debit,
       totalCredit: totals.credit,
       createdByUserId: input.actorUserId,
+      validatedByUserId: input.validated ? input.actorUserId : null,
+      validatedAt: input.validated ? new Date() : null,
     })
     .returning({ id: journalEntries.id });
   if (!created) {
@@ -781,6 +827,7 @@ export async function insertJournalEntry(
       lineCount: input.lines.length,
       fiscalYear: input.fiscalYearLabel,
       source: input.source ?? "manual",
+      ...(input.sourceId ? { sourceId: input.sourceId } : {}),
       ...(input.batchId ? { batchId: input.batchId } : {}),
     },
   });

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { ArrowLeft, ArrowUpRight, Lock, NotebookPen } from "lucide-react";
-import { EntryStatusBadge } from "@/components/accounting-badges";
+import { EntrySourceBadge, EntryStatusBadge } from "@/components/accounting-badges";
 import { DeleteEntryButton, ValidateEntryButton } from "@/components/accounting-forms";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
@@ -91,6 +91,7 @@ async function JournalEntryContent({
               <h1 className="mt-1 flex items-center gap-2 text-2xl font-medium tracking-tight">
                 <span className="font-mono text-xl">{entry.number}</span>
                 <EntryStatusBadge status={entry.status} />
+                <EntrySourceBadge source={entry.source} />
               </h1>
             </div>
           </div>
@@ -154,6 +155,9 @@ async function JournalEntryContent({
                     Tiers
                   </th>
                   <th scope="col" className={TH}>
+                    Lettrage
+                  </th>
+                  <th scope="col" className={TH}>
                     Libellé
                   </th>
                   <th scope="col" className={`${TH} text-right`}>
@@ -189,6 +193,15 @@ async function JournalEntryContent({
                         <span className="text-muted">—</span>
                       )}
                     </td>
+                    <td className="px-4 py-2.5">
+                      {line.letteringCode ? (
+                        <span className="rounded-full border border-brand/20 bg-brand-soft px-2 py-0.5 font-mono text-[10px] text-brand-strong">
+                          {line.letteringCode}
+                        </span>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-[10px] text-muted">{line.label ?? "—"}</td>
                     <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
                       {line.debit > 0 ? formatXof(line.debit) : "—"}
@@ -201,7 +214,7 @@ async function JournalEntryContent({
               </tbody>
               <tfoot>
                 <tr className="border-t border-line bg-canvas/40 font-medium">
-                  <td className="px-4 py-2.5" colSpan={4}>
+                  <td className="px-4 py-2.5" colSpan={5}>
                     Totaux
                   </td>
                   <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">

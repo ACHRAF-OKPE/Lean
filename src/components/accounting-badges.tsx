@@ -1,6 +1,7 @@
-import type { FiscalYearStatus, JournalEntryStatus } from "@/db/schema";
+import type { FiscalYearStatus, JournalEntrySource, JournalEntryStatus } from "@/db/schema";
 import {
   FISCAL_YEAR_STATUS_LABELS,
+  JOURNAL_ENTRY_SOURCE_LABELS,
   JOURNAL_ENTRY_STATUS_LABELS,
 } from "@/modules/accounting/constants";
 
@@ -29,6 +30,26 @@ export function FiscalYearStatusBadge({ status }: { status: FiscalYearStatus }) 
   return (
     <span className={`${BASE} ${YEAR_STATUS_CLASS[status]}`}>
       {FISCAL_YEAR_STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+export function EntrySourceBadge({ source }: { source: JournalEntrySource }) {
+  return (
+    <span
+      className={`${BASE} ${source === "manual" ? YEAR_STATUS_CLASS.closed : YEAR_STATUS_CLASS.open}`}
+    >
+      {JOURNAL_ENTRY_SOURCE_LABELS[source]}
+    </span>
+  );
+}
+
+export function PostedBadge({ posted }: { posted: boolean }) {
+  return (
+    <span
+      className={`${BASE} ${posted ? YEAR_STATUS_CLASS.open : "border-copper/20 bg-copper-soft text-copper"}`}
+    >
+      {posted ? "Comptabilisé" : "Non comptabilisé"}
     </span>
   );
 }

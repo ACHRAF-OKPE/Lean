@@ -242,7 +242,7 @@ describe("ACC-010 — import XLSX du plan comptable", () => {
       );
     expect(audit).toHaveLength(1);
     expect(audit[0]?.details).toMatchObject({
-      source: "xlsx_import",
+      source: "import",
       written: 3,
       codes: ["411000", "421000", "701000"],
     });
@@ -453,7 +453,7 @@ describe("ACC-009 — import XLSX des écritures", () => {
     expect(
       audits.every(
         (audit) =>
-          (audit.details as { source?: string }).source === "xlsx_import" &&
+          (audit.details as { source?: string }).source === "import" &&
           (audit.details as { batchId?: string }).batchId === analysis.batchId,
       ),
     ).toBe(true);

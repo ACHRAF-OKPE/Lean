@@ -346,8 +346,28 @@ Le Lot 7A pose le socle SYSCOHADA, accessible depuis `/comptabilite` :
   crée ou met à jour les comptes et crée les écritures en brouillon, sans jamais les valider.
   Un fichier ne s'applique qu'une fois.
 
-Les montants sont des entiers XOF et chaque mutation écrit un évènement d'audit. Les écritures
-automatiques depuis les ventes, les achats et la douane, ainsi que le lettrage, arrivent en 7B.
+Le Lot 7B branche la comptabilité sur les opérations et ajoute le suivi des comptes de tiers :
+
+- **Comptabilisation automatique** — opt-in via `/comptabilite/parametres` : un journal de
+  vente, un journal d'achat, un journal de banque et cinq comptes (client, fournisseur,
+  vente, achat, banque). La validation d'une facture débite le client et crédite les ventes ;
+  chaque règlement débite la banque et crédite le client ; chaque réception débite les achats
+  et crédite le fournisseur, et son annulation produit l'écriture inverse. Les écritures sont
+  validées à la source, datées du document et référencées par son numéro ; un document ne
+  produit jamais deux écritures. Paramétrage présent mais journal ou compte inactif, ou date
+  hors exercice ouvert : l'opération métier est refusée, sans écriture partielle.
+- **Lettrage** — `/comptabilite/lettrage` rapproche au moins deux lignes non lettrées d'un
+  même compte de tiers, du même tiers, de débits et crédits égaux. Le groupe reçoit un code
+  `L0001` séquentiel par espace, jamais réutilisé ; le délettrage libère le groupe entier.
+  Lettrage et délettrage ne touchent ni aux montants ni au statut des écritures.
+- **Cut-off et clôture** — `/comptabilite/rapprochement` confronte les factures, règlements et
+  réceptions de l'exercice à leurs écritures automatiques, et permet de comptabiliser à la
+  demande les documents antérieurs au paramétrage. L'opération est idempotente, refuse un
+  exercice clôturé et reste disponible sans paramétrage (en lecture). Quand la comptabilité
+  automatique est paramétrée, la clôture d'un exercice est refusée tant qu'un document validé
+  de la période reste non comptabilisé.
+
+Les montants sont des entiers XOF et chaque mutation écrit un évènement d'audit.
 
 ## Scripts
 
@@ -380,14 +400,16 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `customs_taxes`, `customs_declarations`, `customs_declaration_lines`,
 `customs_declaration_taxes`, `customs_bonds`, `customs_payments`, `customs_apurements`, puis
 `accounting_journals`, `fiscal_years`, `ledger_accounts`, `journal_entries`,
-`journal_entry_lines` et `journal_entry_sequences`. Les
+`journal_entry_lines`, `journal_entry_sequences`, `accounting_settings`,
+`journal_entry_line_letterings` et `lettering_sequences`. Les
 migrations générées sont commitées dans
 `drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
 `0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
 facturation, `0006` pour la fiche entreprise et les contacts tiers, `0007` pour les échanges
 fournisseurs, `0008` pour la collaboration, `0009` pour les réponses fournisseurs, `0010`
 pour les tâches, `0011` pour leur chronomètre, `0012` pour la douane, `0013` pour
-l'apurement progressif des IM9 et `0014` pour le socle comptable. Les
+l'apurement progressif des IM9, `0014` pour le socle comptable et `0015` pour le paramétrage,
+les écritures automatiques, le lettrage et le cut-off. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire et d'idempotence des évènements sont posées
 en base, en complément de la validation applicative.
