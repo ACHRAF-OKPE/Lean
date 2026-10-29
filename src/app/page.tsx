@@ -562,7 +562,7 @@ async function Cockpit() {
                 Feuille de route
               </p>
               <h2 id="roadmap-title" className="mt-1 text-sm font-semibold">
-                Neuf lots, une barrière identique.
+                Dix lots, une barrière identique.
               </h2>
             </div>
             <p className="text-[11px] text-muted">Gate vert, puis push.</p>

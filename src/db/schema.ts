@@ -229,6 +229,7 @@ export type StockLocationType = "internal" | "supplier" | "customer";
 export type StockMoveType = "incoming" | "outgoing";
 export type DocumentScope =
   | "purchase_order"
+  | "tender"
   | "reception"
   | "stock_move"
   | "sales_order"
@@ -236,6 +237,8 @@ export type DocumentScope =
   | "invoice"
   | "customs_declaration"
   | "customs_bond";
+export type TenderStatus = "draft" | "open" | "awarded" | "cancelled";
+export type TenderInvitationStatus = "pending" | "sent" | "quoted" | "declined";
 export type CustomsRegimeKind = "import" | "export" | "suspensive" | "transit";
 export type CustomsTaxBase = "cif" | "cif_plus_duty";
 export type CustomsDeclarationStatus =
@@ -585,6 +588,318 @@ export const stockLocations = pgTable(
   ],
 );
 
+export const tenderRequests = pgTable(
+  "tender_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    number: text("number"),
+    title: text("title").notNull(),
+    notes: text("notes"),
+    deadline: date("deadline", { mode: "string" }).notNull(),
+    status: text("status").$type<TenderStatus>().notNull().default("draft"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    awardedAt: timestamp("awarded_at", { withTimezone: true }),
+    awardedBy: uuid("awarded_by").references(() => users.id, { onDelete: "set null" }),
+    ordersCreatedAt: timestamp("orders_created_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("tender_requests_tenant_number_idx").on(table.tenantId, table.number),
+    uniqueIndex("tender_requests_tenant_id_idx").on(table.tenantId, table.id),
+    index("tender_requests_tenant_status_idx").on(table.tenantId, table.status, table.createdAt),
+    check(
+      "tender_requests_number_check",
+      sql`${table.number} is null or ${table.number} ~ '^DAO-[0-9]{4}-[0-9]{4}$'`,
+    ),
+    check("tender_requests_title_check", sql`char_length(${table.title}) between 1 and 120`),
+    check(
+      "tender_requests_notes_check",
+      sql`${table.notes} is null or char_length(${table.notes}) <= 2000`,
+    ),
+    check(
+      "tender_requests_status_check",
+      sql`${table.status} in ('draft', 'open', 'awarded', 'cancelled')`,
+    ),
+    check(
+      "tender_requests_sent_check",
+      sql`${table.status} = 'draft' or (${table.number} is not null and ${table.sentAt} is not null)`,
+    ),
+    check(
+      "tender_requests_awarded_check",
+      sql`${table.status} <> 'awarded' or (${table.awardedAt} is not null and ${table.awardedBy} is not null)`,
+    ),
+    check(
+      "tender_requests_cancelled_check",
+      sql`${table.status} <> 'cancelled' or (${table.cancelReason} is not null and ${table.cancelledAt} is not null and char_length(${table.cancelReason}) between 1 and 500)`,
+    ),
+  ],
+);
+
+export const tenderRequestLines = pgTable(
+  "tender_request_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    tenderId: uuid("tender_id").notNull(),
+    lineNumber: integer("line_number").notNull(),
+    articleId: uuid("article_id").notNull(),
+    name: text("name").notNull(),
+    unitCode: text("unit_code").notNull(),
+    qty: numeric("qty", { precision: 18, scale: 6 }).notNull(),
+    requestedDate: date("requested_date", { mode: "string" }),
+    note: text("note"),
+    rejected: boolean("rejected").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("tender_request_lines_tender_line_idx").on(
+      table.tenantId,
+      table.tenderId,
+      table.lineNumber,
+    ),
+    uniqueIndex("tender_request_lines_tenant_id_idx").on(table.tenantId, table.id),
+    check("tender_request_lines_number_check", sql`${table.lineNumber} > 0`),
+    check("tender_request_lines_qty_check", sql`${table.qty} > 0`),
+    check(
+      "tender_request_lines_note_check",
+      sql`${table.note} is null or char_length(${table.note}) <= 500`,
+    ),
+    foreignKey({
+      name: "tender_request_lines_tenant_tender_fk",
+      columns: [table.tenantId, table.tenderId],
+      foreignColumns: [tenderRequests.tenantId, tenderRequests.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "tender_request_lines_tenant_article_fk",
+      columns: [table.tenantId, table.articleId],
+      foreignColumns: [articles.tenantId, articles.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const tenderInvitations = pgTable(
+  "tender_invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    tenderId: uuid("tender_id").notNull(),
+    supplierId: uuid("supplier_id").notNull(),
+    recipientEmail: text("recipient_email").notNull(),
+    recipientName: text("recipient_name"),
+    tokenHash: text("token_hash"),
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    status: text("status").$type<TenderInvitationStatus>().notNull().default("pending"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    firstViewedAt: timestamp("first_viewed_at", { withTimezone: true }),
+    lastQuotedAt: timestamp("last_quoted_at", { withTimezone: true }),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("tender_invitations_tenant_tender_supplier_idx").on(
+      table.tenantId,
+      table.tenderId,
+      table.supplierId,
+    ),
+    uniqueIndex("tender_invitations_tenant_id_idx").on(table.tenantId, table.id),
+    uniqueIndex("tender_invitations_token_idx")
+      .on(table.tokenHash)
+      .where(sql`${table.tokenHash} is not null`),
+    check(
+      "tender_invitations_status_check",
+      sql`${table.status} in ('pending', 'sent', 'quoted', 'declined')`,
+    ),
+    check(
+      "tender_invitations_email_check",
+      sql`char_length(${table.recipientEmail}) between 3 and 160`,
+    ),
+    check(
+      "tender_invitations_recipient_check",
+      sql`${table.recipientName} is null or char_length(${table.recipientName}) <= 120`,
+    ),
+    check(
+      "tender_invitations_token_check",
+      sql`(${table.tokenHash} is null) = (${table.tokenExpiresAt} is null) and (${table.tokenHash} is null or ${table.tokenHash} ~ '^[0-9a-f]{64}$')`,
+    ),
+    check(
+      "tender_invitations_error_check",
+      sql`${table.errorMessage} is null or char_length(${table.errorMessage}) <= 1000`,
+    ),
+    foreignKey({
+      name: "tender_invitations_tenant_tender_fk",
+      columns: [table.tenantId, table.tenderId],
+      foreignColumns: [tenderRequests.tenantId, tenderRequests.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "tender_invitations_tenant_supplier_fk",
+      columns: [table.tenantId, table.supplierId],
+      foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const tenderQuotes = pgTable(
+  "tender_quotes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    tenderId: uuid("tender_id").notNull(),
+    invitationId: uuid("invitation_id").notNull(),
+    supplierId: uuid("supplier_id").notNull(),
+    revision: integer("revision").notNull(),
+    authorName: text("author_name").notNull(),
+    authorEmail: text("author_email"),
+    leadTimeDays: integer("lead_time_days"),
+    comment: text("comment"),
+    declined: boolean("declined").notNull().default(false),
+    totalXof: integer("total_xof").notNull().default(0),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("tender_quotes_invitation_revision_idx").on(
+      table.tenantId,
+      table.invitationId,
+      table.revision,
+    ),
+    uniqueIndex("tender_quotes_tenant_id_idx").on(table.tenantId, table.id),
+    index("tender_quotes_tenant_tender_idx").on(table.tenantId, table.tenderId, table.supplierId),
+    check("tender_quotes_revision_check", sql`${table.revision} > 0`),
+    check("tender_quotes_author_check", sql`char_length(${table.authorName}) between 1 and 120`),
+    check(
+      "tender_quotes_author_email_check",
+      sql`${table.authorEmail} is null or char_length(${table.authorEmail}) <= 160`,
+    ),
+    check(
+      "tender_quotes_lead_time_check",
+      sql`${table.leadTimeDays} is null or ${table.leadTimeDays} between 0 and 365`,
+    ),
+    check(
+      "tender_quotes_comment_check",
+      sql`${table.comment} is null or char_length(${table.comment}) <= 2000`,
+    ),
+    check(
+      "tender_quotes_declined_check",
+      sql`not ${table.declined} or (${table.comment} is not null and char_length(${table.comment}) between 1 and 2000)`,
+    ),
+    check("tender_quotes_total_check", sql`${table.totalXof} between 0 and 2000000000`),
+    foreignKey({
+      name: "tender_quotes_tenant_tender_fk",
+      columns: [table.tenantId, table.tenderId],
+      foreignColumns: [tenderRequests.tenantId, tenderRequests.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "tender_quotes_tenant_invitation_fk",
+      columns: [table.tenantId, table.invitationId],
+      foreignColumns: [tenderInvitations.tenantId, tenderInvitations.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "tender_quotes_tenant_supplier_fk",
+      columns: [table.tenantId, table.supplierId],
+      foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const tenderQuoteLines = pgTable(
+  "tender_quote_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    quoteId: uuid("quote_id").notNull(),
+    tenderLineId: uuid("tender_line_id").notNull(),
+    proposedQty: numeric("proposed_qty", { precision: 18, scale: 6 }).notNull(),
+    unitPriceXof: integer("unit_price_xof").notNull().default(0),
+    lineTotalXof: integer("line_total_xof").notNull().default(0),
+  },
+  (table) => [
+    uniqueIndex("tender_quote_lines_quote_line_idx").on(
+      table.tenantId,
+      table.quoteId,
+      table.tenderLineId,
+    ),
+    uniqueIndex("tender_quote_lines_tenant_id_idx").on(table.tenantId, table.id),
+    check("tender_quote_lines_qty_check", sql`${table.proposedQty} >= 0`),
+    check("tender_quote_lines_price_check", sql`${table.unitPriceXof} between 0 and 2000000000`),
+    check("tender_quote_lines_total_check", sql`${table.lineTotalXof} between 0 and 2000000000`),
+    check(
+      "tender_quote_lines_coherence_check",
+      sql`(${table.proposedQty} = 0 and ${table.unitPriceXof} = 0) or (${table.proposedQty} > 0 and ${table.unitPriceXof} > 0)`,
+    ),
+    foreignKey({
+      name: "tender_quote_lines_tenant_quote_fk",
+      columns: [table.tenantId, table.quoteId],
+      foreignColumns: [tenderQuotes.tenantId, tenderQuotes.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "tender_quote_lines_tenant_tender_line_fk",
+      columns: [table.tenantId, table.tenderLineId],
+      foreignColumns: [tenderRequestLines.tenantId, tenderRequestLines.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const tenderAwards = pgTable(
+  "tender_awards",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    tenderId: uuid("tender_id").notNull(),
+    tenderLineId: uuid("tender_line_id").notNull(),
+    quoteId: uuid("quote_id").notNull(),
+    quoteLineId: uuid("quote_line_id").notNull(),
+    supplierId: uuid("supplier_id").notNull(),
+    qty: numeric("qty", { precision: 18, scale: 6 }).notNull(),
+    unitPriceXof: integer("unit_price_xof").notNull(),
+    motive: text("motive"),
+    awardedBy: uuid("awarded_by").references(() => users.id, { onDelete: "set null" }),
+    awardedAt: timestamp("awarded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("tender_awards_tender_line_idx").on(table.tenantId, table.tenderLineId),
+    uniqueIndex("tender_awards_tenant_id_idx").on(table.tenantId, table.id),
+    index("tender_awards_tenant_tender_idx").on(table.tenantId, table.tenderId, table.supplierId),
+    check("tender_awards_qty_check", sql`${table.qty} > 0`),
+    check("tender_awards_price_check", sql`${table.unitPriceXof} > 0`),
+    check(
+      "tender_awards_motive_check",
+      sql`${table.motive} is null or char_length(${table.motive}) between 1 and 500`,
+    ),
+    foreignKey({
+      name: "tender_awards_tenant_tender_fk",
+      columns: [table.tenantId, table.tenderId],
+      foreignColumns: [tenderRequests.tenantId, tenderRequests.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "tender_awards_tenant_tender_line_fk",
+      columns: [table.tenantId, table.tenderLineId],
+      foreignColumns: [tenderRequestLines.tenantId, tenderRequestLines.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "tender_awards_tenant_quote_fk",
+      columns: [table.tenantId, table.quoteId],
+      foreignColumns: [tenderQuotes.tenantId, tenderQuotes.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "tender_awards_tenant_quote_line_fk",
+      columns: [table.tenantId, table.quoteLineId],
+      foreignColumns: [tenderQuoteLines.tenantId, tenderQuoteLines.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "tender_awards_tenant_supplier_fk",
+      columns: [table.tenantId, table.supplierId],
+      foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("restrict"),
+  ],
+);
+
 export const purchaseOrders = pgTable(
   "purchase_orders",
   {
@@ -594,6 +909,7 @@ export const purchaseOrders = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
     number: text("number"),
     supplierId: uuid("supplier_id").notNull(),
+    tenderId: uuid("tender_id"),
     status: text("status").$type<PurchaseOrderStatus>().notNull().default("draft"),
     receiptState: text("receipt_state").$type<ReceiptState>().notNull().default("not_received"),
     orderDate: date("order_date", { mode: "string" }).notNull(),
@@ -612,6 +928,7 @@ export const purchaseOrders = pgTable(
     uniqueIndex("purchase_orders_tenant_id_idx").on(table.tenantId, table.id),
     index("purchase_orders_tenant_status_idx").on(table.tenantId, table.status, table.createdAt),
     index("purchase_orders_tenant_supplier_idx").on(table.tenantId, table.supplierId),
+    index("purchase_orders_tenant_tender_idx").on(table.tenantId, table.tenderId),
     check(
       "purchase_orders_status_check",
       sql`${table.status} in ('draft', 'requested', 'confirmed', 'closed', 'cancelled')`,
@@ -633,6 +950,11 @@ export const purchaseOrders = pgTable(
       name: "purchase_orders_tenant_supplier_fk",
       columns: [table.tenantId, table.supplierId],
       foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "purchase_orders_tenant_tender_fk",
+      columns: [table.tenantId, table.tenderId],
+      foreignColumns: [tenderRequests.tenantId, tenderRequests.id],
     }).onDelete("restrict"),
   ],
 );
@@ -1441,7 +1763,7 @@ export const documentSequences = pgTable(
     ),
     check(
       "document_sequences_scope_check",
-      sql`${table.scope} in ('purchase_order', 'reception', 'stock_move', 'sales_order', 'delivery', 'invoice', 'customs_declaration', 'customs_bond')`,
+      sql`${table.scope} in ('purchase_order', 'tender', 'reception', 'stock_move', 'sales_order', 'delivery', 'invoice', 'customs_declaration', 'customs_bond')`,
     ),
     check("document_sequences_period_check", sql`${table.period} between 2000 and 9999`),
     check("document_sequences_value_check", sql`${table.lastValue} >= 0`),
@@ -2424,6 +2746,12 @@ export type ImportRow = typeof importRows.$inferSelect;
 export type StockLocationRow = typeof stockLocations.$inferSelect;
 export type PurchaseOrderRow = typeof purchaseOrders.$inferSelect;
 export type PurchaseOrderLineRow = typeof purchaseOrderLines.$inferSelect;
+export type TenderRequestRow = typeof tenderRequests.$inferSelect;
+export type TenderRequestLineRow = typeof tenderRequestLines.$inferSelect;
+export type TenderInvitationRow = typeof tenderInvitations.$inferSelect;
+export type TenderQuoteRow = typeof tenderQuotes.$inferSelect;
+export type TenderQuoteLineRow = typeof tenderQuoteLines.$inferSelect;
+export type TenderAwardRow = typeof tenderAwards.$inferSelect;
 export type ReceptionRow = typeof receptions.$inferSelect;
 export type SalesOrderRow = typeof salesOrders.$inferSelect;
 export type SalesOrderLineRow = typeof salesOrderLines.$inferSelect;

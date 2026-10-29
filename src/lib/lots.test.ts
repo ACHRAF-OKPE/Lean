@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { LOTS } from "./lots";
 
 describe("plan de lots", () => {
-  it("numérote les lots de 0 à 8 sans trou ni doublon", () => {
+  it("numérote les lots de 0 à 9 sans trou ni doublon", () => {
     const ids = LOTS.map((lot) => lot.id);
-    expect(ids).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(ids).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(new Set(ids).size).toBe(ids.length);
   });
 

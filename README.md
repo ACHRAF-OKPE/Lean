@@ -3,8 +3,8 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 7 en cours — socle comptable SYSCOHADA livré (7A).**
-Les écritures automatiques depuis les ventes et les achats suivent en 7B.
+**Statut : Lot 8A livré — appels d'offres et cotation fournisseur en ligne.**
+Le MRP (stock projeté, propositions de réapprovisionnement) suit en 8B.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -369,6 +369,38 @@ Le Lot 7B branche la comptabilité sur les opérations et ajoute le suivi des co
 
 Les montants sont des entiers XOF et chaque mutation écrit un évènement d'audit.
 
+## Approvisionnement — appels d'offres
+
+Le Lot 8A ouvre `/achats/appels-offres` et remplace l'import en tête de gondole par un flux
+in-app complet :
+
+- **Demande de cotation** — un intitulé, une échéance, des lignes de besoin (article actif et
+  achetable, quantité, date souhaitée) et des fournisseurs actifs avec une adresse e-mail. La
+  demande naît en brouillon, modifiable et supprimable, puis reçoit son numéro
+  `DAO-AAAA-NNNN` à l'envoi, qui fige lignes et fournisseurs.
+- **Lien public de cotation** — l'envoi adresse à chaque fournisseur un e-mail personnalisé
+  vers `/cotations/<jeton>`. Le jeton de 256 bits n'est conservé qu'en empreinte SHA-256 et
+  expire à la fin du jour d'échéance. La page ne demande aucune session, n'expose que la
+  raison sociale, le numéro, l'échéance, les lignes et le nom du fournisseur, et rappelle que
+  le lien est personnel. Un lien inconnu, expiré, remplacé ou annulé affiche une réponse
+  neutre. Un renvoi émet un nouveau jeton et invalide l'ancien ; un échec d'envoi ne laisse
+  aucun lien actif.
+- **Cotation** — le fournisseur saisit un nom, un e-mail et un délai facultatifs, puis
+  quantité et prix unitaire par ligne. Une ligne à zéro est non proposée ; toute autre exige
+  un prix strictement positif. Un refus global doit être motivé. Chaque dépôt crée une
+  révision append-only (dix au plus), seule la dernière faisant foi. Un champ piège bloque
+  les robots.
+- **Comparaison et attribution** — chaque ligne confronte les offres triées par prix, délai
+  puis date de dépôt. L'acheteur attribue une offre ou écarte la ligne ; retenir un prix
+  supérieur au meilleur exige un motif. Une attribution est figée et la demande devient
+  terminale quand toutes ses lignes sont attribuées ou écartées.
+- **Commandes fournisseur** — sur action explicite, une commande brouillon par fournisseur
+  retenu reprend l'article, la quantité et le prix proposés, avec la référence `DAO` et une
+  date de réception calculée sur le délai de l'offre. Les commandes suivent ensuite PUR-001 à
+  PUR-005, y compris la numérotation `CMD` à la confirmation.
+
+Toutes les mutations sont auditées ; la cotation publique est enregistrée sans acteur.
+
 ## Scripts
 
 | Commande              | Rôle                                          |
@@ -401,7 +433,9 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `customs_declaration_taxes`, `customs_bonds`, `customs_payments`, `customs_apurements`, puis
 `accounting_journals`, `fiscal_years`, `ledger_accounts`, `journal_entries`,
 `journal_entry_lines`, `journal_entry_sequences`, `accounting_settings`,
-`journal_entry_line_letterings` et `lettering_sequences`. Les
+`journal_entry_line_letterings` et `lettering_sequences`, puis `tender_requests`,
+`tender_request_lines`, `tender_invitations`, `tender_quotes`, `tender_quote_lines` et
+`tender_awards`. Les
 migrations générées sont commitées dans
 `drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
 `0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
@@ -409,7 +443,8 @@ facturation, `0006` pour la fiche entreprise et les contacts tiers, `0007` pour 
 fournisseurs, `0008` pour la collaboration, `0009` pour les réponses fournisseurs, `0010`
 pour les tâches, `0011` pour leur chronomètre, `0012` pour la douane, `0013` pour
 l'apurement progressif des IM9, `0014` pour le socle comptable et `0015` pour le paramétrage,
-les écritures automatiques, le lettrage et le cut-off. Les
+les écritures automatiques, le lettrage et le cut-off, `0016` pour les appels d'offres et la
+cotation fournisseur. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire et d'idempotence des évènements sont posées
 en base, en complément de la validation applicative.

@@ -3,6 +3,7 @@ import {
   ArrowLeftRight,
   Barcode,
   BookOpen,
+  FileSignature,
   GitBranch,
   Landmark,
   LayoutDashboard,
@@ -30,6 +31,7 @@ export type ActiveSection =
   | "nomenclature"
   | "customs"
   | "purchases"
+  | "tenders"
   | "exchanges"
   | "sales"
   | "invoices"
@@ -47,6 +49,12 @@ const NAV_ITEMS = [
   { key: "nomenclature", href: "/nomenclature", label: "Nomenclature douanière", icon: Barcode },
   { key: "customs", href: "/douane", label: "Douane", icon: Landmark },
   { key: "purchases", href: "/achats", label: "Achats", icon: ShoppingCart },
+  {
+    key: "tenders",
+    href: "/achats/appels-offres",
+    label: "Appels d'offres",
+    icon: FileSignature,
+  },
   { key: "exchanges", href: "/echanges", label: "Échanges", icon: Mail },
   { key: "sales", href: "/ventes", label: "Ventes", icon: ShoppingBag },
   { key: "invoices", href: "/factures", label: "Factures", icon: ReceiptText },

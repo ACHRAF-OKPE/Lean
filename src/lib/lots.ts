@@ -54,10 +54,16 @@ export const LOTS: readonly Lot[] = [
     id: 7,
     title: "Comptabilité SYSCOHADA",
     scope: "Écritures, cut-off, rapprochements",
-    status: "next",
+    status: "done",
   },
   {
     id: 8,
+    title: "Supply chain",
+    scope: "Appels d'offres avec cotation en ligne, MRP et propositions d'achat",
+    status: "next",
+  },
+  {
+    id: 9,
     title: "Rapports & clôture",
     scope: "États de gestion, clôture, exports",
     status: "planned",
