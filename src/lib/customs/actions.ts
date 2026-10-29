@@ -5,6 +5,7 @@ import { getDb } from "@/db/client";
 import { requirePermission } from "@/lib/auth/session";
 import type { DeclarationTransition } from "@/modules/customs/lifecycle";
 import { CustomsError } from "@/modules/customs/errors";
+import { NEW_CUSTOMS_REGIME_OPTION } from "@/modules/customs/constants";
 import {
   addDeclarationLine,
   apureBond,
@@ -14,6 +15,7 @@ import {
   createCustomsRegime,
   createCustomsTax,
   createDeclaration,
+  createDeclarationWithRegime,
   recordApurement,
   recordCustomsPayment,
   removeDeclarationLine,
@@ -43,9 +45,8 @@ function failure(error: unknown): CustomsFormState {
   throw error;
 }
 
-function headerRaw(formData: FormData) {
+function declarationFields(formData: FormData) {
   return {
-    regimeId: text(formData, "regimeId"),
     officeId: text(formData, "officeId"),
     partnerId: text(formData, "partnerId"),
     declarationDate: text(formData, "declarationDate"),
@@ -55,19 +56,38 @@ function headerRaw(formData: FormData) {
   };
 }
 
+function headerRaw(formData: FormData) {
+  return { regimeId: text(formData, "regimeId"), ...declarationFields(formData) };
+}
+
 export async function createDeclarationAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
   const session = await requirePermission("data.write");
+  const regimeChoice = text(formData, "regimeId");
 
   let declarationId: string;
   try {
-    const created = await createDeclaration(getDb(), {
-      tenantId: session.tenantId,
-      actorUserId: session.userId,
-      raw: headerRaw(formData),
-    });
+    const created =
+      regimeChoice === NEW_CUSTOMS_REGIME_OPTION
+        ? await createDeclarationWithRegime(getDb(), {
+            tenantId: session.tenantId,
+            actorUserId: session.userId,
+            regimeRaw: {
+              code: text(formData, "newRegimeCode"),
+              label: text(formData, "newRegimeLabel"),
+              kind: text(formData, "newRegimeKind"),
+              requiresBond: text(formData, "newRegimeRequiresBond") === "on",
+              requiresApurement: text(formData, "newRegimeRequiresApurement") === "on",
+            },
+            raw: declarationFields(formData),
+          })
+        : await createDeclaration(getDb(), {
+            tenantId: session.tenantId,
+            actorUserId: session.userId,
+            raw: headerRaw(formData),
+          });
     declarationId = created.id;
   } catch (error) {
     return failure(error);

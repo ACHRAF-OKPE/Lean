@@ -29,6 +29,8 @@ export const CUSTOMS_BOND_STATUS_LABELS: Record<CustomsBondStatus, string> = {
 
 export const CUSTOMS_REGIME_KINDS = ["import", "export", "suspensive", "transit"] as const;
 
+export const NEW_CUSTOMS_REGIME_OPTION = "__nouveau_regime__";
+
 export const CUSTOMS_REGIME_KIND_LABELS: Record<CustomsRegimeKind, string> = {
   import: "Importation",
   export: "Exportation",

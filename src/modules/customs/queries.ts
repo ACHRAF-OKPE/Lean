@@ -44,11 +44,13 @@ import {
   validateApurementReference,
   validateBondInput,
   validateDeclarationHeader,
+  validateDeclarationHeaderFields,
   validateDeclarationLine,
   validateOfficeInput,
   validatePaymentInput,
   validateRegimeInput,
   validateTaxInput,
+  type DeclarationHeaderInput,
 } from "./validation";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -940,6 +942,53 @@ async function assertActiveReferentials(
   }
 }
 
+async function insertDeclaration(
+  tx: Transaction,
+  tenantId: string,
+  actorUserId: string,
+  data: DeclarationHeaderInput,
+): Promise<{ id: string; number: string }> {
+  await assertActiveReferentials(tx, tenantId, data);
+  const number = await nextDocumentNumber(tx, {
+    tenantId,
+    scope: "customs_declaration",
+    date: data.declarationDate,
+  });
+  const [created] = await tx
+    .insert(customsDeclarations)
+    .values({
+      tenantId,
+      number,
+      regimeId: data.regimeId,
+      officeId: data.officeId,
+      partnerId: data.partnerId,
+      declarationDate: data.declarationDate,
+      externalReference: data.externalReference,
+      freightAmount: data.freightAmountXof,
+      insuranceAmount: data.insuranceAmountXof,
+      createdByUserId: actorUserId,
+    })
+    .returning({ id: customsDeclarations.id });
+  if (!created) {
+    throw new CustomsError("La déclaration n'a pas pu être créée.");
+  }
+  await tx.insert(auditEvents).values({
+    tenantId,
+    actorUserId,
+    action: "customs.declaration.create",
+    entityType: "customs_declaration",
+    entityId: created.id,
+    details: {
+      number,
+      regimeId: data.regimeId,
+      officeId: data.officeId,
+      partnerId: data.partnerId,
+      declarationDate: data.declarationDate,
+    },
+  });
+  return { id: created.id, number };
+}
+
 export async function createDeclaration(
   db: Database,
   input: {
@@ -957,47 +1006,96 @@ export async function createDeclaration(
   },
 ): Promise<{ id: string; number: string }> {
   const data = assertValid(validateDeclarationHeader(input.raw), "Déclaration invalide.");
-  return db.transaction(async (tx) => {
-    await assertActiveReferentials(tx, input.tenantId, data);
-    const number = await nextDocumentNumber(tx, {
-      tenantId: input.tenantId,
-      scope: "customs_declaration",
-      date: data.declarationDate,
+  return db.transaction((tx) => insertDeclaration(tx, input.tenantId, input.actorUserId, data));
+}
+
+export async function createDeclarationWithRegime(
+  db: Database,
+  input: {
+    readonly tenantId: string;
+    readonly actorUserId: string;
+    readonly regimeRaw: {
+      code: unknown;
+      label: unknown;
+      kind: unknown;
+      requiresBond: unknown;
+      requiresApurement?: unknown;
+    };
+    readonly raw: {
+      officeId: unknown;
+      partnerId: unknown;
+      declarationDate: unknown;
+      externalReference: unknown;
+      freightAmountXof: unknown;
+      insuranceAmountXof: unknown;
+    };
+  },
+): Promise<{ id: string; number: string; regimeId: string }> {
+  const regime = assertValid(validateRegimeInput(input.regimeRaw), "Régime invalide.");
+  const header = assertValid(validateDeclarationHeaderFields(input.raw), "Déclaration invalide.");
+  try {
+    return await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: customsRegimes.id, active: customsRegimes.active })
+        .from(customsRegimes)
+        .where(
+          and(eq(customsRegimes.tenantId, input.tenantId), eq(customsRegimes.code, regime.code)),
+        )
+        .limit(1);
+      let regimeId: string;
+      if (existing) {
+        if (!existing.active) {
+          throw new CustomsError(
+            `Le régime ${regime.code} existe déjà mais est désactivé : réactivez-le dans les référentiels.`,
+          );
+        }
+        regimeId = existing.id;
+      } else {
+        const [created] = await tx
+          .insert(customsRegimes)
+          .values({
+            tenantId: input.tenantId,
+            code: regime.code,
+            label: regime.label,
+            kind: regime.kind,
+            requiresBond: regime.requiresBond,
+            requiresApurement: regime.requiresApurement,
+          })
+          .returning({ id: customsRegimes.id });
+        if (!created) {
+          throw new CustomsError("Le régime n'a pas pu être créé.");
+        }
+        await tx.insert(auditEvents).values({
+          tenantId: input.tenantId,
+          actorUserId: input.actorUserId,
+          action: "customs.regime.create",
+          entityType: "customs_regime",
+          entityId: created.id,
+          details: {
+            code: regime.code,
+            label: regime.label,
+            kind: regime.kind,
+            requiresBond: regime.requiresBond,
+            requiresApurement: regime.requiresApurement,
+            source: "declaration",
+          },
+        });
+        regimeId = created.id;
+      }
+      const declaration = await insertDeclaration(tx, input.tenantId, input.actorUserId, {
+        ...header,
+        regimeId,
+      });
+      return { ...declaration, regimeId };
     });
-    const [created] = await tx
-      .insert(customsDeclarations)
-      .values({
-        tenantId: input.tenantId,
-        number,
-        regimeId: data.regimeId,
-        officeId: data.officeId,
-        partnerId: data.partnerId,
-        declarationDate: data.declarationDate,
-        externalReference: data.externalReference,
-        freightAmount: data.freightAmountXof,
-        insuranceAmount: data.insuranceAmountXof,
-        createdByUserId: input.actorUserId,
-      })
-      .returning({ id: customsDeclarations.id });
-    if (!created) {
-      throw new CustomsError("La déclaration n'a pas pu être créée.");
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new CustomsError(
+        `Le régime ${regime.code} vient d'être créé par une autre saisie : vérifiez le référentiel puis réessayez.`,
+      );
     }
-    await tx.insert(auditEvents).values({
-      tenantId: input.tenantId,
-      actorUserId: input.actorUserId,
-      action: "customs.declaration.create",
-      entityType: "customs_declaration",
-      entityId: created.id,
-      details: {
-        number,
-        regimeId: data.regimeId,
-        officeId: data.officeId,
-        partnerId: data.partnerId,
-        declarationDate: data.declarationDate,
-      },
-    });
-    return { id: created.id, number };
-  });
+    throw error;
+  }
 }
 
 export async function updateDeclarationHeader(

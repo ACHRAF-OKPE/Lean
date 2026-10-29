@@ -181,6 +181,9 @@ async function ReferentialsContent({
                       Acquit
                     </th>
                     <th scope="col" className={TH}>
+                      Apurement
+                    </th>
+                    <th scope="col" className={TH}>
                       État
                     </th>
                     {canWrite ? (
@@ -200,6 +203,9 @@ async function ReferentialsContent({
                       </td>
                       <td className="px-4 py-2.5 text-muted">
                         {regime.requiresBond ? "Requis" : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-muted">
+                        {regime.requiresApurement ? "Progressif" : "—"}
                       </td>
                       <td className="px-4 py-2.5">
                         <span className={regime.active ? "text-brand" : "text-muted"}>

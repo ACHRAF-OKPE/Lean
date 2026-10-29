@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, asc, count, eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { auditEvents } from "@/db/schema";
+import { auditEvents, customsDeclarations } from "@/db/schema";
 import { createTestDatabase, type TestDatabase } from "@/test/pglite";
 import { seedCustomsTenant, type CustomsTenant } from "@/test/customs";
 import { todayIsoDate } from "@/lib/dates";
@@ -15,6 +15,7 @@ import {
   createCustomsRegime,
   createCustomsTax,
   createDeclaration,
+  createDeclarationWithRegime,
   getDeclaration,
   listCustomsReferentials,
   listApurementOverviews,
@@ -22,6 +23,7 @@ import {
   recordCustomsPayment,
   removeDeclarationLine,
   setCustomsOfficeActive,
+  setCustomsRegimeActive,
   setCustomsTaxActive,
   updateDeclarationHeader,
   type DeclarationDetail,
@@ -854,5 +856,166 @@ describe("CUS-007 — apurement progressif des sommiers IM9", () => {
     });
     expect(row?.progress.state).toBe("partial");
     expect(row?.progress.unitCode).toBeNull();
+  });
+});
+
+describe("CUS-011 — régime saisi à la volée", () => {
+  const newRegime = {
+    code: "im5",
+    label: "Admission temporaire — apurement progressif",
+    kind: "suspensive",
+    requiresBond: false,
+    requiresApurement: true,
+  };
+
+  function headerRaw(ids: CustomsTenant) {
+    return {
+      officeId: ids.officeId,
+      partnerId: ids.partnerId,
+      declarationDate: "2026-10-20",
+      externalReference: "",
+      freightAmountXof: 0,
+      insuranceAmountXof: 0,
+    };
+  }
+
+  async function declarationCount(tenantId: string): Promise<number> {
+    const [row] = await db
+      .select({ value: count() })
+      .from(customsDeclarations)
+      .where(eq(customsDeclarations.tenantId, tenantId));
+    return row?.value ?? 0;
+  }
+
+  it("crée le régime absent, l'ajoute au référentiel et l'applique à la déclaration", async () => {
+    const ids = await seedCustomsTenant(db, "cus011-create");
+    const before = await listCustomsReferentials(db, ids.tenantId);
+
+    const created = await createDeclarationWithRegime(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      regimeRaw: newRegime,
+      raw: headerRaw(ids),
+    });
+
+    const after = await listCustomsReferentials(db, ids.tenantId);
+    expect(after.regimes).toHaveLength(before.regimes.length + 1);
+    const regime = after.regimes.find((row) => row.code === "IM5");
+    expect(regime).toMatchObject({
+      label: "Admission temporaire — apurement progressif",
+      kind: "suspensive",
+      requiresBond: false,
+      requiresApurement: true,
+      active: true,
+    });
+    expect(created.regimeId).toBe(regime?.id ?? "");
+
+    const declaration = await detail(ids, created.id);
+    expect(declaration).toMatchObject({
+      number: created.number,
+      regimeCode: "IM5",
+      requiresApurement: true,
+      status: "draft",
+    });
+    expect(await declarationCount(ids.tenantId)).toBe(1);
+
+    const audits = await db
+      .select({ action: auditEvents.action, details: auditEvents.details })
+      .from(auditEvents)
+      .where(
+        and(eq(auditEvents.tenantId, ids.tenantId), eq(auditEvents.entityId, regime?.id ?? "")),
+      );
+    const regimeAudit = audits.find((row) => row.action === "customs.regime.create");
+    expect(regimeAudit?.details).toMatchObject({ code: "IM5", source: "declaration" });
+  });
+
+  it("réutilise un code déjà présent et actif sans créer de doublon", async () => {
+    const ids = await seedCustomsTenant(db, "cus011-reuse");
+    const before = await listCustomsReferentials(db, ids.tenantId);
+
+    const created = await createDeclarationWithRegime(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      regimeRaw: {
+        code: "IM4",
+        label: "Libellé ignoré au profit du référentiel",
+        kind: "export",
+        requiresBond: true,
+        requiresApurement: true,
+      },
+      raw: headerRaw(ids),
+    });
+
+    const after = await listCustomsReferentials(db, ids.tenantId);
+    expect(after.regimes).toHaveLength(before.regimes.length);
+    expect(created.regimeId).toBe(ids.plainRegimeId);
+    expect((await detail(ids, created.id)).regimeCode).toBe("IM4");
+
+    const [audit] = await db
+      .select({ value: count() })
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.tenantId, ids.tenantId),
+          eq(auditEvents.action, "customs.regime.create"),
+        ),
+      );
+    expect(audit?.value).toBe(0);
+  });
+
+  it("refuse un code existant désactivé ou un régime invalide sans écrire de déclaration", async () => {
+    const ids = await seedCustomsTenant(db, "cus011-refus");
+    await setCustomsRegimeActive(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      regimeId: ids.bondRegimeId,
+      active: false,
+    });
+    const before = await listCustomsReferentials(db, ids.tenantId);
+
+    await expect(
+      createDeclarationWithRegime(db, {
+        tenantId: ids.tenantId,
+        actorUserId: ids.userId,
+        regimeRaw: { code: "IM8", label: "Transit", kind: "transit", requiresBond: false },
+        raw: headerRaw(ids),
+      }),
+    ).rejects.toThrow(/existe déjà mais est désactivé/);
+
+    await expect(
+      createDeclarationWithRegime(db, {
+        tenantId: ids.tenantId,
+        actorUserId: ids.userId,
+        regimeRaw: { code: "I", label: "", kind: "inconnu", requiresBond: false },
+        raw: headerRaw(ids),
+      }),
+    ).rejects.toThrow(CustomsError);
+
+    expect((await listCustomsReferentials(db, ids.tenantId)).regimes).toHaveLength(
+      before.regimes.length,
+    );
+    expect(await declarationCount(ids.tenantId)).toBe(0);
+  });
+
+  it("cloisonne le code de régime par espace", async () => {
+    const first = await seedCustomsTenant(db, "cus011-espace-a");
+    const second = await seedCustomsTenant(db, "cus011-espace-b");
+
+    const a = await createDeclarationWithRegime(db, {
+      tenantId: first.tenantId,
+      actorUserId: first.userId,
+      regimeRaw: newRegime,
+      raw: headerRaw(first),
+    });
+    const b = await createDeclarationWithRegime(db, {
+      tenantId: second.tenantId,
+      actorUserId: second.userId,
+      regimeRaw: newRegime,
+      raw: headerRaw(second),
+    });
+
+    expect(a.regimeId).not.toBe(b.regimeId);
+    const firstRegimes = await listCustomsReferentials(db, first.tenantId);
+    expect(firstRegimes.regimes.filter((row) => row.code === "IM5")).toHaveLength(1);
   });
 });

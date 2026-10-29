@@ -103,46 +103,85 @@ export interface DeclarationHeaderInput {
   insuranceAmountXof: number;
 }
 
-export function validateDeclarationHeader(raw: {
-  readonly regimeId: unknown;
+export type DeclarationHeaderFieldsInput = Omit<DeclarationHeaderInput, "regimeId">;
+
+interface DeclarationHeaderRawFields {
   readonly officeId: unknown;
   readonly partnerId: unknown;
   readonly declarationDate: unknown;
   readonly externalReference: unknown;
   readonly freightAmountXof: unknown;
   readonly insuranceAmountXof: unknown;
-}): { data: DeclarationHeaderInput | null; errors: string[]; warnings: string[] } {
-  const regime = uuidField(raw.regimeId, "Régime");
-  const office = uuidField(raw.officeId, "Bureau");
-  const partner = uuidField(raw.partnerId, "Tiers déclaré");
-  const date = dateField(raw.declarationDate, "Date de déclaration", true);
-  const reference = textField(raw.externalReference, "Référence externe", {
-    maxLength: CUSTOMS_MAX_REFERENCE,
-  });
-  const freight = xofField(raw.freightAmountXof, "Frais de transport", {});
-  const insurance = xofField(raw.insuranceAmountXof, "Frais d'assurance", {});
+}
 
-  const fields: Field<unknown>[] = [regime, office, partner, date, reference, freight, insurance];
-  const errors = fields.flatMap((field) => [...field.errors]);
-  const warnings = fields.flatMap((field) => [...field.warnings]);
+function declarationHeaderFields(raw: DeclarationHeaderRawFields) {
+  return {
+    office: uuidField(raw.officeId, "Bureau"),
+    partner: uuidField(raw.partnerId, "Tiers déclaré"),
+    date: dateField(raw.declarationDate, "Date de déclaration", true),
+    reference: textField(raw.externalReference, "Référence externe", {
+      maxLength: CUSTOMS_MAX_REFERENCE,
+    }),
+    freight: xofField(raw.freightAmountXof, "Frais de transport", {}),
+    insurance: xofField(raw.insuranceAmountXof, "Frais d'assurance", {}),
+  };
+}
 
-  if (errors.length > 0 || !regime.value || !office.value || !partner.value || !date.value) {
+function headerFieldsResult(fields: ReturnType<typeof declarationHeaderFields>): {
+  data: DeclarationHeaderFieldsInput | null;
+  errors: string[];
+  warnings: string[];
+} {
+  const list: Field<unknown>[] = [
+    fields.office,
+    fields.partner,
+    fields.date,
+    fields.reference,
+    fields.freight,
+    fields.insurance,
+  ];
+  const errors = list.flatMap((field) => [...field.errors]);
+  const warnings = list.flatMap((field) => [...field.warnings]);
+
+  if (errors.length > 0 || !fields.office.value || !fields.partner.value || !fields.date.value) {
     return { data: null, errors, warnings };
   }
 
   return {
     data: {
-      regimeId: regime.value,
-      officeId: office.value,
-      partnerId: partner.value,
-      declarationDate: date.value,
-      externalReference: reference.value,
-      freightAmountXof: freight.value,
-      insuranceAmountXof: insurance.value,
+      officeId: fields.office.value,
+      partnerId: fields.partner.value,
+      declarationDate: fields.date.value,
+      externalReference: fields.reference.value,
+      freightAmountXof: fields.freight.value,
+      insuranceAmountXof: fields.insurance.value,
     },
     errors,
     warnings,
   };
+}
+
+export function validateDeclarationHeader(
+  raw: DeclarationHeaderRawFields & { readonly regimeId: unknown },
+): { data: DeclarationHeaderInput | null; errors: string[]; warnings: string[] } {
+  const regime = uuidField(raw.regimeId, "Régime");
+  const result = headerFieldsResult(declarationHeaderFields(raw));
+  const errors = [...regime.errors, ...result.errors];
+  const warnings = [...regime.warnings, ...result.warnings];
+
+  if (!result.data || !regime.value || errors.length > 0) {
+    return { data: null, errors, warnings };
+  }
+
+  return { data: { regimeId: regime.value, ...result.data }, errors, warnings };
+}
+
+export function validateDeclarationHeaderFields(raw: DeclarationHeaderRawFields): {
+  data: DeclarationHeaderFieldsInput | null;
+  errors: string[];
+  warnings: string[];
+} {
+  return headerFieldsResult(declarationHeaderFields(raw));
 }
 
 export interface DeclarationLineInput {

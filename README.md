@@ -294,7 +294,9 @@ Le Lot 6 ajoute le passage en douane, du référentiel à la mainlevée :
 - **Déclaration** — `/douane` liste les déclarations brouillon, déposées, liquidées,
   réglées et annulées. Une déclaration porte un numéro DEC-AAAA-NNNN, un régime, un bureau,
   le tiers déclaré, une date et les frais de transport et d'assurance ; elle s'enrichit de
-  lignes jusqu'au dépôt, qui fige l'en-tête et les lignes.
+  lignes jusqu'au dépôt, qui fige l'en-tête et les lignes. Le régime se choisit parmi les
+  régimes actifs de l'espace ; un régime absent (IM9 par exemple) se saisit directement dans
+  le formulaire : il est créé, ajouté à la liste et appliqué à la déclaration.
 - **Liquidation** — le fret et l'assurance sont répartis au prorata des valeurs de ligne au
   franc près (plus fort reste) ; le droit de douane applique le TEC de chaque code SH, puis
   les taxes actives sont calculées sur leur assiette. L'instantané fige lignes, taxes et

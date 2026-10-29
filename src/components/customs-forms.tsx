@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -42,6 +42,7 @@ import {
   CUSTOMS_APUREMENT_MODE_LABELS,
   CUSTOMS_REGIME_KINDS,
   CUSTOMS_REGIME_KIND_LABELS,
+  NEW_CUSTOMS_REGIME_OPTION,
 } from "@/modules/customs/constants";
 import type { CustomsDeclarationOptions } from "@/modules/customs/queries";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "@/modules/sales/payment-methods";
@@ -84,6 +85,8 @@ export function DeclarationHeaderForm({
     isEdit ? updateDeclarationAction : createDeclarationAction,
     EMPTY_CUSTOMS_FORM_STATE,
   );
+  const [regimeId, setRegimeId] = useState(declaration?.regimeId ?? "");
+  const createsRegime = !isEdit && regimeId === NEW_CUSTOMS_REGIME_OPTION;
 
   return (
     <form
@@ -112,12 +115,21 @@ export function DeclarationHeaderForm({
         <legend className="sr-only">En-tête de déclaration</legend>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Régime douanier" htmlFor="regimeId" hint="Référentiel actif uniquement.">
+          <Field
+            label="Régime douanier"
+            htmlFor="regimeId"
+            hint={
+              isEdit
+                ? "Référentiel actif uniquement."
+                : "Référentiel actif ; un régime absent se saisit ici."
+            }
+          >
             <select
               id="regimeId"
               name="regimeId"
               required
-              defaultValue={declaration?.regimeId ?? ""}
+              value={regimeId}
+              onChange={(event) => setRegimeId(event.target.value)}
               className={INPUT_CLASS}
             >
               <option value="" disabled>
@@ -130,6 +142,9 @@ export function DeclarationHeaderForm({
                   {regime.requiresApurement ? " (apurement)" : ""}
                 </option>
               ))}
+              {isEdit ? null : (
+                <option value={NEW_CUSTOMS_REGIME_OPTION}>Autre régime — le créer…</option>
+              )}
             </select>
           </Field>
           <Field label="Bureau de douane" htmlFor="officeId" hint="Bureau actif de l'espace.">
@@ -225,6 +240,82 @@ export function DeclarationHeaderForm({
             />
           </Field>
         </div>
+
+        {createsRegime ? (
+          <div className="rounded-lg border border-brand/20 bg-brand-soft px-4 py-4">
+            <p className="flex items-center gap-2 text-[11px] font-medium text-brand-strong">
+              <Tags className="size-3.5" aria-hidden="true" />
+              Nouveau régime douanier
+            </p>
+            <p className="mt-1 text-[10px] leading-4 text-muted">
+              Le régime est ajouté au référentiel de l&apos;espace, puis appliqué à cette
+              déclaration. Un code déjà présent est réutilisé s&apos;il est actif.
+            </p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <Field
+                label="Code du régime"
+                htmlFor="newRegimeCode"
+                hint="2 à 6 caractères, ex. IM9."
+              >
+                <input
+                  id="newRegimeCode"
+                  name="newRegimeCode"
+                  required
+                  maxLength={6}
+                  pattern="[A-Za-z0-9]{2,6}"
+                  placeholder="IM9"
+                  className={`${INPUT_CLASS} font-mono uppercase`}
+                />
+              </Field>
+              <Field label="Libellé" htmlFor="newRegimeLabel" hint="120 caractères maximum.">
+                <input
+                  id="newRegimeLabel"
+                  name="newRegimeLabel"
+                  required
+                  maxLength={120}
+                  placeholder="Zone franche — apurement progressif"
+                  className={INPUT_CLASS}
+                />
+              </Field>
+              <Field label="Nature" htmlFor="newRegimeKind">
+                <select
+                  id="newRegimeKind"
+                  name="newRegimeKind"
+                  required
+                  defaultValue="import"
+                  className={INPUT_CLASS}
+                >
+                  {CUSTOMS_REGIME_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {CUSTOMS_REGIME_KIND_LABELS[kind]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-[11px]">
+                  <input
+                    type="checkbox"
+                    name="newRegimeRequiresBond"
+                    className="size-3.5 accent-brand"
+                  />
+                  Acquit requis
+                </label>
+                <label
+                  className="flex items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-[11px]"
+                  title="IM9 / zone franche : apurement progressif des articles du sommier"
+                >
+                  <input
+                    type="checkbox"
+                    name="newRegimeRequiresApurement"
+                    className="size-3.5 accent-brand"
+                  />
+                  Apurement progressif
+                </label>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="flex items-center justify-between border-t border-line pt-4">
           {isEdit ? (
