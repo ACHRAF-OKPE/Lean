@@ -8,6 +8,7 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 const PREFIXES: Record<DocumentScope, string> = {
   purchase_order: "CMD",
   tender: "DAO",
+  supply_run: "BES",
   reception: "REC",
   stock_move: "MVT",
   sales_order: "VTE",

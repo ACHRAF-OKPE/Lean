@@ -3,8 +3,8 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 8A livré — appels d'offres et cotation fournisseur en ligne.**
-Le MRP (stock projeté, propositions de réapprovisionnement) suit en 8B.
+**Statut : Lot 8B livré — supply chain complète (appels d'offres, MRP, propositions d'achat).**
+Le lot 9 (états de gestion, clôture, exports) est le prochain.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -401,6 +401,30 @@ in-app complet :
 
 Toutes les mutations sont auditées ; la cotation publique est enregistrée sans acteur.
 
+## Approvisionnement — besoins et propositions d'achat
+
+Le Lot 8B complète la supply chain avec `/achats/approvisionnement` (politiques) et
+`/achats/besoins` (calculs) :
+
+- **Politique d'approvisionnement** — par article produit actif et achetable : fournisseur par
+  défaut actif, délai d'approvisionnement (0 à 365 jours), délai de sécurité (0 à 60 jours),
+  stock minimum, quantité de réapprovisionnement et multiple de commande facultatif. Une
+  politique inactive est ignorée. Chaque enregistrement est audité.
+- **Calcul des besoins** — sur un horizon de 1 à 365 jours, le stock interne est confronté aux
+  commandes fournisseurs confirmées non reçues et aux commandes clients confirmées non livrées.
+  Le premier jour où le stock projeté perce le seuil produit une proposition : quantité = plus
+  grand du manque au seuil et de la quantité de réapprovisionnement, arrondie au multiple. La
+  date de commande recule des deux délais, ramenée au jour avec un signalement de retard. Le
+  calcul est numéroté `BES-AAAA-NNNN`, figé et conservé.
+- **Conversion** — les propositions sélectionnées deviennent des commandes fournisseur en
+  brouillon, une par fournisseur ou une par fournisseur et date de besoin, avec la référence
+  `BES` et la date de réception la plus proche du groupe. Elles peuvent aussi produire une
+  demande de cotation brouillon, envoyée ensuite comme en 8A. Une ligne traitée ne se convertit
+  plus ; l'écart exige un motif et reste audité.
+
+Toutes les mutations sont auditées et cloisonnées par espace ; les tests `supply.test.ts`
+couvrent SCM-007 à SCM-012.
+
 ## Scripts
 
 | Commande              | Rôle                                          |
@@ -435,7 +459,7 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `journal_entry_lines`, `journal_entry_sequences`, `accounting_settings`,
 `journal_entry_line_letterings` et `lettering_sequences`, puis `tender_requests`,
 `tender_request_lines`, `tender_invitations`, `tender_quotes`, `tender_quote_lines` et
-`tender_awards`. Les
+`tender_awards`, puis `article_supply_policies`, `supply_runs` et `supply_run_lines`. Les
 migrations générées sont commitées dans
 `drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
 `0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
@@ -444,7 +468,8 @@ fournisseurs, `0008` pour la collaboration, `0009` pour les réponses fournisseu
 pour les tâches, `0011` pour leur chronomètre, `0012` pour la douane, `0013` pour
 l'apurement progressif des IM9, `0014` pour le socle comptable et `0015` pour le paramétrage,
 les écritures automatiques, le lettrage et le cut-off, `0016` pour les appels d'offres et la
-cotation fournisseur. Les
+cotation fournisseur, `0017` pour les politiques d'approvisionnement, les calculs de besoins et
+les propositions d'achat. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire et d'idempotence des évènements sont posées
 en base, en complément de la validation applicative.

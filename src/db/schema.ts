@@ -230,6 +230,7 @@ export type StockMoveType = "incoming" | "outgoing";
 export type DocumentScope =
   | "purchase_order"
   | "tender"
+  | "supply_run"
   | "reception"
   | "stock_move"
   | "sales_order"
@@ -237,6 +238,7 @@ export type DocumentScope =
   | "invoice"
   | "customs_declaration"
   | "customs_bond";
+export type SupplyDecision = "pending" | "ordered" | "tendered" | "dismissed";
 export type TenderStatus = "draft" | "open" | "awarded" | "cancelled";
 export type TenderInvitationStatus = "pending" | "sent" | "quoted" | "declined";
 export type CustomsRegimeKind = "import" | "export" | "suspensive" | "transit";
@@ -588,6 +590,79 @@ export const stockLocations = pgTable(
   ],
 );
 
+export const articleSupplyPolicies = pgTable(
+  "article_supply_policies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    articleId: uuid("article_id").notNull(),
+    supplierId: uuid("supplier_id").notNull(),
+    leadTimeDays: integer("lead_time_days").notNull().default(0),
+    safetyDelayDays: integer("safety_delay_days").notNull().default(0),
+    minStockQty: numeric("min_stock_qty", { precision: 18, scale: 6 }).notNull().default("0"),
+    reorderQty: numeric("reorder_qty", { precision: 18, scale: 6 }).notNull().default("0"),
+    orderMultipleQty: numeric("order_multiple_qty", { precision: 18, scale: 6 }),
+    active: boolean("active").notNull().default(true),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("article_supply_policies_tenant_article_idx").on(table.tenantId, table.articleId),
+    uniqueIndex("article_supply_policies_tenant_id_idx").on(table.tenantId, table.id),
+    index("article_supply_policies_tenant_supplier_idx").on(table.tenantId, table.supplierId),
+    check("article_supply_policies_lead_time_check", sql`${table.leadTimeDays} between 0 and 365`),
+    check(
+      "article_supply_policies_safety_delay_check",
+      sql`${table.safetyDelayDays} between 0 and 60`,
+    ),
+    check(
+      "article_supply_policies_quantities_check",
+      sql`${table.minStockQty} >= 0 and ${table.reorderQty} >= 0 and (${table.orderMultipleQty} is null or ${table.orderMultipleQty} > 0)`,
+    ),
+    foreignKey({
+      name: "article_supply_policies_tenant_article_fk",
+      columns: [table.tenantId, table.articleId],
+      foreignColumns: [articles.tenantId, articles.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "article_supply_policies_tenant_supplier_fk",
+      columns: [table.tenantId, table.supplierId],
+      foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const supplyRuns = pgTable(
+  "supply_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    number: text("number").notNull(),
+    horizonDays: integer("horizon_days").notNull(),
+    lineCount: integer("line_count").notNull().default(0),
+    proposalCount: integer("proposal_count").notNull().default(0),
+    calculatedBy: uuid("calculated_by").references(() => users.id, { onDelete: "set null" }),
+    calculatedAt: timestamp("calculated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("supply_runs_tenant_number_idx").on(table.tenantId, table.number),
+    uniqueIndex("supply_runs_tenant_id_idx").on(table.tenantId, table.id),
+    index("supply_runs_tenant_calculated_idx").on(table.tenantId, table.calculatedAt),
+    check("supply_runs_number_check", sql`${table.number} ~ '^BES-[0-9]{4}-[0-9]{4}$'`),
+    check("supply_runs_horizon_check", sql`${table.horizonDays} between 1 and 365`),
+    check(
+      "supply_runs_counts_check",
+      sql`${table.lineCount} >= 0 and ${table.proposalCount} >= 0 and ${table.proposalCount} <= ${table.lineCount}`,
+    ),
+  ],
+);
+
 export const tenderRequests = pgTable(
   "tender_requests",
   {
@@ -599,6 +674,7 @@ export const tenderRequests = pgTable(
     title: text("title").notNull(),
     notes: text("notes"),
     deadline: date("deadline", { mode: "string" }).notNull(),
+    supplyRunId: uuid("supply_run_id"),
     status: text("status").$type<TenderStatus>().notNull().default("draft"),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
@@ -614,6 +690,7 @@ export const tenderRequests = pgTable(
     uniqueIndex("tender_requests_tenant_number_idx").on(table.tenantId, table.number),
     uniqueIndex("tender_requests_tenant_id_idx").on(table.tenantId, table.id),
     index("tender_requests_tenant_status_idx").on(table.tenantId, table.status, table.createdAt),
+    index("tender_requests_tenant_supply_run_idx").on(table.tenantId, table.supplyRunId),
     check(
       "tender_requests_number_check",
       sql`${table.number} is null or ${table.number} ~ '^DAO-[0-9]{4}-[0-9]{4}$'`,
@@ -639,6 +716,11 @@ export const tenderRequests = pgTable(
       "tender_requests_cancelled_check",
       sql`${table.status} <> 'cancelled' or (${table.cancelReason} is not null and ${table.cancelledAt} is not null and char_length(${table.cancelReason}) between 1 and 500)`,
     ),
+    foreignKey({
+      name: "tender_requests_tenant_supply_run_fk",
+      columns: [table.tenantId, table.supplyRunId],
+      foreignColumns: [supplyRuns.tenantId, supplyRuns.id],
+    }).onDelete("restrict"),
   ],
 );
 
@@ -900,6 +982,78 @@ export const tenderAwards = pgTable(
   ],
 );
 
+export const supplyRunLines = pgTable(
+  "supply_run_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    runId: uuid("run_id").notNull(),
+    lineNumber: integer("line_number").notNull(),
+    articleId: uuid("article_id").notNull(),
+    supplierId: uuid("supplier_id").notNull(),
+    unitCode: text("unit_code").notNull(),
+    stockQty: numeric("stock_qty", { precision: 18, scale: 6 }).notNull(),
+    incomingQty: numeric("incoming_qty", { precision: 18, scale: 6 }).notNull(),
+    outgoingQty: numeric("outgoing_qty", { precision: 18, scale: 6 }).notNull(),
+    minStockQty: numeric("min_stock_qty", { precision: 18, scale: 6 }).notNull(),
+    reorderQty: numeric("reorder_qty", { precision: 18, scale: 6 }).notNull(),
+    projectedQty: numeric("projected_qty", { precision: 18, scale: 6 }).notNull(),
+    proposedQty: numeric("proposed_qty", { precision: 18, scale: 6 }).notNull(),
+    purchasePriceXof: integer("purchase_price_xof").notNull().default(0),
+    needDate: date("need_date", { mode: "string" }).notNull(),
+    orderDate: date("order_date", { mode: "string" }).notNull(),
+    late: boolean("late").notNull().default(false),
+    decision: text("decision").$type<SupplyDecision>().notNull().default("pending"),
+    decisionReason: text("decision_reason"),
+    convertedDocumentId: uuid("converted_document_id"),
+    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("supply_run_lines_run_line_idx").on(table.tenantId, table.runId, table.lineNumber),
+    uniqueIndex("supply_run_lines_tenant_id_idx").on(table.tenantId, table.id),
+    index("supply_run_lines_tenant_run_idx").on(table.tenantId, table.runId),
+    check("supply_run_lines_number_check", sql`${table.lineNumber} > 0`),
+    check(
+      "supply_run_lines_quantities_check",
+      sql`${table.stockQty} >= 0 and ${table.incomingQty} >= 0 and ${table.outgoingQty} >= 0 and ${table.minStockQty} >= 0 and ${table.reorderQty} >= 0 and ${table.proposedQty} > 0`,
+    ),
+    check("supply_run_lines_price_check", sql`${table.purchasePriceXof} between 0 and 2000000000`),
+    check(
+      "supply_run_lines_decision_check",
+      sql`${table.decision} in ('pending', 'ordered', 'tendered', 'dismissed')`,
+    ),
+    check(
+      "supply_run_lines_decided_check",
+      sql`${table.decision} = 'pending' or (${table.decidedAt} is not null and ${table.decidedBy} is not null)`,
+    ),
+    check(
+      "supply_run_lines_dismissed_check",
+      sql`${table.decision} <> 'dismissed' or (${table.decisionReason} is not null and char_length(${table.decisionReason}) between 1 and 500)`,
+    ),
+    check(
+      "supply_run_lines_converted_check",
+      sql`${table.decision} not in ('ordered', 'tendered') or ${table.convertedDocumentId} is not null`,
+    ),
+    foreignKey({
+      name: "supply_run_lines_tenant_run_fk",
+      columns: [table.tenantId, table.runId],
+      foreignColumns: [supplyRuns.tenantId, supplyRuns.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "supply_run_lines_tenant_article_fk",
+      columns: [table.tenantId, table.articleId],
+      foreignColumns: [articles.tenantId, articles.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "supply_run_lines_tenant_supplier_fk",
+      columns: [table.tenantId, table.supplierId],
+      foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("restrict"),
+  ],
+);
+
 export const purchaseOrders = pgTable(
   "purchase_orders",
   {
@@ -910,6 +1064,7 @@ export const purchaseOrders = pgTable(
     number: text("number"),
     supplierId: uuid("supplier_id").notNull(),
     tenderId: uuid("tender_id"),
+    supplyRunId: uuid("supply_run_id"),
     status: text("status").$type<PurchaseOrderStatus>().notNull().default("draft"),
     receiptState: text("receipt_state").$type<ReceiptState>().notNull().default("not_received"),
     orderDate: date("order_date", { mode: "string" }).notNull(),
@@ -929,6 +1084,7 @@ export const purchaseOrders = pgTable(
     index("purchase_orders_tenant_status_idx").on(table.tenantId, table.status, table.createdAt),
     index("purchase_orders_tenant_supplier_idx").on(table.tenantId, table.supplierId),
     index("purchase_orders_tenant_tender_idx").on(table.tenantId, table.tenderId),
+    index("purchase_orders_tenant_supply_run_idx").on(table.tenantId, table.supplyRunId),
     check(
       "purchase_orders_status_check",
       sql`${table.status} in ('draft', 'requested', 'confirmed', 'closed', 'cancelled')`,
@@ -955,6 +1111,11 @@ export const purchaseOrders = pgTable(
       name: "purchase_orders_tenant_tender_fk",
       columns: [table.tenantId, table.tenderId],
       foreignColumns: [tenderRequests.tenantId, tenderRequests.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "purchase_orders_tenant_supply_run_fk",
+      columns: [table.tenantId, table.supplyRunId],
+      foreignColumns: [supplyRuns.tenantId, supplyRuns.id],
     }).onDelete("restrict"),
   ],
 );
@@ -1763,7 +1924,7 @@ export const documentSequences = pgTable(
     ),
     check(
       "document_sequences_scope_check",
-      sql`${table.scope} in ('purchase_order', 'tender', 'reception', 'stock_move', 'sales_order', 'delivery', 'invoice', 'customs_declaration', 'customs_bond')`,
+      sql`${table.scope} in ('purchase_order', 'tender', 'supply_run', 'reception', 'stock_move', 'sales_order', 'delivery', 'invoice', 'customs_declaration', 'customs_bond')`,
     ),
     check("document_sequences_period_check", sql`${table.period} between 2000 and 9999`),
     check("document_sequences_value_check", sql`${table.lastValue} >= 0`),

@@ -60,12 +60,12 @@ export const LOTS: readonly Lot[] = [
     id: 8,
     title: "Supply chain",
     scope: "Appels d'offres avec cotation en ligne, MRP et propositions d'achat",
-    status: "next",
+    status: "done",
   },
   {
     id: 9,
     title: "Rapports & clôture",
     scope: "États de gestion, clôture, exports",
-    status: "planned",
+    status: "next",
   },
 ];

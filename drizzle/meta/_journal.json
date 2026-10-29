@@ -120,6 +120,13 @@
       "when": 1793282378704,
       "tag": "0016_tense_stryfe",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793290485387,
+      "tag": "0017_curvy_yellowjacket",
+      "breakpoints": true
     }
   ]
 }

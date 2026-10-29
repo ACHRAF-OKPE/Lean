@@ -36,6 +36,7 @@ import { getPurchaseOrderStats } from "@/modules/purchases/queries";
 import { getReceivablesStats, getSalesOrderStats } from "@/modules/sales/queries";
 import { getCompanySettings } from "@/modules/settings/queries";
 import { getStockCounts } from "@/modules/stock/queries";
+import { getSupplyStats } from "@/modules/supply/queries";
 
 const GATE = [
   { label: "Lint", command: "npm run lint" },
@@ -120,6 +121,7 @@ async function Cockpit() {
     stockCounts,
     company,
     customs,
+    supply,
   ] = await Promise.all([
     listMembershipsForUser(db, session.userId),
     getCatalogCounts(db, session.tenantId),
@@ -129,6 +131,7 @@ async function Cockpit() {
     getStockCounts(db, session.tenantId),
     getCompanySettings(db, session.tenantId),
     customsCounters(db, session.tenantId),
+    getSupplyStats(db, session.tenantId),
   ]);
   const deliveredCount = LOTS.filter((lot) => lot.status === "done").length;
   const nextLot = LOTS.find((lot) => lot.status === "next");
@@ -144,30 +147,32 @@ async function Cockpit() {
         <section className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] lg:items-end">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-brand uppercase">
-              Lot 06 · douane
+              Lot 08 · supply chain
             </p>
             <h1 className="mt-5 max-w-2xl text-4xl leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-5xl md:text-[3.25rem]">
-              La marchandise franchit la frontière.
-              <span className="block">Chaque franc est justifié.</span>
+              Le besoin se calcule.
+              <span className="block">L&apos;achat se déclenche.</span>
             </h1>
             <p className="mt-5 max-w-xl text-sm leading-6 text-muted">
-              Déclarations ASYCUDA, liquidation au taux TEC, taxes configurables, acquit-à-caution
-              et apurement : la douane rejoint le flux, du dépôt à la mainlevée.
+              Appels d&apos;offres avec cotation en ligne, stock projeté et propositions
+              d&apos;achat converties en commandes fournisseur brouillon ou en demande de cotation.
             </p>
           </div>
 
           <div className="rounded-xl border border-line bg-panel p-5">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-medium">Dossier douane</p>
+              <p className="text-xs font-medium">Dossier supply chain</p>
               <span className="rounded-full border border-brand/15 bg-brand-soft px-2 py-0.5 font-mono text-[10px] text-brand-strong">
-                L06
+                L08
               </span>
             </div>
 
             <dl className="mt-5 space-y-3">
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Lot courant</dt>
-                <dd className="text-right text-[11px] font-medium">Douane : déclarations</dd>
+                <dd className="text-right text-[11px] font-medium">
+                  Supply chain : besoins d&apos;achat
+                </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Rôle</dt>
@@ -232,6 +237,18 @@ async function Cockpit() {
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Mainlevées</dt>
                 <dd className="text-right font-mono text-[11px] font-medium">{customs.cleared}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 border-t border-line pt-3">
+                <dt className="text-[11px] text-muted">Propositions d&apos;achat en attente</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">
+                  {supply.pendingProposals}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[11px] text-muted">Dernier calcul des besoins</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">
+                  {supply.lastRunNumber ?? "—"}
+                </dd>
               </div>
             </dl>
 

@@ -11,6 +11,7 @@ import {
   LogOut,
   Mail,
   Package,
+  PackageSearch,
   ReceiptText,
   ScrollText,
   Settings,
@@ -32,6 +33,7 @@ export type ActiveSection =
   | "customs"
   | "purchases"
   | "tenders"
+  | "supply"
   | "exchanges"
   | "sales"
   | "invoices"
@@ -55,6 +57,7 @@ const NAV_ITEMS = [
     label: "Appels d'offres",
     icon: FileSignature,
   },
+  { key: "supply", href: "/achats/besoins", label: "Besoins", icon: PackageSearch },
   { key: "exchanges", href: "/echanges", label: "Échanges", icon: Mail },
   { key: "sales", href: "/ventes", label: "Ventes", icon: ShoppingBag },
   { key: "invoices", href: "/factures", label: "Factures", icon: ReceiptText },
