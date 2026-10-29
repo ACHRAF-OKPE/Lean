@@ -15,12 +15,16 @@ const CREATE_LABELS: Record<ImportKind, string> = {
   tasks: "Créer une tâche",
   customs_lines: "Créer une déclaration",
   customs_apurements: "Ouvrir une déclaration",
+  accounts: "Créer un compte",
+  journal_entries: "Saisir une écriture",
 };
 
 const CREATE_PATHS: Partial<Record<ImportKind, string>> = {
   tasks: "/taches/nouvelle",
   customs_lines: "/douane/nouvelle",
   customs_apurements: "/douane",
+  accounts: "/comptabilite/comptes",
+  journal_entries: "/comptabilite/ecritures/nouvelle",
 };
 
 const IMPORT_LABELS: Record<ImportKind, string> = {
@@ -32,6 +36,8 @@ const IMPORT_LABELS: Record<ImportKind, string> = {
   tasks: "Importer des tâches",
   customs_lines: "Importer des lignes de déclaration",
   customs_apurements: "Importer des apurements progressifs",
+  accounts: "Importer le plan comptable",
+  journal_entries: "Importer des écritures",
 };
 
 export function CatalogActions({ kind }: { kind: ImportKind }) {

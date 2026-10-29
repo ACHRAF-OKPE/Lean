@@ -23,6 +23,12 @@ import {
   applyCustomsLineImport,
   loadCustomsImportContext,
 } from "@/modules/customs/imports";
+import { AccountingError } from "@/modules/accounting/errors";
+import {
+  applyAccountImport,
+  applyJournalEntryImport,
+  loadAccountingImportContext,
+} from "@/modules/accounting/imports";
 import { CatalogError } from "./errors";
 import { loadValidationContext } from "./queries";
 import {
@@ -110,10 +116,15 @@ export async function analyzeImport(
     input.kind === "customs_lines" || input.kind === "customs_apurements"
       ? await loadCustomsImportContext(db, input.tenantId)
       : {};
+  const accountingContext =
+    input.kind === "accounts" || input.kind === "journal_entries"
+      ? await loadAccountingImportContext(db, input.tenantId)
+      : {};
   const validation = validateImportRows(input.kind, input.rows, {
     ...context,
     ...taskContext,
     ...customsContext,
+    ...accountingContext,
   });
 
   return db.transaction(async (tx) => {
@@ -434,7 +445,9 @@ export async function applyImportBatch(
       batch.kind === "sales_lines" ||
       batch.kind === "tasks" ||
       batch.kind === "customs_lines" ||
-      batch.kind === "customs_apurements"
+      batch.kind === "customs_apurements" ||
+      batch.kind === "accounts" ||
+      batch.kind === "journal_entries"
     ) {
       const [previous] = await tx
         .select({ id: importBatches.id })
@@ -470,6 +483,16 @@ export async function applyImportBatch(
             "Ce fichier a déjà été importé en apurements progressifs : un même fichier ne s'applique qu'une fois.",
           );
         }
+        if (batch.kind === "accounts") {
+          throw new AccountingError(
+            "Ce fichier a déjà été importé en plan comptable : un même fichier ne s'applique qu'une fois.",
+          );
+        }
+        if (batch.kind === "journal_entries") {
+          throw new AccountingError(
+            "Ce fichier a déjà été importé en écritures : un même fichier ne s'applique qu'une fois.",
+          );
+        }
         throw new TasksError(
           "Ce fichier a déjà été importé en tâches : un même fichier ne s'applique qu'une fois.",
         );
@@ -493,6 +516,7 @@ export async function applyImportBatch(
     }
 
     let orders: number | undefined;
+    let written: number | undefined;
     if (batch.kind === "purchase_lines") {
       const result = await applyPurchaseLines(tx, {
         tenantId: input.tenantId,
@@ -529,13 +553,29 @@ export async function applyImportBatch(
         batchId: batch.id,
         rows,
       });
-    } else {
+    } else if (batch.kind === "customs_apurements") {
       await applyCustomsApurementImport(tx, {
         tenantId: input.tenantId,
         actorUserId: input.actorUserId,
         batchId: batch.id,
         rows,
       });
+    } else if (batch.kind === "accounts") {
+      const result = await applyAccountImport(tx, {
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        batchId: batch.id,
+        rows,
+      });
+      written = result.written;
+    } else {
+      const result = await applyJournalEntryImport(tx, {
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        batchId: batch.id,
+        rows,
+      });
+      written = result.written;
     }
 
     if (batch.kind === "partners" || batch.kind === "articles" || batch.kind === "hs_codes") {
@@ -562,9 +602,14 @@ export async function applyImportBatch(
       action: "catalog.import.apply",
       entityType: "import_batch",
       entityId: batch.id,
-      details: { kind: batch.kind, fileName: batch.fileName, written: rows.length, orders },
+      details: {
+        kind: batch.kind,
+        fileName: batch.fileName,
+        written: written ?? rows.length,
+        orders,
+      },
     });
 
-    return { kind: batch.kind, written: rows.length, orders };
+    return { kind: batch.kind, written: written ?? rows.length, orders };
   });
 }

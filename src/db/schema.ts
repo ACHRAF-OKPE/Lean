@@ -211,7 +211,9 @@ export type ImportKind =
   | "sales_lines"
   | "tasks"
   | "customs_lines"
-  | "customs_apurements";
+  | "customs_apurements"
+  | "accounts"
+  | "journal_entries";
 export type ImportBatchStatus = "analyzed" | "applied";
 export type ImportRowStatus = "valid" | "warning" | "error";
 export type PurchaseOrderStatus = "draft" | "requested" | "confirmed" | "closed" | "cancelled";
@@ -240,6 +242,9 @@ export type CustomsDeclarationStatus =
   "draft" | "deposited" | "liquidated" | "cleared" | "cancelled";
 export type CustomsBondStatus = "open" | "apured";
 export type CustomsApurementMode = "production" | "export" | "destruction" | "transfer";
+export type FiscalYearStatus = "open" | "closed";
+export type AccountingJournalType = "sale" | "purchase" | "bank" | "cash" | "misc";
+export type JournalEntryStatus = "draft" | "validated";
 export type EmailSecurity = "tls" | "starttls" | "none";
 export type ExchangeType = "purchase_request" | "purchase_confirmation";
 export type ExchangeMessageStatus = "sent" | "failed";
@@ -510,7 +515,7 @@ export const importBatches = pgTable(
     index("import_batches_tenant_created_idx").on(table.tenantId, table.createdAt),
     check(
       "import_batches_kind_check",
-      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines', 'tasks', 'customs_lines', 'customs_apurements')`,
+      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines', 'tasks', 'customs_lines', 'customs_apurements', 'accounts', 'journal_entries')`,
     ),
     check("import_batches_status_check", sql`${table.status} in ('analyzed', 'applied')`),
     check(
@@ -2049,6 +2054,248 @@ export const customsApurements = pgTable(
   ],
 );
 
+export const fiscalYears = pgTable(
+  "fiscal_years",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    startsOn: date("starts_on", { mode: "string" }).notNull(),
+    endsOn: date("ends_on", { mode: "string" }).notNull(),
+    status: text("status").$type<FiscalYearStatus>().notNull().default("open"),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    closedByUserId: uuid("closed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("fiscal_years_tenant_id_idx").on(table.tenantId, table.id),
+    index("fiscal_years_tenant_range_idx").on(table.tenantId, table.startsOn, table.endsOn),
+    check("fiscal_years_label_check", sql`char_length(${table.label}) between 1 and 60`),
+    check("fiscal_years_dates_check", sql`${table.startsOn} < ${table.endsOn}`),
+    check("fiscal_years_duration_check", sql`${table.endsOn} - ${table.startsOn} <= 366`),
+    check("fiscal_years_status_check", sql`${table.status} in ('open', 'closed')`),
+    check(
+      "fiscal_years_closed_check",
+      sql`(${table.status} = 'closed') = (${table.closedAt} is not null) and (${table.closedAt} is null) = (${table.closedByUserId} is null)`,
+    ),
+  ],
+);
+
+export const ledgerAccounts = pgTable(
+  "ledger_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    accountClass: integer("account_class").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ledger_accounts_tenant_code_idx").on(table.tenantId, table.code),
+    uniqueIndex("ledger_accounts_tenant_id_idx").on(table.tenantId, table.id),
+    index("ledger_accounts_tenant_class_idx").on(table.tenantId, table.accountClass, table.code),
+    check("ledger_accounts_code_check", sql`${table.code} ~ '^[1-8][0-9]{1,9}$'`),
+    check("ledger_accounts_label_check", sql`char_length(${table.label}) between 1 and 120`),
+    check(
+      "ledger_accounts_class_check",
+      sql`${table.accountClass} between 1 and 8 and ${table.accountClass} = substring(${table.code} from 1 for 1)::integer`,
+    ),
+  ],
+);
+
+export const accountingJournals = pgTable(
+  "accounting_journals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    type: text("type").$type<AccountingJournalType>().notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("accounting_journals_tenant_code_idx").on(table.tenantId, table.code),
+    uniqueIndex("accounting_journals_tenant_id_idx").on(table.tenantId, table.id),
+    index("accounting_journals_tenant_type_idx").on(table.tenantId, table.type),
+    check("accounting_journals_code_check", sql`${table.code} ~ '^[A-Z0-9]{2,6}$'`),
+    check("accounting_journals_label_check", sql`char_length(${table.label}) between 1 and 120`),
+    check(
+      "accounting_journals_type_check",
+      sql`${table.type} in ('sale', 'purchase', 'bank', 'cash', 'misc')`,
+    ),
+  ],
+);
+
+export const journalEntries = pgTable(
+  "journal_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    journalId: uuid("journal_id").notNull(),
+    fiscalYearId: uuid("fiscal_year_id").notNull(),
+    number: text("number").notNull(),
+    entryDate: date("entry_date", { mode: "string" }).notNull(),
+    reference: text("reference"),
+    label: text("label").notNull(),
+    status: text("status").$type<JournalEntryStatus>().notNull().default("draft"),
+    totalDebit: bigint("total_debit", { mode: "number" }).notNull().default(0),
+    totalCredit: bigint("total_credit", { mode: "number" }).notNull().default(0),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    validatedByUserId: uuid("validated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    validatedAt: timestamp("validated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("journal_entries_tenant_number_idx").on(table.tenantId, table.number),
+    uniqueIndex("journal_entries_tenant_id_idx").on(table.tenantId, table.id),
+    index("journal_entries_tenant_date_idx").on(table.tenantId, table.entryDate),
+    index("journal_entries_tenant_status_idx").on(table.tenantId, table.status, table.entryDate),
+    index("journal_entries_tenant_year_idx").on(
+      table.tenantId,
+      table.fiscalYearId,
+      table.entryDate,
+    ),
+    check(
+      "journal_entries_number_check",
+      sql`${table.number} ~ '^[A-Z0-9]{2,6}-[0-9]{4}-[0-9]{4}$'`,
+    ),
+    check("journal_entries_label_check", sql`char_length(${table.label}) between 1 and 160`),
+    check(
+      "journal_entries_reference_check",
+      sql`${table.reference} is null or char_length(${table.reference}) between 1 and 60`,
+    ),
+    check("journal_entries_status_check", sql`${table.status} in ('draft', 'validated')`),
+    check(
+      "journal_entries_totals_check",
+      sql`${table.totalDebit} >= 0 and ${table.totalCredit} >= 0 and ${table.totalDebit} = ${table.totalCredit}`,
+    ),
+    check(
+      "journal_entries_validated_check",
+      sql`(${table.status} = 'validated') = (${table.validatedAt} is not null) and (${table.validatedAt} is null) = (${table.validatedByUserId} is null)`,
+    ),
+    foreignKey({
+      name: "journal_entries_tenant_journal_fk",
+      columns: [table.tenantId, table.journalId],
+      foreignColumns: [accountingJournals.tenantId, accountingJournals.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "journal_entries_tenant_year_fk",
+      columns: [table.tenantId, table.fiscalYearId],
+      foreignColumns: [fiscalYears.tenantId, fiscalYears.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const journalEntryLines = pgTable(
+  "journal_entry_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    entryId: uuid("entry_id").notNull(),
+    lineNumber: integer("line_number").notNull(),
+    accountId: uuid("account_id").notNull(),
+    partnerId: uuid("partner_id"),
+    label: text("label"),
+    debit: bigint("debit", { mode: "number" }).notNull().default(0),
+    credit: bigint("credit", { mode: "number" }).notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("journal_entry_lines_tenant_entry_line_idx").on(
+      table.tenantId,
+      table.entryId,
+      table.lineNumber,
+    ),
+    uniqueIndex("journal_entry_lines_tenant_id_idx").on(table.tenantId, table.id),
+    index("journal_entry_lines_tenant_entry_idx").on(table.tenantId, table.entryId),
+    index("journal_entry_lines_tenant_account_idx").on(
+      table.tenantId,
+      table.accountId,
+      table.createdAt,
+    ),
+    check("journal_entry_lines_number_check", sql`${table.lineNumber} >= 1`),
+    check(
+      "journal_entry_lines_label_check",
+      sql`${table.label} is null or char_length(${table.label}) between 1 and 120`,
+    ),
+    check(
+      "journal_entry_lines_amounts_check",
+      sql`(${table.debit} > 0 and ${table.credit} = 0) or (${table.credit} > 0 and ${table.debit} = 0)`,
+    ),
+    check(
+      "journal_entry_lines_max_check",
+      sql`${table.debit} between 0 and 2000000000 and ${table.credit} between 0 and 2000000000`,
+    ),
+    foreignKey({
+      name: "journal_entry_lines_tenant_entry_fk",
+      columns: [table.tenantId, table.entryId],
+      foreignColumns: [journalEntries.tenantId, journalEntries.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "journal_entry_lines_tenant_account_fk",
+      columns: [table.tenantId, table.accountId],
+      foreignColumns: [ledgerAccounts.tenantId, ledgerAccounts.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "journal_entry_lines_tenant_partner_fk",
+      columns: [table.tenantId, table.partnerId],
+      foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const journalEntrySequences = pgTable(
+  "journal_entry_sequences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    journalId: uuid("journal_id").notNull(),
+    period: integer("period").notNull(),
+    lastValue: integer("last_value").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("journal_entry_sequences_tenant_journal_period_idx").on(
+      table.tenantId,
+      table.journalId,
+      table.period,
+    ),
+    check("journal_entry_sequences_period_check", sql`${table.period} between 2000 and 9999`),
+    check("journal_entry_sequences_value_check", sql`${table.lastValue} >= 0`),
+    foreignKey({
+      name: "journal_entry_sequences_tenant_journal_fk",
+      columns: [table.tenantId, table.journalId],
+      foreignColumns: [accountingJournals.tenantId, accountingJournals.id],
+    }).onDelete("cascade"),
+  ],
+);
+
 export type HsCodeRow = typeof hsCodes.$inferSelect;
 export type PartnerRow = typeof partners.$inferSelect;
 export type ArticleRow = typeof articles.$inferSelect;
@@ -2081,3 +2328,9 @@ export type CustomsDeclarationTaxRow = typeof customsDeclarationTaxes.$inferSele
 export type CustomsBondRow = typeof customsBonds.$inferSelect;
 export type CustomsPaymentRow = typeof customsPayments.$inferSelect;
 export type CustomsApurementRow = typeof customsApurements.$inferSelect;
+export type FiscalYearRow = typeof fiscalYears.$inferSelect;
+export type LedgerAccountRow = typeof ledgerAccounts.$inferSelect;
+export type AccountingJournalRow = typeof accountingJournals.$inferSelect;
+export type JournalEntryRow = typeof journalEntries.$inferSelect;
+export type JournalEntryLineRow = typeof journalEntryLines.$inferSelect;
+export type JournalEntrySequenceRow = typeof journalEntrySequences.$inferSelect;

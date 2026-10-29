@@ -19,6 +19,8 @@ export const IMPORT_KIND_LABELS: Record<ImportKind, string> = {
   tasks: "Tâches",
   customs_lines: "Lignes de déclaration",
   customs_apurements: "Apurements progressifs",
+  accounts: "Plan comptable",
+  journal_entries: "Écritures comptables",
 };
 
 const IMPORT_KINDS = [
@@ -30,6 +32,8 @@ const IMPORT_KINDS = [
   "tasks",
   "customs_lines",
   "customs_apurements",
+  "accounts",
+  "journal_entries",
 ] as const;
 
 export function isImportKind(value: string): value is ImportKind {
@@ -45,6 +49,8 @@ export const IMPORT_KIND_PATHS: Record<ImportKind, string> = {
   tasks: "/taches",
   customs_lines: "/douane",
   customs_apurements: "/douane/apurement",
+  accounts: "/comptabilite/comptes",
+  journal_entries: "/comptabilite/ecritures",
 };
 
 export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
@@ -56,6 +62,8 @@ export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
   tasks: "/api/modeles/taches",
   customs_lines: "/api/modeles/declarations",
   customs_apurements: "/api/modeles/apurements",
+  accounts: "/api/modeles/comptes",
+  journal_entries: "/api/modeles/ecritures",
 };
 
 const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
@@ -67,6 +75,8 @@ const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
   taches: "tasks",
   declarations: "customs_lines",
   apurements: "customs_apurements",
+  comptes: "accounts",
+  ecritures: "journal_entries",
 };
 
 export function resolveTemplateKind(slug: string): ImportKind | null {
@@ -216,6 +226,20 @@ export const CUSTOMS_APUREMENT_HEADERS = [
   "reference",
 ] as const;
 
+export const ACCOUNT_HEADERS = ["code", "libelle", "actif"] as const;
+
+export const JOURNAL_ENTRY_HEADERS = [
+  "journal",
+  "date",
+  "piece",
+  "libelle",
+  "libelle_ligne",
+  "compte",
+  "tiers",
+  "debit",
+  "credit",
+] as const;
+
 export const HEADERS_BY_KIND = {
   partners: PARTNER_HEADERS,
   articles: ARTICLE_HEADERS,
@@ -225,6 +249,8 @@ export const HEADERS_BY_KIND = {
   tasks: TASK_HEADERS,
   customs_lines: CUSTOMS_LINE_HEADERS,
   customs_apurements: CUSTOMS_APUREMENT_HEADERS,
+  accounts: ACCOUNT_HEADERS,
+  journal_entries: JOURNAL_ENTRY_HEADERS,
 } as const;
 
 export const SHEET_DATA = "Données";

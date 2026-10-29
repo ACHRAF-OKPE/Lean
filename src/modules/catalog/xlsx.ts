@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Workbook, type Cell, type CellValue, type Worksheet } from "exceljs";
 import type { ImportKind } from "@/db/schema";
 import {
+  ACCOUNT_HEADERS,
   ARTICLE_HEADERS,
   COUNTRY_CODES,
   CUSTOMS_APUREMENT_HEADERS,
@@ -9,6 +10,7 @@ import {
   HEADERS_BY_KIND,
   HS_HEADERS,
   IMPORT_KIND_LABELS,
+  JOURNAL_ENTRY_HEADERS,
   MAX_IMPORT_FILE_BYTES,
   MAX_IMPORT_FILE_MB,
   MAX_IMPORT_ROWS,
@@ -42,6 +44,8 @@ const TEMPLATE_FILE_NAMES: Record<ImportKind, string> = {
   tasks: "lean-modele-taches.xlsx",
   customs_lines: "lean-modele-declarations.xlsx",
   customs_apurements: "lean-modele-apurements.xlsx",
+  accounts: "lean-modele-comptes.xlsx",
+  journal_entries: "lean-modele-ecritures.xlsx",
 };
 
 export function templateFileName(kind: ImportKind): string {
@@ -366,6 +370,24 @@ const CUSTOMS_APUREMENT_COLUMN_META: Record<
   reference: { width: 30, text: true },
 };
 
+const ACCOUNT_COLUMN_META: Record<(typeof ACCOUNT_HEADERS)[number], ColumnMeta> = {
+  code: { width: 16, text: true },
+  libelle: { width: 48 },
+  actif: { width: 10, list: '"Oui,Non"' },
+};
+
+const JOURNAL_ENTRY_COLUMN_META: Record<(typeof JOURNAL_ENTRY_HEADERS)[number], ColumnMeta> = {
+  journal: { width: 12, text: true },
+  date: { width: 14, text: true },
+  piece: { width: 22 },
+  libelle: { width: 36 },
+  libelle_ligne: { width: 30 },
+  compte: { width: 14, text: true },
+  tiers: { width: 14, text: true },
+  debit: { width: 16, integer: true },
+  credit: { width: 16, integer: true },
+};
+
 const COLUMN_META: Record<ImportKind, Record<string, ColumnMeta>> = {
   partners: PARTNER_COLUMN_META,
   articles: ARTICLE_COLUMN_META,
@@ -375,6 +397,8 @@ const COLUMN_META: Record<ImportKind, Record<string, ColumnMeta>> = {
   tasks: TASK_COLUMN_META,
   customs_lines: CUSTOMS_LINE_COLUMN_META,
   customs_apurements: CUSTOMS_APUREMENT_COLUMN_META,
+  accounts: ACCOUNT_COLUMN_META,
+  journal_entries: JOURNAL_ENTRY_COLUMN_META,
 };
 
 const PARTNER_COLUMN_HELP: Record<(typeof PARTNER_HEADERS)[number], string> = {
@@ -473,6 +497,27 @@ const CUSTOMS_APUREMENT_COLUMN_HELP: Record<(typeof CUSTOMS_APUREMENT_HEADERS)[n
   reference: "Obligatoire. 120 caractères maximum, propre à l'écriture.",
 };
 
+const ACCOUNT_COLUMN_HELP: Record<(typeof ACCOUNT_HEADERS)[number], string> = {
+  code: "Obligatoire. 2 à 10 chiffres, première classe SYSCOHADA de 1 à 8 (ex. 411000). Format texte conseillé.",
+  libelle: "Obligatoire. 120 caractères maximum.",
+  actif: "Oui ou Non. Vide = Oui. Un compte inactif reste lisible mais n'accepte plus de ligne.",
+};
+
+const JOURNAL_ENTRY_COLUMN_HELP: Record<(typeof JOURNAL_ENTRY_HEADERS)[number], string> = {
+  journal: "Obligatoire. Code d'un journal existant et actif (ex. VE, AC, BQ).",
+  date: "Obligatoire. Date AAAA-MM-JJ couverte par un exercice ouvert.",
+  piece:
+    "Facultative. 60 caractères maximum ; avec le journal, la date et le libellé, elle forme le groupe d'écriture.",
+  libelle: "Obligatoire. 160 caractères maximum, commun aux lignes d'une même écriture.",
+  libelle_ligne: "Facultatif. 120 caractères maximum, propre à la ligne.",
+  compte: "Obligatoire. Code d'un compte existant et actif du plan comptable.",
+  tiers: "Facultatif. Code d'un tiers existant de l'espace.",
+  debit:
+    "Montant XOF entier strictement positif, ou vide. Le total du groupe doit égaler le crédit.",
+  credit:
+    "Montant XOF entier strictement positif, ou vide. Le total du groupe doit égaler le débit.",
+};
+
 const COLUMN_HELP: Record<ImportKind, Record<string, string>> = {
   partners: PARTNER_COLUMN_HELP,
   articles: ARTICLE_COLUMN_HELP,
@@ -482,6 +527,8 @@ const COLUMN_HELP: Record<ImportKind, Record<string, string>> = {
   tasks: TASK_COLUMN_HELP,
   customs_lines: CUSTOMS_LINE_COLUMN_HELP,
   customs_apurements: CUSTOMS_APUREMENT_COLUMN_HELP,
+  accounts: ACCOUNT_COLUMN_HELP,
+  journal_entries: JOURNAL_ENTRY_COLUMN_HELP,
 };
 
 const EXAMPLES: Record<ImportKind, Record<string, string>> = {
@@ -564,6 +611,22 @@ const EXAMPLES: Record<ImportKind, Record<string, string>> = {
     mode: "Production",
     reference: "PROD-2026-0142",
   },
+  accounts: {
+    code: "411000",
+    libelle: "Clients",
+    actif: "Oui",
+  },
+  journal_entries: {
+    journal: "VE",
+    date: "2026-10-31",
+    piece: "FAC-2026-014",
+    libelle: "Facture FAC-2026-014",
+    libelle_ligne: "Client Sahel Distribution",
+    compte: "411000",
+    tiers: "CLI001",
+    debit: "2500000",
+    credit: "",
+  },
 };
 
 const KIND_RULES: Record<ImportKind, readonly string[]> = {
@@ -620,6 +683,21 @@ const KIND_RULES: Record<ImportKind, readonly string[]> = {
     "La quantité cumulée d'une ligne, y compris les lignes du même fichier, ne peut dépasser la quantité déclarée.",
     "Le mode est Production, Exportation, Destruction ou Transfert ; la référence est libre et obligatoire.",
     "L'import ne modifie ni la déclaration ni sa ligne : il ajoute seulement des écritures append-only.",
+    "Un même fichier ne peut être appliqué qu'une seule fois.",
+  ],
+  accounts: [
+    "Le code contient 2 à 10 chiffres et commence par la classe SYSCOHADA (1 à 8) ; la classe se déduit du code.",
+    "Le code est unique : une ligne existante met à jour le libellé et l'indicateur actif, sans renommer le compte.",
+    "Un même code ne peut apparaître qu'une fois dans le fichier.",
+    "L'import ne supprime rien : un compte absent du fichier reste inchangé.",
+    "Un même fichier ne peut être appliqué qu'une seule fois.",
+  ],
+  journal_entries: [
+    "Chaque ligne est une ligne d'écriture ; les lignes sont groupées par journal, date, pièce et libellé.",
+    "Chaque groupe doit compter au moins deux lignes et être équilibré : total débit = total crédit.",
+    "Le journal et le compte doivent exister et être actifs ; le tiers, s'il est renseigné, doit exister.",
+    "La date doit être couverte par un exercice ouvert ; la numérotation est attribuée à la confirmation.",
+    "L'import crée des écritures en brouillon : la validation reste une décision explicite.",
     "Un même fichier ne peut être appliqué qu'une seule fois.",
   ],
 };
@@ -775,7 +853,11 @@ function buildHelpSheet(workbook: Workbook, kind: ImportKind): void {
           ? "Exemple illustratif : adaptez-le à vos données. La déclaration doit exister en brouillon et le code SH doit figurer dans la nomenclature."
           : kind === "customs_apurements"
             ? "Exemple illustratif : adaptez-le à vos données. La déclaration IM9 doit être liquidée et la ligne du sommier doit exister."
-            : "Exemple illustratif : adaptez-le à vos données.";
+            : kind === "accounts"
+              ? "Exemple illustratif : adaptez-le à vos données. Le code doit respecter la classe SYSCOHADA et être unique."
+              : kind === "journal_entries"
+                ? "Exemple illustratif : une écriture compte au moins deux lignes équilibrées, rattachées à un exercice ouvert ; ajoutez la contrepartie."
+                : "Exemple illustratif : adaptez-le à vos données.";
   exampleNote.alignment = { wrapText: true, vertical: "top" };
   sheet.mergeCells(cursor, 1, cursor, 2);
   sheet.getRow(cursor).height = 28;

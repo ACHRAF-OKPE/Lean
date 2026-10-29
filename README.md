@@ -3,8 +3,8 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 6 complet — déclarations, liquidation, acquits et mainlevée livrés.**
-Le socle comptable du Lot 7 arrive ensuite.
+**Statut : Lot 7 en cours — socle comptable SYSCOHADA livré (7A).**
+Les écritures automatiques depuis les ventes et les achats suivent en 7B.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -321,6 +321,34 @@ Le Lot 6 ajoute le passage en douane, du référentiel à la mainlevée :
   numéro de déclaration, ligne, quantité, date, mode, référence), avec le même rapport par
   ligne et le même contrôle du restant, écritures existantes et fichier compris.
 
+## Comptabilité
+
+Le Lot 7A pose le socle SYSCOHADA, accessible depuis `/comptabilite` :
+
+- **Exercice** — libellé, dates de début et de fin, 366 jours maximum, sans chevauchement
+  dans l'espace. Un exercice s'ouvre puis se clôture une seule fois ; la clôture est refusée
+  tant qu'une écriture de la période reste en brouillon.
+- **Plan comptable** — codes de 2 à 10 chiffres commençant par une classe de 1 à 8 ; la
+  classe se déduit du premier chiffre. Un compte se désactive sans effacer son historique et
+  ne reçoit plus d'écriture.
+- **Journaux** — code de 2 à 6 caractères normalisé en majuscules, type vente, achat, banque,
+  caisse ou opérations diverses. Un journal inactif n'accueille aucune écriture nouvelle.
+- **Écritures** — saisie manuelle ou import, au moins deux lignes, un seul montant par ligne,
+  débit égal au crédit en XOF entiers, date couverte par un exercice ouvert, compte actif.
+  Le brouillon se supprime ; la validation l'immuabilise et attribue le numéro
+  `JOURNAL-AAAA-NNNN`, séquentiel par journal et par année, jamais réutilisé.
+- **Balance et grand livre** — la balance agrège les seules écritures validées de l'exercice
+  demandé (débit, crédit, solde) et le grand livre suit le solde progressif d'un compte avec
+  les écritures en date d'écriture puis numéro. Les brouillons n'y apparaissent jamais.
+- **Import** — deux modèles XLSX : plan comptable (code, libellé, actif) et journal
+  d'écritures (journal, date, pièce, libellé, libellé de ligne, compte, tiers, débit, crédit).
+  L'analyse vérifie chaque ligne, y compris l'équilibre de chaque écriture groupée ; l'import
+  crée ou met à jour les comptes et crée les écritures en brouillon, sans jamais les valider.
+  Un fichier ne s'applique qu'une fois.
+
+Les montants sont des entiers XOF et chaque mutation écrit un évènement d'audit. Les écritures
+automatiques depuis les ventes, les achats et la douane, ainsi que le lettrage, arrivent en 7B.
+
 ## Scripts
 
 | Commande              | Rôle                                          |
@@ -350,14 +378,16 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `exchange_templates`, `exchange_messages`, `supplier_replies`, `discussion_messages`,
 `discussion_mentions`, `notifications`, `tasks`, puis `customs_offices`, `customs_regimes`,
 `customs_taxes`, `customs_declarations`, `customs_declaration_lines`,
-`customs_declaration_taxes`, `customs_bonds`, `customs_payments` et `customs_apurements`. Les
+`customs_declaration_taxes`, `customs_bonds`, `customs_payments`, `customs_apurements`, puis
+`accounting_journals`, `fiscal_years`, `ledger_accounts`, `journal_entries`,
+`journal_entry_lines` et `journal_entry_sequences`. Les
 migrations générées sont commitées dans
 `drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
 `0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
 facturation, `0006` pour la fiche entreprise et les contacts tiers, `0007` pour les échanges
 fournisseurs, `0008` pour la collaboration, `0009` pour les réponses fournisseurs, `0010`
-pour les tâches, `0011` pour leur chronomètre, `0012` pour la douane et `0013` pour
-l'apurement progressif des IM9. Les
+pour les tâches, `0011` pour leur chronomètre, `0012` pour la douane, `0013` pour
+l'apurement progressif des IM9 et `0014` pour le socle comptable. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire et d'idempotence des évènements sont posées
 en base, en complément de la validation applicative.

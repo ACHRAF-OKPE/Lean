@@ -39,6 +39,8 @@ const ACTIVE_BY_KIND: Record<ImportKind, ActiveSection> = {
   tasks: "tasks",
   customs_lines: "customs",
   customs_apurements: "customs",
+  accounts: "accounting",
+  journal_entries: "accounting",
 };
 
 const ROW_STATUS_META: Record<

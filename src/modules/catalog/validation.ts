@@ -13,6 +13,16 @@ import {
 } from "@/modules/customs/import-validation";
 import { isTecRate } from "@/modules/customs/constants";
 import type { TaskDocumentMaps, TaskMemberReference } from "@/modules/tasks/import-validation";
+import type {
+  AccountingAccountReference,
+  AccountingFiscalYearRange,
+  AccountingJournalReference,
+  AccountingPartnerReference,
+} from "@/modules/accounting/import-validation";
+import {
+  validateAccountImportRows,
+  validateJournalEntryImportRows,
+} from "@/modules/accounting/import-validation";
 import { validatePurchaseLines } from "@/modules/purchases/import-validation";
 import { validateSalesLines } from "@/modules/sales/import-validation";
 import { validateTaskImportRows } from "@/modules/tasks/import-validation";
@@ -38,6 +48,10 @@ export interface ValidationContext {
   readonly customsHsCodesByCode?: ReadonlyMap<string, CustomsHsCodeReference>;
   readonly customsLinesByDeclaration?: ReadonlyMap<string, CustomsDeclarationLinesReference>;
   readonly customsApurementsByNumber?: ReadonlyMap<string, CustomsApurementDeclarationReference>;
+  readonly accountingAccountsByCode?: ReadonlyMap<string, AccountingAccountReference>;
+  readonly accountingJournalsByCode?: ReadonlyMap<string, AccountingJournalReference>;
+  readonly accountingPartnersByCode?: ReadonlyMap<string, AccountingPartnerReference>;
+  readonly accountingOpenFiscalYears?: readonly AccountingFiscalYearRange[];
 }
 
 export interface ValidatedRow {
@@ -664,6 +678,12 @@ export function validateImportRows(
   }
   if (kind === "customs_apurements") {
     return validateCustomsApurementImportRows(rows, context);
+  }
+  if (kind === "accounts") {
+    return validateAccountImportRows(rows, context);
+  }
+  if (kind === "journal_entries") {
+    return validateJournalEntryImportRows(rows, context);
   }
 
   const validated = rows.map((row) => {

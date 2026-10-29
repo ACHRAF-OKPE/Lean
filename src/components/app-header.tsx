@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   ArrowLeftRight,
   Barcode,
+  BookOpen,
   GitBranch,
   Landmark,
   LayoutDashboard,
@@ -34,6 +35,7 @@ export type ActiveSection =
   | "invoices"
   | "stock"
   | "tasks"
+  | "accounting"
   | "settings"
   | "notifications"
   | "audit";
@@ -50,6 +52,7 @@ const NAV_ITEMS = [
   { key: "invoices", href: "/factures", label: "Factures", icon: ReceiptText },
   { key: "stock", href: "/stock", label: "Stock", icon: Warehouse },
   { key: "tasks", href: "/taches", label: "Tâches", icon: ListTodo },
+  { key: "accounting", href: "/comptabilite", label: "Comptabilité", icon: BookOpen },
   { key: "settings", href: "/parametres", label: "Paramètres", icon: Settings },
 ] as const;
 
