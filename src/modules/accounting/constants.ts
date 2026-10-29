@@ -34,6 +34,8 @@ export const JOURNAL_ENTRY_SOURCE_LABELS: Record<JournalEntrySource, string> = {
   sale_payment: "Règlement client",
   purchase_reception: "Réception d'achat",
   purchase_reception_cancel: "Annulation de réception",
+  fiscal_year_close: "Écriture de clôture",
+  fiscal_year_open: "À-nouveaux",
 };
 
 export const ACCOUNT_CODE_PATTERN = /^[1-8][0-9]{1,9}$/;

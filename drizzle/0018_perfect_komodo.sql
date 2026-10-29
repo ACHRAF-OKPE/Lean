@@ -1,0 +1,2 @@
+ALTER TABLE "journal_entries" DROP CONSTRAINT "journal_entries_source_check";--> statement-breakpoint
+ALTER TABLE "journal_entries" ADD CONSTRAINT "journal_entries_source_check" CHECK ("journal_entries"."source" in ('manual', 'import', 'sale_invoice', 'sale_payment', 'purchase_reception', 'purchase_reception_cancel', 'fiscal_year_close', 'fiscal_year_open'));

@@ -30,6 +30,7 @@ import { formatXof } from "@/lib/money";
 import { ROLE_LABELS } from "@/modules/identity/labels";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
+import { listFiscalYears } from "@/modules/accounting/queries";
 import { getCatalogCounts } from "@/modules/catalog/queries";
 import { customsCounters } from "@/modules/customs/queries";
 import { getPurchaseOrderStats } from "@/modules/purchases/queries";
@@ -122,6 +123,7 @@ async function Cockpit() {
     company,
     customs,
     supply,
+    years,
   ] = await Promise.all([
     listMembershipsForUser(db, session.userId),
     getCatalogCounts(db, session.tenantId),
@@ -132,6 +134,7 @@ async function Cockpit() {
     getCompanySettings(db, session.tenantId),
     customsCounters(db, session.tenantId),
     getSupplyStats(db, session.tenantId),
+    listFiscalYears(db, session.tenantId),
   ]);
   const deliveredCount = LOTS.filter((lot) => lot.status === "done").length;
   const nextLot = LOTS.find((lot) => lot.status === "next");
@@ -147,23 +150,23 @@ async function Cockpit() {
         <section className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] lg:items-end">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-brand uppercase">
-              Lot 08 · supply chain
+              Lot 09 · rapports &amp; clôture
             </p>
             <h1 className="mt-5 max-w-2xl text-4xl leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-5xl md:text-[3.25rem]">
-              Le besoin se calcule.
-              <span className="block">L&apos;achat se déclenche.</span>
+              L&apos;exercice se ferme.
+              <span className="block">Les états se lisent.</span>
             </h1>
             <p className="mt-5 max-w-xl text-sm leading-6 text-muted">
-              Appels d&apos;offres avec cotation en ligne, stock projeté et propositions
-              d&apos;achat converties en commandes fournisseur brouillon ou en demande de cotation.
+              Compte de résultat, balance âgée des créances, engagements fournisseurs, exports XLSX
+              et clôture annuelle avec écriture de résultat et à-nouveaux.
             </p>
           </div>
 
           <div className="rounded-xl border border-line bg-panel p-5">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-medium">Dossier supply chain</p>
+              <p className="text-xs font-medium">Dossier rapports &amp; clôture</p>
               <span className="rounded-full border border-brand/15 bg-brand-soft px-2 py-0.5 font-mono text-[10px] text-brand-strong">
-                L08
+                L09
               </span>
             </div>
 
@@ -171,7 +174,7 @@ async function Cockpit() {
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Lot courant</dt>
                 <dd className="text-right text-[11px] font-medium">
-                  Supply chain : besoins d&apos;achat
+                  États de gestion et clôture annuelle
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
@@ -248,6 +251,18 @@ async function Cockpit() {
                 <dt className="text-[11px] text-muted">Dernier calcul des besoins</dt>
                 <dd className="text-right font-mono text-[11px] font-medium">
                   {supply.lastRunNumber ?? "—"}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 border-t border-line pt-3">
+                <dt className="text-[11px] text-muted">Exercices ouverts</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">
+                  {years.filter((year) => year.status === "open").length}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[11px] text-muted">Exercices clôturés</dt>
+                <dd className="text-right font-mono text-[11px] font-medium">
+                  {years.filter((year) => year.status === "closed").length}
                 </dd>
               </div>
             </dl>
@@ -667,26 +682,30 @@ async function Cockpit() {
                 Prochain · Lot {String(nextLot.id).padStart(2, "0")}
               </p>
               <h2 className="mt-2 text-lg font-medium tracking-tight">{nextLot.title}</h2>
-              <p className="mt-2 text-[11px] leading-5 text-white/70">
-                {nextLot.scope}. La fiche entreprise, les contacts et les paramètres d&apos;accès
-                posent la base ; les échanges et les tâches suivront dans le même lot.
-              </p>
-              <ul className="mt-4 flex flex-wrap gap-1.5">
-                {["Entreprise", "Contacts", "Échanges", "Tâches"].map((tag) => (
-                  <li
-                    key={tag}
-                    className="rounded-full border border-white/15 px-2.5 py-1 text-[10px] text-white/75"
-                  >
-                    {tag}
-                  </li>
-                ))}
-              </ul>
+              <p className="mt-2 text-[11px] leading-5 text-white/70">{nextLot.scope}.</p>
               <div className="mt-auto flex items-center gap-2 pt-5 font-mono text-[10px] text-white/45">
                 <Database className="size-3" aria-hidden="true" />
                 docs/business-rules.md
               </div>
             </article>
-          ) : null}
+          ) : (
+            <article className="relative flex flex-col overflow-hidden rounded-xl bg-brand p-5 text-white">
+              <Check className="absolute top-4 right-4 size-4 text-white/40" aria-hidden="true" />
+              <p className="font-mono text-[10px] tracking-[0.18em] text-white/60 uppercase">
+                Feuille de route
+              </p>
+              <h2 className="mt-2 text-lg font-medium tracking-tight">Les dix lots sont livrés.</h2>
+              <p className="mt-2 text-[11px] leading-5 text-white/70">
+                Socle, référentiels, achats, ventes, entreprise, douane, comptabilité SYSCOHADA,
+                supply chain, puis les états de gestion et la clôture annuelle. La suite se décide
+                avec le porteur.
+              </p>
+              <div className="mt-auto flex items-center gap-2 pt-5 font-mono text-[10px] text-white/45">
+                <Database className="size-3" aria-hidden="true" />
+                docs/business-rules.md
+              </div>
+            </article>
+          )}
         </section>
 
         <footer className="mt-10 flex flex-col gap-2 border-t border-line pt-5 text-[11px] leading-5 text-muted sm:flex-row sm:items-center sm:justify-between">

@@ -256,7 +256,9 @@ export type JournalEntrySource =
   | "sale_invoice"
   | "sale_payment"
   | "purchase_reception"
-  | "purchase_reception_cancel";
+  | "purchase_reception_cancel"
+  | "fiscal_year_close"
+  | "fiscal_year_open";
 export type EmailSecurity = "tls" | "starttls" | "none";
 export type ExchangeType = "purchase_request" | "purchase_confirmation";
 export type ExchangeMessageStatus = "sent" | "failed";
@@ -2686,7 +2688,7 @@ export const journalEntries = pgTable(
     check("journal_entries_status_check", sql`${table.status} in ('draft', 'validated')`),
     check(
       "journal_entries_source_check",
-      sql`${table.source} in ('manual', 'import', 'sale_invoice', 'sale_payment', 'purchase_reception', 'purchase_reception_cancel')`,
+      sql`${table.source} in ('manual', 'import', 'sale_invoice', 'sale_payment', 'purchase_reception', 'purchase_reception_cancel', 'fiscal_year_close', 'fiscal_year_open')`,
     ),
     check(
       "journal_entries_totals_check",

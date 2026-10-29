@@ -66,6 +66,6 @@ export const LOTS: readonly Lot[] = [
     id: 9,
     title: "Rapports & clôture",
     scope: "États de gestion, clôture, exports",
-    status: "next",
+    status: "done",
   },
 ];

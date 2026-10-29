@@ -26,7 +26,14 @@ import {
   transitionPurchaseOrder,
 } from "@/modules/purchases/queries";
 import { cancelReception, createReception } from "@/modules/stock/receptions";
-import { closeFiscalYear, createJournalEntry, validateJournalEntry } from "./queries";
+import {
+  closeFiscalYear,
+  createAccount,
+  createFiscalYear,
+  createJournal,
+  createJournalEntry,
+  validateJournalEntry,
+} from "./queries";
 import { getCutoffReport } from "./cutoff";
 import { AccountingError } from "./errors";
 import {
@@ -795,6 +802,27 @@ describe("ACC-016 — cut-off", () => {
     });
     expect(again).toEqual({ posted: 0, alreadyPosted: 3 });
     expect(await entriesOf(ids.tenantId)).toHaveLength(3);
+
+    await createJournal(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      raw: { code: "OD", label: "Opérations diverses", type: "misc" },
+    });
+    await createFiscalYear(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      raw: { label: "Exercice 2027", startsOn: "2027-01-01", endsOn: "2027-12-31" },
+    });
+    await createAccount(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      raw: { code: "131000", label: "Résultat net : bénéfice", active: true },
+    });
+    await createAccount(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      raw: { code: "139000", label: "Résultat net : perte", active: true },
+    });
 
     await closeFiscalYear(db, {
       tenantId: ids.tenantId,

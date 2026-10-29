@@ -127,6 +127,13 @@
       "when": 1793290485387,
       "tag": "0017_curvy_yellowjacket",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793303516313,
+      "tag": "0018_perfect_komodo",
+      "breakpoints": true
     }
   ]
 }

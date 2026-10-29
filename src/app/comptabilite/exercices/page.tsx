@@ -73,7 +73,14 @@ async function FiscalYearsContent({
         <p className="mt-3 max-w-2xl text-[11px] leading-5 text-muted">
           Un exercice couvre 366 jours au plus et ne chevauche aucun autre. Une écriture ne se
           saisit que dans un exercice ouvert ; la clôture exige que tous les brouillons soient
-          traités.
+          traités et que les documents de l&apos;exercice soient comptabilisés.
+        </p>
+        <p className="mt-2 max-w-2xl text-[11px] leading-5 text-muted">
+          Clôturer produit deux écritures validées dans le journal d&apos;opérations divers : le
+          solde des classes 6, 7 et 8 avec le résultat porté en 131 (bénéfice) ou 139 (perte) au
+          dernier jour, puis les à-nouveaux des classes 1 à 5 au premier jour de l&apos;exercice
+          suivant. Il faut donc un journal divers actif, le compte 131 ou 139 correspondant au
+          résultat, et un exercice ouvert commençant au lendemain de la clôture.
         </p>
 
         {created ? (

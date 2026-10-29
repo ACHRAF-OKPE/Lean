@@ -8,11 +8,14 @@ import {
   BookOpenCheck,
   CalendarRange,
   GitCompareArrows,
+  HandCoins,
   Handshake,
   ListTree,
   NotebookPen,
+  ReceiptText,
   Scale,
   Settings2,
+  Truck,
 } from "lucide-react";
 import { EntryStatusBadge } from "@/components/accounting-badges";
 import { AppHeader } from "@/components/app-header";
@@ -40,6 +43,9 @@ const SECTIONS = [
   { href: "/comptabilite/ecritures", label: "Écritures", icon: NotebookPen },
   { href: "/comptabilite/balance", label: "Balance générale", icon: Scale },
   { href: "/comptabilite/grand-livre", label: "Grand livre", icon: BookOpenCheck },
+  { href: "/comptabilite/resultat", label: "Compte de résultat", icon: ReceiptText },
+  { href: "/comptabilite/creances", label: "Balance âgée des créances", icon: HandCoins },
+  { href: "/comptabilite/engagements", label: "Engagements fournisseurs", icon: Truck },
   { href: "/comptabilite/lettrage", label: "Lettrage", icon: Handshake },
   {
     href: "/comptabilite/rapprochement",

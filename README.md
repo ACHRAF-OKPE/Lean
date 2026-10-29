@@ -3,8 +3,9 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 8B livré — supply chain complète (appels d'offres, MRP, propositions d'achat).**
-Le lot 9 (états de gestion, clôture, exports) est le prochain.
+**Statut : Lot 9 livré — rapports et clôture. La feuille de route (lots 0 à 9) est complète.**
+Les états de gestion, leurs exports XLSX et la clôture annuelle avec à-nouveaux sont en
+production ; le prochain travail est du durcissement et de la demande du porteur.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -425,6 +426,37 @@ Le Lot 8B complète la supply chain avec `/achats/approvisionnement` (politiques
 Toutes les mutations sont auditées et cloisonnées par espace ; les tests `supply.test.ts`
 couvrent SCM-007 à SCM-012.
 
+## Rapports et clôture
+
+Le Lot 9 ferme la feuille de route avec trois états de gestion, leur export et la clôture
+annuelle :
+
+- **Compte de résultat** — `/comptabilite/resultat` calcule à la lecture, pour l'exercice
+  choisi, les soldes nets des comptes de classe 6 (charges), 7 (produits) et 8 (hors activité
+  ordinaire, selon le sens du solde). Totaux et résultat net sont affichés avec le contrôle
+  « la somme des classes 1 à 5 égale l'opposé du résultat ». Les brouillons sont exclus.
+- **Balance âgée des créances** — `/comptabilite/creances` liste les factures de vente validées
+  dont le solde (total hors taxe − règlements) reste positif à la date choisie, par tranche
+  d'ancienneté d'échéance (non échu, 1 à 30, 31 à 60, 61 à 90, plus de 90 jours), avec la
+  synthèse par ancienneté et la synthèse par client. L'état se calcule depuis les factures et
+  les règlements, donc il fonctionne sans paramétrage comptable.
+- **Engagements fournisseurs** — `/comptabilite/engagements` valeur les reliquats des commandes
+  confirmées non entièrement reçues (reliquat × prix unitaire, arrondi HALF_UP), avec la date de
+  réception prévue et l'indicateur de retard.
+- **Export XLSX** — chaque état se télécharge en XLSX depuis une route authentifiée
+  (`/api/rapports/<état>`), avec les mêmes lignes et totaux que l'écran, des en-têtes français,
+  des montants XOF entiers et un nom de fichier `<état>-<période>.xlsx`. L'export n'écrit
+  aucune donnée et n'est pas mis en cache.
+- **Clôture annuelle** — le bouton de clôture d'un exercice produit, dans une seule
+  transaction, une écriture de clôture validée datée du dernier jour (solde des classes 6, 7
+  et 8, résultat porté au crédit du 131 en bénéfice ou au débit du 139 en perte) puis une
+  écriture d'à-nouveaux validée datée du premier jour de l'exercice suivant (reprise des
+  classes 1 à 5, 131/139 compris). Les deux vont dans le journal de type divers actif au code
+  le plus petit. Sans journal divers actif, sans compte 131/139 quand le résultat est non nul,
+  ou sans exercice ouvert commençant le lendemain, la clôture est refusée et aucune écriture
+  n'est produite. Chaque écriture porte sa source (`fiscal_year_close`, `fiscal_year_open`),
+  n'est produite qu'une fois, et les deux sont auditées.
+
 ## Scripts
 
 | Commande              | Rôle                                          |
@@ -469,10 +501,10 @@ pour les tâches, `0011` pour leur chronomètre, `0012` pour la douane, `0013` p
 l'apurement progressif des IM9, `0014` pour le socle comptable et `0015` pour le paramétrage,
 les écritures automatiques, le lettrage et le cut-off, `0016` pour les appels d'offres et la
 cotation fournisseur, `0017` pour les politiques d'approvisionnement, les calculs de besoins et
-les propositions d'achat. Les
+les propositions d'achat, `0018` pour les sources d'écriture de clôture et d'à-nouveaux. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
-cohérence article/nomenclature, de bloc bancaire et d'idempotence des évènements sont posées
-en base, en complément de la validation applicative.
+cohérence article/nomenclature, de bloc bancaire, d'idempotence des évènements et d'unicité des
+écritures de clôture sont posées en base, en complément de la validation applicative.
 
 ```bash
 npm run db:generate

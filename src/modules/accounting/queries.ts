@@ -16,6 +16,15 @@ import {
   type JournalEntryStatus,
 } from "@/db/schema";
 import { ACCOUNTING_LIST_LIMIT, LEDGER_LINE_LIMIT } from "./constants";
+import {
+  hasBalanceSheetActivity,
+  hasResultActivity,
+  nextIsoDay,
+  planClosingEntry,
+  planOpeningEntry,
+  summarizeResult,
+  type AccountBalance,
+} from "./closing";
 import { countUnpostedDocuments } from "./cutoff";
 import { AccountingError } from "./errors";
 import { loadAccountingSettings } from "./settings";
@@ -270,6 +279,110 @@ export async function createFiscalYear(
   });
 }
 
+async function yearAccountBalances(
+  tx: Transaction,
+  tenantId: string,
+  fiscalYearId: string,
+): Promise<readonly AccountBalance[]> {
+  const rows = await tx
+    .select({
+      accountId: ledgerAccounts.id,
+      code: ledgerAccounts.code,
+      label: ledgerAccounts.label,
+      accountClass: ledgerAccounts.accountClass,
+      debit: sql<string>`sum(${journalEntryLines.debit})`,
+      credit: sql<string>`sum(${journalEntryLines.credit})`,
+    })
+    .from(journalEntryLines)
+    .innerJoin(
+      journalEntries,
+      and(
+        eq(journalEntries.tenantId, journalEntryLines.tenantId),
+        eq(journalEntries.id, journalEntryLines.entryId),
+      ),
+    )
+    .innerJoin(
+      ledgerAccounts,
+      and(
+        eq(ledgerAccounts.tenantId, journalEntryLines.tenantId),
+        eq(ledgerAccounts.id, journalEntryLines.accountId),
+      ),
+    )
+    .where(
+      and(
+        eq(journalEntryLines.tenantId, tenantId),
+        eq(journalEntries.fiscalYearId, fiscalYearId),
+        eq(journalEntries.status, "validated"),
+      ),
+    )
+    .groupBy(
+      ledgerAccounts.id,
+      ledgerAccounts.code,
+      ledgerAccounts.label,
+      ledgerAccounts.accountClass,
+    )
+    .orderBy(asc(ledgerAccounts.code));
+  return rows.map((row) => ({ ...row, debit: Number(row.debit), credit: Number(row.credit) }));
+}
+
+async function activeMiscJournal(
+  tx: Transaction,
+  tenantId: string,
+): Promise<{ id: string; code: string }> {
+  const [journal] = await tx
+    .select({ id: accountingJournals.id, code: accountingJournals.code })
+    .from(accountingJournals)
+    .where(
+      and(
+        eq(accountingJournals.tenantId, tenantId),
+        eq(accountingJournals.type, "misc"),
+        eq(accountingJournals.active, true),
+      ),
+    )
+    .orderBy(asc(accountingJournals.code))
+    .limit(1);
+  if (!journal) {
+    throw new AccountingError(
+      "Clôture refusée : aucun journal de type divers actif. Créez-en un dans Journaux pour solder l'exercice.",
+    );
+  }
+  return journal;
+}
+
+async function resultAccountFor(
+  tx: Transaction,
+  tenantId: string,
+  prefix: "131" | "139",
+): Promise<{ id: string; code: string }> {
+  const rows = await tx
+    .select({ id: ledgerAccounts.id, code: ledgerAccounts.code })
+    .from(ledgerAccounts)
+    .where(
+      and(
+        eq(ledgerAccounts.tenantId, tenantId),
+        eq(ledgerAccounts.accountClass, 1),
+        eq(ledgerAccounts.active, true),
+        sql`${ledgerAccounts.code} like ${`${prefix}%`}`,
+      ),
+    )
+    .orderBy(asc(ledgerAccounts.code));
+  if (rows.length === 0) {
+    throw new AccountingError(
+      `Clôture refusée : créez et activez le compte ${prefix} (${prefix === "131" ? "résultat net : bénéfice" : "résultat net : perte"}) dans le plan comptable.`,
+    );
+  }
+  if (rows.length > 1) {
+    throw new AccountingError(
+      `Clôture refusée : plusieurs comptes actifs commencent par ${prefix} (${rows.map((row) => row.code).join(", ")}). Laissez-en un seul actif.`,
+    );
+  }
+  const account = rows[0];
+  if (!account) {
+    throw new AccountingError("Compte de résultat introuvable.");
+  }
+  return account;
+}
+
 export async function closeFiscalYear(
   db: Database,
   input: {
@@ -338,6 +451,82 @@ export async function closeFiscalYear(
       }
     }
 
+    const balances = await yearAccountBalances(tx, input.tenantId, year.id);
+    const resultActivity = hasResultActivity(balances);
+    const balanceSheetActivity = hasBalanceSheetActivity(balances);
+    const summary = summarizeResult(balances);
+
+    let journal: { id: string; code: string } | null = null;
+    if (resultActivity || balanceSheetActivity) {
+      journal = await activeMiscJournal(tx, input.tenantId);
+    }
+
+    let closing: InsertJournalEntryResult | null = null;
+    if (resultActivity && journal) {
+      const resultAccount =
+        summary.result === 0
+          ? null
+          : await resultAccountFor(tx, input.tenantId, summary.result > 0 ? "131" : "139");
+      closing = await insertJournalEntry(tx, {
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        journalId: journal.id,
+        journalCode: journal.code,
+        fiscalYearId: year.id,
+        fiscalYearLabel: year.label,
+        entryDate: year.endsOn,
+        reference: year.label,
+        label: `Clôture ${year.label}`,
+        lines: planClosingEntry(balances, resultAccount),
+        source: "fiscal_year_close",
+        sourceId: year.id,
+        validated: true,
+      });
+    }
+
+    let opening: InsertJournalEntryResult | null = null;
+    if (journal) {
+      const balancesAtClose = closing
+        ? await yearAccountBalances(tx, input.tenantId, year.id)
+        : balances;
+      const openingLines = planOpeningEntry(balancesAtClose);
+      if (openingLines.length > 0) {
+        const nextStart = nextIsoDay(year.endsOn);
+        const [nextYear] = await tx
+          .select({ id: fiscalYears.id, label: fiscalYears.label, startsOn: fiscalYears.startsOn })
+          .from(fiscalYears)
+          .where(
+            and(
+              eq(fiscalYears.tenantId, input.tenantId),
+              eq(fiscalYears.status, "open"),
+              eq(fiscalYears.startsOn, nextStart),
+            ),
+          )
+          .limit(1)
+          .for("update");
+        if (!nextYear) {
+          throw new AccountingError(
+            `Clôture refusée : aucun exercice ouvert ne commence le ${nextStart}. Créez l'exercice suivant pour reprendre les soldes.`,
+          );
+        }
+        opening = await insertJournalEntry(tx, {
+          tenantId: input.tenantId,
+          actorUserId: input.actorUserId,
+          journalId: journal.id,
+          journalCode: journal.code,
+          fiscalYearId: nextYear.id,
+          fiscalYearLabel: nextYear.label,
+          entryDate: nextYear.startsOn,
+          reference: year.label,
+          label: `À-nouveaux ${nextYear.label}`,
+          lines: openingLines,
+          source: "fiscal_year_open",
+          sourceId: year.id,
+          validated: true,
+        });
+      }
+    }
+
     await tx
       .update(fiscalYears)
       .set({
@@ -353,7 +542,16 @@ export async function closeFiscalYear(
       action: "accounting.fiscal_year.close",
       entityType: "fiscal_year",
       entityId: year.id,
-      details: { label: year.label, startsOn: year.startsOn, endsOn: year.endsOn },
+      details: {
+        label: year.label,
+        startsOn: year.startsOn,
+        endsOn: year.endsOn,
+        charges: summary.charges,
+        produits: summary.produits,
+        result: summary.result,
+        ...(closing ? { closingNumber: closing.number } : {}),
+        ...(opening ? { openingNumber: opening.number } : {}),
+      },
     });
   });
 }
