@@ -33,6 +33,7 @@ import {
   getLetteringCandidates,
   getLetteringGroups,
   letterLines,
+  toAccountingDate,
   unletterGroup,
 } from "./lettering";
 import { postCutoffDocuments } from "./posting";
@@ -613,6 +614,8 @@ describe("ACC-015 — lettrage", () => {
     expect(groups[0]?.totalDebit).toBe(invoice.total);
     expect(groups[0]?.totalCredit).toBe(invoice.total);
     expect(groups[0]?.accountCode).toBe("411000");
+    expect(groups[0]?.letteredAt).toBeInstanceOf(Date);
+    expect(Number.isNaN(groups[0]?.letteredAt.getTime())).toBe(false);
 
     await unletterGroup(db, {
       tenantId: ids.tenantId,
@@ -644,6 +647,13 @@ describe("ACC-015 — lettrage", () => {
       "accounting.lettering.remove",
       "accounting.lettering.create",
     ]);
+  });
+
+  it("normalise l'horodatage texte renvoyé par postgres-js pour max(timestamptz)", () => {
+    const raw = "2026-10-29 13:12:02.218231+00";
+    expect(toAccountingDate(raw).toISOString()).toBe("2026-10-29T13:12:02.218Z");
+    const date = new Date("2026-10-29T13:12:02.218Z");
+    expect(toAccountingDate(date)).toBe(date);
   });
 
   it("refuse deux tiers différents ou un compte hors classe 4", async () => {

@@ -118,7 +118,7 @@ export async function getLetteringGroups(
       lineCount: sql<number>`count(*)::int`,
       totalDebit: sql<number>`coalesce(sum(${journalEntryLines.debit}), 0)::bigint`,
       totalCredit: sql<number>`coalesce(sum(${journalEntryLines.credit}), 0)::bigint`,
-      letteredAt: sql<Date>`max(${journalEntryLineLetterings.createdAt})`,
+      letteredAt: sql<Date | string>`max(${journalEntryLineLetterings.createdAt})`,
     })
     .from(journalEntryLineLetterings)
     .innerJoin(
@@ -150,7 +150,14 @@ export async function getLetteringGroups(
     ...row,
     totalDebit: Number(row.totalDebit),
     totalCredit: Number(row.totalCredit),
+    letteredAt: toAccountingDate(row.letteredAt),
   }));
+}
+
+// postgres-js renvoie max(timestamptz) en chaîne « AAAA-MM-JJ hh:mm:ss.ffffff+00 »,
+// là où PGlite renvoie déjà une Date : on normalise avant tout formatage Intl.
+export function toAccountingDate(value: Date | string): Date {
+  return value instanceof Date ? value : new Date(value);
 }
 
 async function nextLetteringCode(tx: Transaction, tenantId: string): Promise<string> {
