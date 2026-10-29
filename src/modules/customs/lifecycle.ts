@@ -35,12 +35,16 @@ export function transitionError(
 export function cancellationContextError(input: {
   readonly paidTotal: number;
   readonly hasOpenBond: boolean;
+  readonly hasApurement: boolean;
 }): string | null {
   if (input.paidTotal > 0) {
     return "Annulation refusée : des paiements sont déjà enregistrés sur cette déclaration.";
   }
   if (input.hasOpenBond) {
     return "Annulation refusée : un acquit-à-caution est encore ouvert. Apurez-le d'abord.";
+  }
+  if (input.hasApurement) {
+    return "Annulation refusée : des apurements progressifs sont déjà enregistrés sur cette déclaration.";
   }
   return null;
 }

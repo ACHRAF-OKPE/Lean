@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ArrowUpRight, Landmark, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, Landmark, Layers, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
 import { DeclarationStatusBadge } from "@/components/customs-badges";
@@ -58,6 +58,14 @@ async function CustomsContent() {
             <span className="mr-1.5 rounded-full border border-line bg-panel px-2.5 py-1 font-mono text-[10px] text-muted">
               {declarations.length} déclaration{declarations.length > 1 ? "s" : ""}
             </span>
+            <Link
+              href="/douane/apurement"
+              aria-label="Ouvrir le suivi des apurements progressifs"
+              title="Apurement progressif (IM9)"
+              className={ACTION_LINK}
+            >
+              <Layers className="size-4" aria-hidden="true" />
+            </Link>
             <Link
               href="/douane/acquits"
               aria-label="Ouvrir les acquits-à-caution"
@@ -167,6 +175,7 @@ async function CustomsContent() {
                         <span className="block">{declaration.regimeLabel}</span>
                         <span className="block font-mono text-[10px] text-muted">
                           {declaration.regimeCode}
+                          {declaration.requiresApurement ? " · apurement" : ""}
                         </span>
                       </td>
                       <td className="px-4 py-2.5 font-mono text-[10px] whitespace-nowrap text-muted">

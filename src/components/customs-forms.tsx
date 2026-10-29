@@ -7,6 +7,7 @@ import {
   Banknote,
   Check,
   Landmark,
+  Layers,
   LoaderCircle,
   Percent,
   Power,
@@ -26,6 +27,7 @@ import {
   createOfficeAction,
   createRegimeAction,
   createTaxAction,
+  recordApurementAction,
   recordCustomsPaymentAction,
   toggleOfficeAction,
   toggleRegimeAction,
@@ -34,7 +36,13 @@ import {
 } from "@/lib/customs/actions";
 import { formatXof } from "@/lib/money";
 import { COUNTRY_CODES, UNITS } from "@/modules/catalog/constants";
-import { CUSTOMS_REGIME_KINDS, CUSTOMS_REGIME_KIND_LABELS } from "@/modules/customs/constants";
+import { formatQuantity } from "@/modules/stock/quantities";
+import {
+  CUSTOMS_APUREMENT_MODES,
+  CUSTOMS_APUREMENT_MODE_LABELS,
+  CUSTOMS_REGIME_KINDS,
+  CUSTOMS_REGIME_KIND_LABELS,
+} from "@/modules/customs/constants";
 import type { CustomsDeclarationOptions } from "@/modules/customs/queries";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "@/modules/sales/payment-methods";
 
@@ -119,6 +127,7 @@ export function DeclarationHeaderForm({
                 <option key={regime.id} value={regime.id}>
                   {regime.code} · {regime.label}
                   {regime.requiresBond ? " (acquit)" : ""}
+                  {regime.requiresApurement ? " (apurement)" : ""}
                 </option>
               ))}
             </select>
@@ -490,6 +499,137 @@ export function ApurementForm({
   );
 }
 
+export interface ApurementLineOption {
+  readonly id: string;
+  readonly lineNumber: number;
+  readonly designation: string;
+  readonly unitCode: string;
+  readonly remainingQuantity: string;
+}
+
+export function ApurementEntryForm({
+  declarationId,
+  lines,
+  today,
+}: {
+  declarationId: string;
+  lines: readonly ApurementLineOption[];
+  today: string;
+}) {
+  const [state, formAction, pending] = useActionState(
+    recordApurementAction,
+    EMPTY_CUSTOMS_FORM_STATE,
+  );
+
+  if (lines.length === 0) {
+    return (
+      <p className="mt-4 rounded-xl border border-line bg-panel p-5 text-[11px] text-muted">
+        Toutes les lignes sont apurées : aucun apurement complémentaire n&apos;est possible.
+      </p>
+    );
+  }
+
+  return (
+    <form action={formAction} className="mt-4 rounded-xl border border-line bg-panel p-5">
+      <input type="hidden" name="declarationId" value={declarationId} />
+      <FormErrors errors={state.errors} />
+
+      <div className="flex items-center gap-2">
+        <Layers className="size-4 text-brand" aria-hidden="true" />
+        <h2 className="text-sm font-semibold">Enregistrer un apurement progressif</h2>
+      </div>
+      <p className="mt-1 text-[10px] leading-4 text-muted">
+        Chaque écriture apure une quantité d&apos;une ligne du sommier IM9. Le journal est
+        append-only et ne peut dépasser la quantité déclarée.
+      </p>
+
+      <fieldset disabled={pending} className="mt-4 space-y-4">
+        <legend className="sr-only">Apurement progressif d&apos;une ligne</legend>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,1.2fr)] lg:items-end">
+          <Field label="Ligne du sommier" htmlFor="apurement-lineId">
+            <select
+              id="apurement-lineId"
+              name="lineId"
+              required
+              defaultValue=""
+              className={INPUT_CLASS}
+            >
+              <option value="" disabled>
+                Sélectionner une ligne
+              </option>
+              {lines.map((line) => (
+                <option key={line.id} value={line.id}>
+                  {line.lineNumber} · {line.designation} · restant{" "}
+                  {formatQuantity(line.remainingQuantity)} {line.unitCode}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Quantité apurée" htmlFor="apurement-quantity" hint="Six décimales au plus.">
+            <input
+              id="apurement-quantity"
+              name="quantity"
+              required
+              inputMode="decimal"
+              placeholder="125,5"
+              className={`${INPUT_CLASS} tabular-nums`}
+            />
+          </Field>
+          <Field label="Date" htmlFor="apurement-date" hint="Aujourd'hui ou passée.">
+            <input
+              id="apurement-date"
+              name="apuredDate"
+              type="date"
+              required
+              max={today}
+              defaultValue={today}
+              className={INPUT_CLASS}
+            />
+          </Field>
+          <Field label="Mode" htmlFor="apurement-mode">
+            <select
+              id="apurement-mode"
+              name="mode"
+              required
+              defaultValue="production"
+              className={INPUT_CLASS}
+            >
+              {CUSTOMS_APUREMENT_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {CUSTOMS_APUREMENT_MODE_LABELS[mode]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Référence" htmlFor="apurement-reference" hint="120 caractères maximum.">
+            <input
+              id="apurement-reference"
+              name="reference"
+              required
+              maxLength={120}
+              placeholder="PROD-2026-0142"
+              className={INPUT_CLASS}
+            />
+          </Field>
+        </div>
+
+        <div className="flex justify-end border-t border-line pt-4">
+          <button
+            type="submit"
+            disabled={pending}
+            aria-label="Enregistrer l'apurement"
+            title="Enregistrer l'apurement"
+            className={SUBMIT}
+          >
+            <SubmitIcon pending={pending} icon={Layers} />
+          </button>
+        </div>
+      </fieldset>
+    </form>
+  );
+}
+
 export function CustomsPaymentForm({
   declarationId,
   balanceXof,
@@ -676,10 +816,19 @@ export function RegimeForm() {
             ))}
           </select>
         </Field>
-        <label className="flex items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-[11px]">
-          <input type="checkbox" name="requiresBond" className="size-3.5 accent-brand" />
-          Acquit requis
-        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-[11px]">
+            <input type="checkbox" name="requiresBond" className="size-3.5 accent-brand" />
+            Acquit requis
+          </label>
+          <label
+            className="flex items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-[11px]"
+            title="IM9 / zone franche : apurement progressif des articles du sommier"
+          >
+            <input type="checkbox" name="requiresApurement" className="size-3.5 accent-brand" />
+            Apurement progressif
+          </label>
+        </div>
         <button
           type="submit"
           disabled={pending}

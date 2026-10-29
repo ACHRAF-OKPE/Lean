@@ -4,6 +4,7 @@ import type { ImportKind } from "@/db/schema";
 import {
   ARTICLE_HEADERS,
   COUNTRY_CODES,
+  CUSTOMS_APUREMENT_HEADERS,
   CUSTOMS_LINE_HEADERS,
   HEADERS_BY_KIND,
   HS_HEADERS,
@@ -40,6 +41,7 @@ const TEMPLATE_FILE_NAMES: Record<ImportKind, string> = {
   sales_lines: "lean-modele-ventes.xlsx",
   tasks: "lean-modele-taches.xlsx",
   customs_lines: "lean-modele-declarations.xlsx",
+  customs_apurements: "lean-modele-apurements.xlsx",
 };
 
 export function templateFileName(kind: ImportKind): string {
@@ -352,6 +354,18 @@ const CUSTOMS_LINE_COLUMN_META: Record<(typeof CUSTOMS_LINE_HEADERS)[number], Co
   },
 };
 
+const CUSTOMS_APUREMENT_COLUMN_META: Record<
+  (typeof CUSTOMS_APUREMENT_HEADERS)[number],
+  ColumnMeta
+> = {
+  numero_declaration: { width: 22, text: true },
+  ligne: { width: 10, integer: true },
+  quantite: { width: 16, text: true },
+  date_apurement: { width: 18, text: true },
+  mode: { width: 18, list: '"Production,Exportation,Destruction,Transfert"' },
+  reference: { width: 30, text: true },
+};
+
 const COLUMN_META: Record<ImportKind, Record<string, ColumnMeta>> = {
   partners: PARTNER_COLUMN_META,
   articles: ARTICLE_COLUMN_META,
@@ -360,6 +374,7 @@ const COLUMN_META: Record<ImportKind, Record<string, ColumnMeta>> = {
   sales_lines: SALES_LINE_COLUMN_META,
   tasks: TASK_COLUMN_META,
   customs_lines: CUSTOMS_LINE_COLUMN_META,
+  customs_apurements: CUSTOMS_APUREMENT_COLUMN_META,
 };
 
 const PARTNER_COLUMN_HELP: Record<(typeof PARTNER_HEADERS)[number], string> = {
@@ -448,6 +463,16 @@ const CUSTOMS_LINE_COLUMN_HELP: Record<(typeof CUSTOMS_LINE_HEADERS)[number], st
   pays_origine: "Obligatoire. Code ISO 3166-1 à deux lettres (ex. CI).",
 };
 
+const CUSTOMS_APUREMENT_COLUMN_HELP: Record<(typeof CUSTOMS_APUREMENT_HEADERS)[number], string> = {
+  numero_declaration:
+    "Obligatoire. Numéro d'une déclaration IM9 liquidée ou sortie (ex. DEC-2026-0001).",
+  ligne: "Obligatoire. Numéro de ligne du sommier, tel qu'affiché sur la déclaration.",
+  quantite: "Obligatoire. Nombre positif, 6 décimales maximum (virgule ou point décimal).",
+  date_apurement: "Obligatoire. Date AAAA-MM-JJ, aujourd'hui ou passée.",
+  mode: "Production, Exportation, Destruction ou Transfert.",
+  reference: "Obligatoire. 120 caractères maximum, propre à l'écriture.",
+};
+
 const COLUMN_HELP: Record<ImportKind, Record<string, string>> = {
   partners: PARTNER_COLUMN_HELP,
   articles: ARTICLE_COLUMN_HELP,
@@ -456,6 +481,7 @@ const COLUMN_HELP: Record<ImportKind, Record<string, string>> = {
   sales_lines: SALES_LINE_COLUMN_HELP,
   tasks: TASK_COLUMN_HELP,
   customs_lines: CUSTOMS_LINE_COLUMN_HELP,
+  customs_apurements: CUSTOMS_APUREMENT_COLUMN_HELP,
 };
 
 const EXAMPLES: Record<ImportKind, Record<string, string>> = {
@@ -530,6 +556,14 @@ const EXAMPLES: Record<ImportKind, Record<string, string>> = {
     poids_kg: "7200",
     pays_origine: "CI",
   },
+  customs_apurements: {
+    numero_declaration: "DEC-2026-0001",
+    ligne: "1",
+    quantite: "50",
+    date_apurement: "2026-11-15",
+    mode: "Production",
+    reference: "PROD-2026-0142",
+  },
 };
 
 const KIND_RULES: Record<ImportKind, readonly string[]> = {
@@ -579,6 +613,13 @@ const KIND_RULES: Record<ImportKind, readonly string[]> = {
     "L'import ne crée aucune déclaration : préparez d'abord la déclaration et ses référentiels.",
     "Le code SH doit exister dans la nomenclature ; un code sans taux TEC est signalé, car la liquidation l'exigera.",
     "Les totaux, la liquidation et l'acquit-à-caution se calculent ensuite dans la fiche de la déclaration.",
+    "Un même fichier ne peut être appliqué qu'une seule fois.",
+  ],
+  customs_apurements: [
+    "Chaque ligne crée une écriture d'apurement sur une ligne de sommier IM9 liquidée ou sortie.",
+    "La quantité cumulée d'une ligne, y compris les lignes du même fichier, ne peut dépasser la quantité déclarée.",
+    "Le mode est Production, Exportation, Destruction ou Transfert ; la référence est libre et obligatoire.",
+    "L'import ne modifie ni la déclaration ni sa ligne : il ajoute seulement des écritures append-only.",
     "Un même fichier ne peut être appliqué qu'une seule fois.",
   ],
 };
@@ -732,7 +773,9 @@ function buildHelpSheet(workbook: Workbook, kind: ImportKind): void {
         ? "Exemple illustratif : adaptez-le à vos données. L'e-mail doit être celui d'un membre de l'espace et le document doit exister."
         : kind === "customs_lines"
           ? "Exemple illustratif : adaptez-le à vos données. La déclaration doit exister en brouillon et le code SH doit figurer dans la nomenclature."
-          : "Exemple illustratif : adaptez-le à vos données.";
+          : kind === "customs_apurements"
+            ? "Exemple illustratif : adaptez-le à vos données. La déclaration IM9 doit être liquidée et la ligne du sommier doit exister."
+            : "Exemple illustratif : adaptez-le à vos données.";
   exampleNote.alignment = { wrapText: true, vertical: "top" };
   sheet.mergeCells(cursor, 1, cursor, 2);
   sheet.getRow(cursor).height = 28;

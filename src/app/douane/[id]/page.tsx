@@ -3,9 +3,10 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { ArrowLeft, Landmark, ReceiptText, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowLeft, Landmark, Layers, ReceiptText, ShieldCheck, Wallet } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import {
+  ApurementEntryForm,
   ApurementForm,
   BondForm,
   CustomsPaymentForm,
@@ -20,7 +21,14 @@ import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
-import { CUSTOMS_TAX_BASE_LABELS } from "@/modules/customs/constants";
+import {
+  APUREMENT_DECLARATION_STATE_LABELS,
+  APUREMENT_LINE_STATE_LABELS,
+} from "@/modules/customs/apurement";
+import {
+  CUSTOMS_APUREMENT_MODE_LABELS,
+  CUSTOMS_TAX_BASE_LABELS,
+} from "@/modules/customs/constants";
 import { DECLARATION_TRANSITIONS, type DeclarationTransition } from "@/modules/customs/lifecycle";
 import { getDeclaration, getDeclarationOptions } from "@/modules/customs/queries";
 import { PAYMENT_METHOD_LABELS } from "@/modules/sales/payment-methods";
@@ -86,6 +94,11 @@ async function DeclarationContent({
   const banner = bannerFor(query);
   const balance = declaration.grandTotal - declaration.paidTotal;
   const today = todayIsoDate();
+  const apurementOpen = declaration.lines.some((line) => line.apurementState !== "apured");
+  const canApure =
+    canWrite &&
+    apurementOpen &&
+    (declaration.status === "liquidated" || declaration.status === "cleared");
 
   return (
     <div className="min-h-dvh">
@@ -252,6 +265,16 @@ async function DeclarationContent({
                     <th scope="col" className={`${TH} text-right`}>
                       Quantité
                     </th>
+                    {declaration.requiresApurement ? (
+                      <>
+                        <th scope="col" className={`${TH} text-right`}>
+                          Apuré
+                        </th>
+                        <th scope="col" className={`${TH} text-right`}>
+                          Restant
+                        </th>
+                      </>
+                    ) : null}
                     <th scope="col" className={`${TH} text-right`}>
                       Valeur
                     </th>
@@ -290,6 +313,16 @@ async function DeclarationContent({
                       <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
                         {formatQuantity(line.quantity)} {line.unitCode}
                       </td>
+                      {declaration.requiresApurement ? (
+                        <>
+                          <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+                            {formatQuantity(line.apuredQuantity)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+                            {formatQuantity(line.remainingQuantity)}
+                          </td>
+                        </>
+                      ) : null}
                       <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
                         {formatXof(line.valueXof)}
                       </td>
@@ -321,6 +354,222 @@ async function DeclarationContent({
 
         {options ? (
           <DeclarationLineForm declarationId={declaration.id} hsCodes={options.hsCodes} />
+        ) : null}
+
+        {declaration.requiresApurement ? (
+          <section className="mt-6 overflow-hidden rounded-xl border border-line bg-panel">
+            <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">
+              <Layers className="size-4 text-brand" aria-hidden="true" />
+              <h2 className="text-sm font-semibold">Apurement progressif du sommier</h2>
+              <span className="rounded-full border border-brand/20 bg-brand-soft px-2 py-0.5 text-[10px] text-brand-strong">
+                {APUREMENT_DECLARATION_STATE_LABELS[declaration.apurement.state]}
+              </span>
+              <span className="ml-auto text-[10px] text-muted">
+                {declaration.apurement.apuredLineCount}/{declaration.apurement.lineCount} ligne(s)
+                apurée(s) · {(declaration.apurement.averageRateBp / 100).toFixed(1)} % moyen
+              </span>
+            </div>
+
+            <div className="px-5 py-4">
+              <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <dt className="text-[10px] text-muted">Lignes apurées</dt>
+                  <dd className="mt-0.5 font-mono text-lg tabular-nums">
+                    {declaration.apurement.apuredLineCount}/{declaration.apurement.lineCount}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] text-muted">Lignes partielles</dt>
+                  <dd className="mt-0.5 font-mono text-lg tabular-nums">
+                    {declaration.apurement.partialLineCount}
+                  </dd>
+                </div>
+                {declaration.apurement.unitCode &&
+                declaration.apurement.apuredQuantity !== null &&
+                declaration.apurement.remainingQuantity !== null ? (
+                  <>
+                    <div>
+                      <dt className="text-[10px] text-muted">Quantité apurée</dt>
+                      <dd className="mt-0.5 font-mono text-lg tabular-nums">
+                        {formatQuantity(declaration.apurement.apuredQuantity)}{" "}
+                        {declaration.apurement.unitCode}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] text-muted">Quantité restante</dt>
+                      <dd className="mt-0.5 font-mono text-lg tabular-nums">
+                        {formatQuantity(declaration.apurement.remainingQuantity)}{" "}
+                        {declaration.apurement.unitCode}
+                      </dd>
+                    </div>
+                  </>
+                ) : (
+                  <div className="sm:col-span-2">
+                    <dt className="text-[10px] text-muted">Quantités</dt>
+                    <dd className="mt-0.5 text-[11px] text-muted">
+                      Lignes en unités différentes : les quantités se lisent ligne par ligne, jamais
+                      additionnées entre unités.
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+
+            {declaration.lines.length > 0 ? (
+              <div className="overflow-x-auto border-t border-line">
+                <table className="w-full text-left text-[11px]">
+                  <caption className="sr-only">Progression de l&apos;apurement par ligne</caption>
+                  <thead>
+                    <tr className="border-b border-line font-mono text-[10px] tracking-[0.12em] text-muted uppercase">
+                      <th scope="col" className={TH}>
+                        Ligne
+                      </th>
+                      <th scope="col" className={TH}>
+                        Désignation
+                      </th>
+                      <th scope="col" className={`${TH} text-right`}>
+                        Déclaré
+                      </th>
+                      <th scope="col" className={`${TH} text-right`}>
+                        Apuré
+                      </th>
+                      <th scope="col" className={`${TH} text-right`}>
+                        Restant
+                      </th>
+                      <th scope="col" className={`${TH} text-right`}>
+                        Avancement
+                      </th>
+                      <th scope="col" className={TH}>
+                        État
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {declaration.lines.map((line) => (
+                      <tr key={line.id} className="border-b border-line last:border-b-0">
+                        <td className="px-4 py-2.5 font-mono text-[10px] text-muted tabular-nums">
+                          {String(line.lineNumber).padStart(2, "0")}
+                        </td>
+                        <td className="max-w-72 px-4 py-2.5">
+                          <span className="block truncate">{line.designation}</span>
+                          <span className="block font-mono text-[10px] text-muted">
+                            {line.hsCode}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+                          {formatQuantity(line.quantity)} {line.unitCode}
+                        </td>
+                        <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+                          {formatQuantity(line.apuredQuantity)}
+                        </td>
+                        <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+                          {formatQuantity(line.remainingQuantity)}
+                        </td>
+                        <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+                          {(line.apurementRateBp / 100).toFixed(1)} %
+                        </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          {APUREMENT_LINE_STATE_LABELS[line.apurementState]}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+
+            <div className="flex items-center gap-2 border-t border-line px-5 py-3">
+              <h3 className="text-xs font-semibold">Journal des apurements</h3>
+              <span className="font-mono text-[10px] text-muted">
+                {declaration.apurementEntries.length}
+              </span>
+              <span className="ml-auto text-[10px] text-muted">Écritures append-only</span>
+            </div>
+
+            {declaration.apurementEntries.length === 0 ? (
+              <p className="px-5 pb-4 text-[11px] leading-5 text-muted">
+                Aucun apurement. Chaque écriture apure une quantité d&apos;une ligne, sans jamais
+                dépasser la quantité déclarée.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-[11px]">
+                  <caption className="sr-only">Écritures d&apos;apurement progressif</caption>
+                  <thead>
+                    <tr className="border-y border-line font-mono text-[10px] tracking-[0.12em] text-muted uppercase">
+                      <th scope="col" className={TH}>
+                        Date
+                      </th>
+                      <th scope="col" className={TH}>
+                        Ligne
+                      </th>
+                      <th scope="col" className={TH}>
+                        Mode
+                      </th>
+                      <th scope="col" className={TH}>
+                        Référence
+                      </th>
+                      <th scope="col" className={`${TH} text-right`}>
+                        Quantité
+                      </th>
+                      <th scope="col" className={TH}>
+                        Saisi par
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {declaration.apurementEntries.map((entry) => (
+                      <tr key={entry.id} className="border-b border-line last:border-b-0">
+                        <td className="px-4 py-2.5 whitespace-nowrap text-muted tabular-nums">
+                          {isoDateLabel(entry.apuredAt)}
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-[10px] tabular-nums">
+                          {String(entry.lineNumber).padStart(2, "0")}
+                        </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          {CUSTOMS_APUREMENT_MODE_LABELS[entry.mode]}
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-[10px] text-muted">
+                          {entry.reference}
+                        </td>
+                        <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+                          {formatQuantity(entry.quantity)}
+                        </td>
+                        <td className="px-4 py-2.5 text-muted">{entry.createdByName ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {canApure ? (
+              <div className="px-5 pb-5">
+                <ApurementEntryForm
+                  declarationId={declaration.id}
+                  today={today}
+                  lines={declaration.lines
+                    .filter((line) => line.apurementState !== "apured")
+                    .map((line) => ({
+                      id: line.id,
+                      lineNumber: line.lineNumber,
+                      designation: line.designation,
+                      unitCode: line.unitCode,
+                      remainingQuantity: line.remainingQuantity,
+                    }))}
+                />
+              </div>
+            ) : !apurementOpen ? (
+              <p className="px-5 pb-5 text-[10px] leading-4 text-muted">
+                Sommier intégralement apuré : chaque ligne a atteint sa quantité déclarée.
+              </p>
+            ) : declaration.status === "liquidated" || declaration.status === "cleared" ? null : (
+              <p className="px-5 pb-5 text-[10px] leading-4 text-muted">
+                L&apos;apurement progressif s&apos;ouvre après la liquidation, une fois les articles
+                admis sous régime.
+              </p>
+            )}
+          </section>
         ) : null}
 
         {declaration.taxes.length > 0 ? (

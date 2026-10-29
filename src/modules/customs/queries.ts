@@ -1,7 +1,8 @@
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
   auditEvents,
+  customsApurements,
   customsBonds,
   customsDeclarationLines,
   customsDeclarationTaxes,
@@ -12,6 +13,8 @@ import {
   customsTaxes,
   hsCodes,
   partners,
+  users,
+  type CustomsApurementMode,
   type CustomsBondStatus,
   type CustomsDeclarationStatus,
   type CustomsRegimeKind,
@@ -19,6 +22,7 @@ import {
   type PaymentMethod,
 } from "@/db/schema";
 import { nextDocumentNumber } from "@/modules/stock/sequences";
+import { microsToQuantity, quantityToMicros } from "@/modules/stock/quantities";
 import { CUSTOMS_LIST_LIMIT } from "./constants";
 import { CustomsError } from "./errors";
 import {
@@ -29,6 +33,14 @@ import {
 } from "./lifecycle";
 import { liquidateDeclaration } from "./liquidation";
 import {
+  apurementContextError,
+  declarationApurementProgress,
+  lineApurementProgress,
+  type ApurementLineState,
+  type DeclarationApurementProgress,
+} from "./apurement";
+import {
+  validateApurementEntryInput,
   validateApurementReference,
   validateBondInput,
   validateDeclarationHeader,
@@ -69,6 +81,7 @@ export interface CustomsRegimeSummary {
   readonly label: string;
   readonly kind: CustomsRegimeKind;
   readonly requiresBond: boolean;
+  readonly requiresApurement: boolean;
   readonly active: boolean;
 }
 
@@ -110,6 +123,7 @@ export async function listCustomsReferentials(
         label: customsRegimes.label,
         kind: customsRegimes.kind,
         requiresBond: customsRegimes.requiresBond,
+        requiresApurement: customsRegimes.requiresApurement,
         active: customsRegimes.active,
       })
       .from(customsRegimes)
@@ -214,7 +228,13 @@ export async function createCustomsRegime(
   input: {
     readonly tenantId: string;
     readonly actorUserId: string;
-    readonly raw: { code: unknown; label: unknown; kind: unknown; requiresBond: unknown };
+    readonly raw: {
+      code: unknown;
+      label: unknown;
+      kind: unknown;
+      requiresBond: unknown;
+      requiresApurement?: unknown;
+    };
   },
 ): Promise<{ id: string }> {
   const data = assertValid(validateRegimeInput(input.raw), "Régime invalide.");
@@ -228,6 +248,7 @@ export async function createCustomsRegime(
           label: data.label,
           kind: data.kind,
           requiresBond: data.requiresBond,
+          requiresApurement: data.requiresApurement,
         })
         .returning({ id: customsRegimes.id });
       if (!created) {
@@ -244,6 +265,7 @@ export async function createCustomsRegime(
           label: data.label,
           kind: data.kind,
           requiresBond: data.requiresBond,
+          requiresApurement: data.requiresApurement,
         },
       });
       return created;
@@ -397,6 +419,7 @@ export interface DeclarationSummary {
   readonly externalReference: string | null;
   readonly regimeCode: string;
   readonly regimeLabel: string;
+  readonly requiresApurement: boolean;
   readonly officeCode: string;
   readonly partnerCode: string;
   readonly partnerName: string;
@@ -413,6 +436,7 @@ const DECLARATION_LIST_COLUMNS = {
   externalReference: customsDeclarations.externalReference,
   regimeCode: customsRegimes.code,
   regimeLabel: customsRegimes.label,
+  requiresApurement: customsRegimes.requiresApurement,
   officeCode: customsOffices.code,
   partnerCode: partners.code,
   partnerName: partners.name,
@@ -476,6 +500,7 @@ export interface CustomsDeclarationOptions {
     code: string;
     label: string;
     requiresBond: boolean;
+    requiresApurement: boolean;
   }[];
   readonly partners: readonly { id: string; code: string; name: string }[];
   readonly hsCodes: readonly { code: string; wording: string; tecRate: number | null }[];
@@ -497,6 +522,7 @@ export async function getDeclarationOptions(
         code: customsRegimes.code,
         label: customsRegimes.label,
         requiresBond: customsRegimes.requiresBond,
+        requiresApurement: customsRegimes.requiresApurement,
       })
       .from(customsRegimes)
       .where(and(eq(customsRegimes.tenantId, tenantId), eq(customsRegimes.active, true)))
@@ -572,6 +598,7 @@ export interface DeclarationHeaderDetail {
   readonly regimeLabel: string;
   readonly regimeKind: CustomsRegimeKind;
   readonly requiresBond: boolean;
+  readonly requiresApurement: boolean;
   readonly officeId: string;
   readonly officeCode: string;
   readonly officeName: string;
@@ -593,6 +620,22 @@ export interface DeclarationLineDetail {
   readonly cifValue: number;
   readonly dutyRate: number | null;
   readonly dutyAmount: number;
+  readonly apuredQuantity: string;
+  readonly remainingQuantity: string;
+  readonly apurementRateBp: number;
+  readonly apurementState: ApurementLineState;
+}
+
+export interface ApurementEntryDetail {
+  readonly id: string;
+  readonly lineId: string;
+  readonly lineNumber: number;
+  readonly quantity: string;
+  readonly apuredAt: string;
+  readonly mode: CustomsApurementMode;
+  readonly reference: string;
+  readonly createdAt: Date;
+  readonly createdByName: string | null;
 }
 
 export interface DeclarationTaxDetail {
@@ -630,6 +673,8 @@ export interface DeclarationDetail extends DeclarationHeaderDetail {
   readonly taxes: readonly DeclarationTaxDetail[];
   readonly bond: BondDetail | null;
   readonly payments: readonly PaymentDetail[];
+  readonly apurement: DeclarationApurementProgress;
+  readonly apurementEntries: readonly ApurementEntryDetail[];
 }
 
 export async function getDeclaration(
@@ -659,6 +704,7 @@ export async function getDeclaration(
       regimeLabel: customsRegimes.label,
       regimeKind: customsRegimes.kind,
       requiresBond: customsRegimes.requiresBond,
+      requiresApurement: customsRegimes.requiresApurement,
       officeId: customsDeclarations.officeId,
       officeCode: customsOffices.code,
       officeName: customsOffices.name,
@@ -700,7 +746,7 @@ export async function getDeclaration(
     return null;
   }
 
-  const [lines, taxes, bondRows, payments] = await Promise.all([
+  const [lines, taxes, bondRows, payments, apurementEntries] = await Promise.all([
     db
       .select({
         id: customsDeclarationLines.id,
@@ -778,9 +824,78 @@ export async function getDeclaration(
         ),
       )
       .orderBy(asc(customsPayments.paidAt), asc(customsPayments.createdAt)),
+    db
+      .select({
+        id: customsApurements.id,
+        lineId: customsApurements.lineId,
+        lineNumber: customsDeclarationLines.lineNumber,
+        quantity: customsApurements.quantity,
+        apuredAt: customsApurements.apuredAt,
+        mode: customsApurements.mode,
+        reference: customsApurements.reference,
+        createdAt: customsApurements.createdAt,
+        createdByName: users.name,
+      })
+      .from(customsApurements)
+      .innerJoin(
+        customsDeclarationLines,
+        and(
+          eq(customsDeclarationLines.tenantId, customsApurements.tenantId),
+          eq(customsDeclarationLines.declarationId, customsApurements.declarationId),
+          eq(customsDeclarationLines.id, customsApurements.lineId),
+        ),
+      )
+      .leftJoin(users, eq(users.id, customsApurements.createdByUserId))
+      .where(
+        and(
+          eq(customsApurements.tenantId, input.tenantId),
+          eq(customsApurements.declarationId, input.declarationId),
+        ),
+      )
+      .orderBy(
+        asc(customsDeclarationLines.lineNumber),
+        asc(customsApurements.apuredAt),
+        asc(customsApurements.createdAt),
+      ),
   ]);
 
-  return { ...header, lines, taxes, bond: bondRows[0] ?? null, payments };
+  const apuredByLine = new Map<string, bigint>();
+  for (const entry of apurementEntries) {
+    apuredByLine.set(
+      entry.lineId,
+      (apuredByLine.get(entry.lineId) ?? 0n) + quantityToMicros(entry.quantity),
+    );
+  }
+  const detailedLines: DeclarationLineDetail[] = lines.map((line) => {
+    const progress = lineApurementProgress(
+      line.quantity,
+      microsToQuantity(apuredByLine.get(line.id) ?? 0n),
+    );
+    return {
+      ...line,
+      apuredQuantity: progress.apuredQuantity,
+      remainingQuantity: progress.remainingQuantity,
+      apurementRateBp: progress.rateBp,
+      apurementState: progress.state,
+    };
+  });
+
+  return {
+    ...header,
+    lines: detailedLines,
+    taxes,
+    bond: bondRows[0] ?? null,
+    payments,
+    apurementEntries,
+    apurement: declarationApurementProgress(
+      detailedLines.map((line) => ({
+        quantity: line.quantity,
+        apuredQuantity: line.apuredQuantity,
+        unitCode: line.unitCode,
+      })),
+      header.requiresApurement,
+    ),
+  };
 }
 
 async function assertActiveReferentials(
@@ -1141,6 +1256,24 @@ async function declarationBondStatus(
   return bond?.status ?? null;
 }
 
+async function declarationHasApurement(
+  tx: Transaction,
+  tenantId: string,
+  declarationId: string,
+): Promise<boolean> {
+  const [entry] = await tx
+    .select({ id: customsApurements.id })
+    .from(customsApurements)
+    .where(
+      and(
+        eq(customsApurements.tenantId, tenantId),
+        eq(customsApurements.declarationId, declarationId),
+      ),
+    )
+    .limit(1);
+  return entry !== undefined;
+}
+
 export async function changeDeclarationStatus(
   db: Database,
   input: {
@@ -1336,9 +1469,11 @@ export async function changeDeclarationStatus(
         );
     } else {
       const bondStatus = await declarationBondStatus(tx, input.tenantId, input.declarationId);
+      const hasApurement = await declarationHasApurement(tx, input.tenantId, input.declarationId);
       const cancelError = cancellationContextError({
         paidTotal: declaration.paidTotal,
         hasOpenBond: bondStatus === "open",
+        hasApurement,
       });
       if (cancelError) {
         throw new CustomsError(cancelError);
@@ -1660,4 +1795,241 @@ export async function recordCustomsPayment(
     });
     return created;
   });
+}
+
+export async function recordApurement(
+  db: Database,
+  input: {
+    readonly tenantId: string;
+    readonly actorUserId: string;
+    readonly declarationId: string;
+    readonly raw: {
+      lineId: unknown;
+      quantity: unknown;
+      apuredDate: unknown;
+      mode: unknown;
+      reference: unknown;
+    };
+  },
+): Promise<{ id: string }> {
+  const data = assertValid(validateApurementEntryInput(input.raw), "Apurement invalide.");
+  return db.transaction(async (tx) => {
+    const [declaration] = await tx
+      .select({
+        id: customsDeclarations.id,
+        status: customsDeclarations.status,
+        requiresApurement: customsRegimes.requiresApurement,
+      })
+      .from(customsDeclarations)
+      .innerJoin(
+        customsRegimes,
+        and(
+          eq(customsRegimes.tenantId, customsDeclarations.tenantId),
+          eq(customsRegimes.id, customsDeclarations.regimeId),
+        ),
+      )
+      .where(
+        and(
+          eq(customsDeclarations.tenantId, input.tenantId),
+          eq(customsDeclarations.id, input.declarationId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (!declaration) {
+      throw new CustomsError("Déclaration introuvable dans cet espace.");
+    }
+    const [line] = await tx
+      .select({
+        id: customsDeclarationLines.id,
+        lineNumber: customsDeclarationLines.lineNumber,
+        quantity: customsDeclarationLines.quantity,
+        unitCode: customsDeclarationLines.unitCode,
+      })
+      .from(customsDeclarationLines)
+      .where(
+        and(
+          eq(customsDeclarationLines.tenantId, input.tenantId),
+          eq(customsDeclarationLines.declarationId, input.declarationId),
+          eq(customsDeclarationLines.id, data.lineId),
+        ),
+      )
+      .limit(1);
+    if (!line) {
+      throw new CustomsError("Ligne introuvable sur cette déclaration.");
+    }
+    const [apured] = await tx
+      .select({
+        value: sql<string>`coalesce(sum(${customsApurements.quantity}), 0)`,
+      })
+      .from(customsApurements)
+      .where(
+        and(
+          eq(customsApurements.tenantId, input.tenantId),
+          eq(customsApurements.declarationId, input.declarationId),
+          eq(customsApurements.lineId, data.lineId),
+        ),
+      );
+    const lineError = apurementContextError({
+      requiresApurement: declaration.requiresApurement,
+      status: declaration.status,
+      lineQuantity: line.quantity,
+      apuredQuantity: apured?.value ? String(apured.value) : "0",
+      requestedQuantity: data.quantity,
+      unitCode: line.unitCode,
+    });
+    if (lineError) {
+      throw new CustomsError(lineError);
+    }
+    const [created] = await tx
+      .insert(customsApurements)
+      .values({
+        tenantId: input.tenantId,
+        declarationId: input.declarationId,
+        lineId: data.lineId,
+        quantity: data.quantity,
+        apuredAt: data.apuredDate,
+        mode: data.mode,
+        reference: data.reference,
+        createdByUserId: input.actorUserId,
+      })
+      .returning({ id: customsApurements.id });
+    if (!created) {
+      throw new CustomsError("L'apurement n'a pas pu être enregistré.");
+    }
+    await tx.insert(auditEvents).values({
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      action: "customs.apurement.create",
+      entityType: "customs_apurement",
+      entityId: created.id,
+      details: {
+        declarationId: input.declarationId,
+        lineId: data.lineId,
+        lineNumber: line.lineNumber,
+        quantity: data.quantity,
+        apuredAt: data.apuredDate,
+        mode: data.mode,
+        reference: data.reference,
+      },
+    });
+    return created;
+  });
+}
+
+export interface ApurementOverviewRow {
+  readonly id: string;
+  readonly number: string;
+  readonly status: CustomsDeclarationStatus;
+  readonly declarationDate: string;
+  readonly regimeCode: string;
+  readonly regimeLabel: string;
+  readonly partnerName: string;
+  readonly grandTotal: number;
+  readonly paidTotal: number;
+  readonly progress: DeclarationApurementProgress;
+}
+
+export async function listApurementOverviews(
+  db: Database,
+  tenantId: string,
+): Promise<readonly ApurementOverviewRow[]> {
+  const rows = await db
+    .select({
+      id: customsDeclarations.id,
+      number: customsDeclarations.number,
+      status: customsDeclarations.status,
+      declarationDate: customsDeclarations.declarationDate,
+      regimeCode: customsRegimes.code,
+      regimeLabel: customsRegimes.label,
+      partnerName: partners.name,
+      grandTotal: customsDeclarations.grandTotal,
+      paidTotal: customsDeclarations.paidTotal,
+    })
+    .from(customsDeclarations)
+    .innerJoin(
+      customsRegimes,
+      and(
+        eq(customsRegimes.tenantId, customsDeclarations.tenantId),
+        eq(customsRegimes.id, customsDeclarations.regimeId),
+      ),
+    )
+    .innerJoin(
+      partners,
+      and(
+        eq(partners.tenantId, customsDeclarations.tenantId),
+        eq(partners.id, customsDeclarations.partnerId),
+      ),
+    )
+    .where(
+      and(
+        eq(customsDeclarations.tenantId, tenantId),
+        eq(customsRegimes.requiresApurement, true),
+        inArray(customsDeclarations.status, ["liquidated", "cleared"]),
+      ),
+    )
+    .orderBy(desc(customsDeclarations.declarationDate), desc(customsDeclarations.createdAt))
+    .limit(CUSTOMS_LIST_LIMIT);
+
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const declarationIds = rows.map((row) => row.id);
+  const [lineRows, apurementRows] = await Promise.all([
+    db
+      .select({
+        id: customsDeclarationLines.id,
+        declarationId: customsDeclarationLines.declarationId,
+        quantity: customsDeclarationLines.quantity,
+        unitCode: customsDeclarationLines.unitCode,
+      })
+      .from(customsDeclarationLines)
+      .where(
+        and(
+          eq(customsDeclarationLines.tenantId, tenantId),
+          inArray(customsDeclarationLines.declarationId, declarationIds),
+        ),
+      ),
+    db
+      .select({
+        declarationId: customsApurements.declarationId,
+        lineId: customsApurements.lineId,
+        quantity: customsApurements.quantity,
+      })
+      .from(customsApurements)
+      .where(
+        and(
+          eq(customsApurements.tenantId, tenantId),
+          inArray(customsApurements.declarationId, declarationIds),
+        ),
+      ),
+  ]);
+
+  const apuredByLine = new Map<string, bigint>();
+  for (const entry of apurementRows) {
+    const key = `${entry.declarationId}:${entry.lineId}`;
+    apuredByLine.set(key, (apuredByLine.get(key) ?? 0n) + quantityToMicros(entry.quantity));
+  }
+
+  const linesByDeclaration = new Map<
+    string,
+    { quantity: string; apuredQuantity: string; unitCode: string }[]
+  >();
+  for (const line of lineRows) {
+    const apured = apuredByLine.get(`${line.declarationId}:${line.id}`) ?? 0n;
+    const progress = lineApurementProgress(line.quantity, microsToQuantity(apured));
+    const list = linesByDeclaration.get(line.declarationId) ?? [];
+    list.push({
+      quantity: line.quantity,
+      apuredQuantity: progress.apuredQuantity,
+      unitCode: line.unitCode,
+    });
+    linesByDeclaration.set(line.declarationId, list);
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    progress: declarationApurementProgress(linesByDeclaration.get(row.id) ?? [], true),
+  }));
 }

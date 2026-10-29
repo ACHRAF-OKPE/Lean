@@ -18,6 +18,7 @@ export const IMPORT_KIND_LABELS: Record<ImportKind, string> = {
   sales_lines: "Lignes de vente",
   tasks: "Tâches",
   customs_lines: "Lignes de déclaration",
+  customs_apurements: "Apurements progressifs",
 };
 
 const IMPORT_KINDS = [
@@ -28,6 +29,7 @@ const IMPORT_KINDS = [
   "sales_lines",
   "tasks",
   "customs_lines",
+  "customs_apurements",
 ] as const;
 
 export function isImportKind(value: string): value is ImportKind {
@@ -42,6 +44,7 @@ export const IMPORT_KIND_PATHS: Record<ImportKind, string> = {
   sales_lines: "/ventes",
   tasks: "/taches",
   customs_lines: "/douane",
+  customs_apurements: "/douane/apurement",
 };
 
 export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
@@ -52,6 +55,7 @@ export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
   sales_lines: "/api/modeles/ventes",
   tasks: "/api/modeles/taches",
   customs_lines: "/api/modeles/declarations",
+  customs_apurements: "/api/modeles/apurements",
 };
 
 const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
@@ -62,6 +66,7 @@ const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
   ventes: "sales_lines",
   taches: "tasks",
   declarations: "customs_lines",
+  apurements: "customs_apurements",
 };
 
 export function resolveTemplateKind(slug: string): ImportKind | null {
@@ -202,6 +207,15 @@ export const CUSTOMS_LINE_HEADERS = [
   "pays_origine",
 ] as const;
 
+export const CUSTOMS_APUREMENT_HEADERS = [
+  "numero_declaration",
+  "ligne",
+  "quantite",
+  "date_apurement",
+  "mode",
+  "reference",
+] as const;
+
 export const HEADERS_BY_KIND = {
   partners: PARTNER_HEADERS,
   articles: ARTICLE_HEADERS,
@@ -210,6 +224,7 @@ export const HEADERS_BY_KIND = {
   sales_lines: SALES_LINE_HEADERS,
   tasks: TASK_HEADERS,
   customs_lines: CUSTOMS_LINE_HEADERS,
+  customs_apurements: CUSTOMS_APUREMENT_HEADERS,
 } as const;
 
 export const SHEET_DATA = "Données";

@@ -17,6 +17,7 @@ export interface CustomsTenant {
   readonly officeId: string;
   readonly bondRegimeId: string;
   readonly plainRegimeId: string;
+  readonly im9RegimeId: string;
   readonly partnerId: string;
   readonly inactivePartnerId: string;
   readonly hsCode: string;
@@ -66,6 +67,14 @@ export async function seedCustomsTenant(db: Database, label = "douane"): Promise
         label: "Admission temporaire",
         kind: "suspensive" as const,
         requiresBond: true,
+      },
+      {
+        tenantId: tenant.id,
+        code: "IM9",
+        label: "Zone franche — apurement progressif",
+        kind: "suspensive" as const,
+        requiresBond: false,
+        requiresApurement: true,
       },
     ])
     .returning({ id: customsRegimes.id, code: customsRegimes.code });
@@ -126,12 +135,14 @@ export async function seedCustomsTenant(db: Database, label = "douane"): Promise
   const officeId = office?.id;
   const bondRegimeId = regimeByCode.get("IM8");
   const plainRegimeId = regimeByCode.get("IM4");
+  const im9RegimeId = regimeByCode.get("IM9");
   const partnerId = partnerByCode.get("IMPORT01");
   const inactivePartnerId = partnerByCode.get("IMPORT02");
   if (
     !officeId ||
     !bondRegimeId ||
     !plainRegimeId ||
+    !im9RegimeId ||
     !partnerId ||
     !inactivePartnerId ||
     hsRows.length < 4
@@ -145,6 +156,7 @@ export async function seedCustomsTenant(db: Database, label = "douane"): Promise
     officeId,
     bondRegimeId,
     plainRegimeId,
+    im9RegimeId,
     partnerId,
     inactivePartnerId,
     hsCode: "090111",

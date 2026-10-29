@@ -1,4 +1,5 @@
 import type {
+  CustomsApurementMode,
   CustomsBondStatus,
   CustomsDeclarationStatus,
   CustomsRegimeKind,
@@ -48,8 +49,22 @@ export const CUSTOMS_MAX_REFERENCE = 60;
 export const CUSTOMS_MAX_DESIGNATION = 160;
 export const CUSTOMS_MAX_GUARANTEE_REFERENCE = 120;
 export const CUSTOMS_MAX_APUREMENT_REFERENCE = 120;
+export const CUSTOMS_MAX_APUREMENT_ENTRY_REFERENCE = 120;
 export const CUSTOMS_MAX_PAYMENT_REFERENCE = 120;
 export const CUSTOMS_LIST_LIMIT = 200;
+
+export const CUSTOMS_APUREMENT_MODES = ["production", "export", "destruction", "transfer"] as const;
+
+export const CUSTOMS_APUREMENT_MODE_LABELS: Record<CustomsApurementMode, string> = {
+  production: "Production",
+  export: "Exportation",
+  destruction: "Destruction",
+  transfer: "Transfert",
+};
+
+export function isCustomsApurementMode(value: string): value is CustomsApurementMode {
+  return (CUSTOMS_APUREMENT_MODES as readonly string[]).includes(value);
+}
 
 export function isTecRate(value: number): boolean {
   return (TEC_RATES as readonly number[]).includes(value);

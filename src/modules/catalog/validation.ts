@@ -2,11 +2,15 @@ import type { ArticleType, ImportKind, ImportRowStatus, PartnerType } from "@/db
 import type { ArticleReference, SupplierReference } from "@/modules/purchases/validation";
 import type { CustomerReference, SalesArticleReference } from "@/modules/sales/validation";
 import type {
+  CustomsApurementDeclarationReference,
   CustomsDeclarationLinesReference,
   CustomsDeclarationReference,
   CustomsHsCodeReference,
 } from "@/modules/customs/import-validation";
-import { validateCustomsLineImportRows } from "@/modules/customs/import-validation";
+import {
+  validateCustomsApurementImportRows,
+  validateCustomsLineImportRows,
+} from "@/modules/customs/import-validation";
 import { isTecRate } from "@/modules/customs/constants";
 import type { TaskDocumentMaps, TaskMemberReference } from "@/modules/tasks/import-validation";
 import { validatePurchaseLines } from "@/modules/purchases/import-validation";
@@ -33,6 +37,7 @@ export interface ValidationContext {
   readonly customsDeclarationsByNumber?: ReadonlyMap<string, CustomsDeclarationReference>;
   readonly customsHsCodesByCode?: ReadonlyMap<string, CustomsHsCodeReference>;
   readonly customsLinesByDeclaration?: ReadonlyMap<string, CustomsDeclarationLinesReference>;
+  readonly customsApurementsByNumber?: ReadonlyMap<string, CustomsApurementDeclarationReference>;
 }
 
 export interface ValidatedRow {
@@ -656,6 +661,9 @@ export function validateImportRows(
   }
   if (kind === "customs_lines") {
     return validateCustomsLineImportRows(rows, context);
+  }
+  if (kind === "customs_apurements") {
+    return validateCustomsApurementImportRows(rows, context);
   }
 
   const validated = rows.map((row) => {

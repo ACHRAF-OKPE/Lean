@@ -287,9 +287,10 @@ Le Lot 5D ajoute les tâches internes, rattachées ou non à un document :
 Le Lot 6 ajoute le passage en douane, du référentiel à la mainlevée :
 
 - **Référentiels** — `/douane/referentiels` gère les bureaux (code UN/LOCODE), les régimes
-  ASYCUDA (nature, acquit obligatoire) et les taxes paramétrables (assiette CIF ou CIF +
-  droits, taux à deux décimales). Le taux TEC d'un code SH reste limité aux bandes UEMOA 0,
-  5, 10, 20 et 35 ; il s'importe avec la nomenclature et se conserve si la colonne est vide.
+  ASYCUDA (nature, acquit obligatoire, apurement progressif) et les taxes paramétrables
+  (assiette CIF ou CIF + droits, taux à deux décimales). Le taux TEC d'un code SH reste
+  limité aux bandes UEMOA 0, 5, 10, 20 et 35 ; il s'importe avec la nomenclature et se
+  conserve si la colonne est vide.
 - **Déclaration** — `/douane` liste les déclarations brouillon, déposées, liquidées,
   réglées et annulées. Une déclaration porte un numéro DEC-AAAA-NNNN, un régime, un bureau,
   le tiers déclaré, une date et les frais de transport et d'assurance ; elle s'enrichit de
@@ -301,12 +302,22 @@ Le Lot 6 ajoute le passage en douane, du référentiel à la mainlevée :
 - **Acquit-à-caution** — un régime suspensif exige un acquit AAC-AAAA-NNNN, unique, dont la
   garantie couvre au moins le montant à payer ; l'apurement est unique et lève le blocage de
   la mainlevée.
+- **Apurement progressif (IM9)** — un régime peut aussi exiger l'apurement progressif de ses
+  articles, pour une entreprise en zone franche. Les lignes d'une déclaration liquidée
+  deviennent les articles du sommier ; chaque écriture apure une quantité d'une ligne (mode
+  production, exportation, destruction ou transfert, référence de pièce) et le cumul ne
+  dépasse jamais la quantité déclarée. Les écritures sont append-only, l'état (ouvert,
+  partiel, apuré) se déduit du journal et les totaux ne s'additionnent jamais entre unités
+  différentes. `/douane/apurement` suit tous les sommiers ; la fiche de la déclaration porte
+  le détail par ligne et le journal.
 - **Paiements** — append-only, au plus égaux au montant à payer, datés d'aujourd'hui ou
   avant ; la mainlevée exige le paiement intégral et, si le régime l'exige, l'acquit apuré.
 - **Import** — modèle XLSX à huit colonnes (numéro de déclaration, code SH, désignation,
   quantité, unité, valeur, poids, pays d'origine), regroupé par déclaration brouillon. Un
   code SH ou une désignation déjà présent sur la déclaration est signalé ; un fichier ne
-  s'applique qu'une fois.
+  s'applique qu'une fois. Le journal d'apurement s'importe aussi par XLSX (six colonnes :
+  numéro de déclaration, ligne, quantité, date, mode, référence), avec le même rapport par
+  ligne et le même contrôle du restant, écritures existantes et fichier compris.
 
 ## Scripts
 
@@ -337,13 +348,14 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `exchange_templates`, `exchange_messages`, `supplier_replies`, `discussion_messages`,
 `discussion_mentions`, `notifications`, `tasks`, puis `customs_offices`, `customs_regimes`,
 `customs_taxes`, `customs_declarations`, `customs_declaration_lines`,
-`customs_declaration_taxes`, `customs_bonds` et `customs_payments`. Les migrations générées
-sont commitées dans
+`customs_declaration_taxes`, `customs_bonds`, `customs_payments` et `customs_apurements`. Les
+migrations générées sont commitées dans
 `drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
 `0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
 facturation, `0006` pour la fiche entreprise et les contacts tiers, `0007` pour les échanges
 fournisseurs, `0008` pour la collaboration, `0009` pour les réponses fournisseurs, `0010`
-pour les tâches, `0011` pour leur chronomètre et `0012` pour la douane. Les
+pour les tâches, `0011` pour leur chronomètre, `0012` pour la douane et `0013` pour
+l'apurement progressif des IM9. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire et d'idempotence des évènements sont posées
 en base, en complément de la validation applicative.

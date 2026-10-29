@@ -17,6 +17,8 @@ import {
   createDeclaration,
   getDeclaration,
   listCustomsReferentials,
+  listApurementOverviews,
+  recordApurement,
   recordCustomsPayment,
   removeDeclarationLine,
   setCustomsOfficeActive,
@@ -73,7 +75,13 @@ async function createDraft(
 async function addLine(
   ids: CustomsTenant,
   declarationId: string,
-  options: { hsCode?: string; value?: number; designation?: string } = {},
+  options: {
+    hsCode?: string;
+    value?: number;
+    designation?: string;
+    quantity?: string;
+    unitCode?: string;
+  } = {},
 ): Promise<string> {
   const created = await addDeclarationLine(db, {
     tenantId: ids.tenantId,
@@ -82,8 +90,8 @@ async function addLine(
     raw: {
       hsCode: options.hsCode ?? ids.hsCode,
       designation: options.designation ?? "Marchandise déclarée",
-      quantity: "10",
-      unitCode: "KG",
+      quantity: options.quantity ?? "10",
+      unitCode: options.unitCode ?? "KG",
       valueXof: options.value ?? 1_000_000,
       weightKg: "10",
       originCountry: "CI",
@@ -177,7 +185,7 @@ describe("CUS-001 — référentiels douaniers", () => {
 
     const referentials = await listCustomsReferentials(db, ids.tenantId);
     expect(referentials.offices.map((office) => office.code)).toEqual(["CIABJ"]);
-    expect(referentials.regimes.map((regime) => regime.code)).toEqual(["IM4", "IM8"]);
+    expect(referentials.regimes.map((regime) => regime.code)).toEqual(["IM4", "IM8", "IM9"]);
     const tax = referentials.taxes.find((row) => row.code === "TS");
     expect(tax).toMatchObject({ base: "cif", rateBp: 250, position: 30, active: false });
 
@@ -674,5 +682,177 @@ describe("CUS-005 — paiements et mainlevée", () => {
       .where(eq(auditEvents.tenantId, ids.tenantId))
       .orderBy(asc(auditEvents.createdAt));
     expect(rows.some((row) => row.action === "customs.payment.create")).toBe(true);
+  });
+});
+
+describe("CUS-007 — apurement progressif des sommiers IM9", () => {
+  async function liquidatedIm9(
+    ids: CustomsTenant,
+    options: { quantity?: string; unitCode?: string } = {},
+  ): Promise<{ id: string; lineId: string }> {
+    const created = await createDraft(ids, { regimeId: ids.im9RegimeId });
+    const lineId = await addLine(ids, created.id, {
+      quantity: options.quantity ?? "10",
+      unitCode: options.unitCode ?? "KG",
+    });
+    await transition(ids, created.id, "deposit");
+    await transition(ids, created.id, "liquidate");
+    return { id: created.id, lineId };
+  }
+
+  function apurementRaw(lineId: string, quantity: string, reference: string, mode = "production") {
+    return { lineId, quantity, apuredDate: todayIsoDate(), mode, reference };
+  }
+
+  it("refuse l'apurement hors régime IM9 ou avant la liquidation", async () => {
+    const ids = await seedCustomsTenant(db, "cus007-refus");
+    const plain = await liquidatedDeclaration(ids);
+    const plainLine = (await detail(ids, plain.id)).lines[0]!;
+
+    await expect(
+      recordApurement(db, {
+        tenantId: ids.tenantId,
+        actorUserId: ids.userId,
+        declarationId: plain.id,
+        raw: apurementRaw(plainLine.id, "1", "PROD-0"),
+      }),
+    ).rejects.toThrow(/ne prévoit pas d'apurement progressif/);
+
+    const draft = await createDraft(ids, { regimeId: ids.im9RegimeId });
+    const draftLine = await addLine(ids, draft.id);
+
+    await expect(
+      recordApurement(db, {
+        tenantId: ids.tenantId,
+        actorUserId: ids.userId,
+        declarationId: draft.id,
+        raw: apurementRaw(draftLine, "1", "PROD-0"),
+      }),
+    ).rejects.toThrow(/doit être liquidée/);
+  });
+
+  it("apure par écritures successives sans jamais dépasser le restant", async () => {
+    const ids = await seedCustomsTenant(db, "cus007-im9");
+    const { id, lineId } = await liquidatedIm9(ids);
+
+    const first = await recordApurement(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      declarationId: id,
+      raw: apurementRaw(lineId, "4", "PROD-1"),
+    });
+    expect(first.id).toMatch(/^[0-9a-f-]{36}$/);
+
+    let current = await detail(ids, id);
+    expect(current.apurement).toMatchObject({
+      state: "partial",
+      lineCount: 1,
+      apuredLineCount: 0,
+      partialLineCount: 1,
+      unitCode: "KG",
+      apuredQuantity: "4",
+      remainingQuantity: "6",
+      averageRateBp: 4000,
+    });
+    expect(current.lines[0]).toMatchObject({
+      apuredQuantity: "4",
+      remainingQuantity: "6",
+      apurementRateBp: 4000,
+      apurementState: "partial",
+    });
+
+    await expect(
+      recordApurement(db, {
+        tenantId: ids.tenantId,
+        actorUserId: ids.userId,
+        declarationId: id,
+        raw: apurementRaw(lineId, "7", "PROD-TROP"),
+      }),
+    ).rejects.toThrow(/dépasse le restant/);
+
+    await recordApurement(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      declarationId: id,
+      raw: apurementRaw(lineId, "6", "EXP-2", "export"),
+    });
+
+    current = await detail(ids, id);
+    expect(current.apurement).toMatchObject({
+      state: "apured",
+      apuredLineCount: 1,
+      partialLineCount: 0,
+      apuredQuantity: "10",
+      remainingQuantity: "0",
+      averageRateBp: 10000,
+    });
+    expect(current.lines[0]).toMatchObject({
+      apurementState: "apured",
+      remainingQuantity: "0",
+      apurementRateBp: 10000,
+    });
+    expect(
+      current.apurementEntries.map((entry) => [
+        entry.lineNumber,
+        entry.quantity,
+        entry.mode,
+        entry.reference,
+      ]),
+    ).toEqual([
+      [1, "4.000000", "production", "PROD-1"],
+      [1, "6.000000", "export", "EXP-2"],
+    ]);
+
+    const [audit] = await db
+      .select({ value: count() })
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.tenantId, ids.tenantId),
+          eq(auditEvents.action, "customs.apurement.create"),
+        ),
+      );
+    expect(audit?.value).toBe(2);
+  });
+
+  it("signale les unités mixtes, bloque l'annulation et alimente le sommier", async () => {
+    const ids = await seedCustomsTenant(db, "cus007-sommier");
+    const created = await createDraft(ids, { regimeId: ids.im9RegimeId });
+    const kgLine = await addLine(ids, created.id, { quantity: "10", unitCode: "KG" });
+    await addLine(ids, created.id, { quantity: "5", unitCode: "PCE" });
+    await transition(ids, created.id, "deposit");
+    await transition(ids, created.id, "liquidate");
+
+    await recordApurement(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      declarationId: created.id,
+      raw: apurementRaw(kgLine, "10", "PROD-3"),
+    });
+
+    const current = await detail(ids, created.id);
+    expect(current.apurement).toMatchObject({
+      state: "partial",
+      lineCount: 2,
+      apuredLineCount: 1,
+      partialLineCount: 0,
+      unitCode: null,
+      apuredQuantity: null,
+      remainingQuantity: null,
+    });
+
+    await expect(transition(ids, created.id, "cancel")).rejects.toThrow(
+      /apurements progressifs sont déjà enregistrés/,
+    );
+
+    const overview = await listApurementOverviews(db, ids.tenantId);
+    const row = overview.find((entry) => entry.id === created.id);
+    expect(row).toMatchObject({
+      number: created.number,
+      regimeCode: "IM9",
+      status: "liquidated",
+    });
+    expect(row?.progress.state).toBe("partial");
+    expect(row?.progress.unitCode).toBeNull();
   });
 });

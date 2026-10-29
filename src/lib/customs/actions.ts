@@ -14,6 +14,7 @@ import {
   createCustomsRegime,
   createCustomsTax,
   createDeclaration,
+  recordApurement,
   recordCustomsPayment,
   removeDeclarationLine,
   setCustomsOfficeActive,
@@ -274,6 +275,37 @@ export async function recordCustomsPaymentAction(
   redirect(`/douane/${declarationId}?maj=1`);
 }
 
+export async function recordApurementAction(
+  _state: CustomsFormState,
+  formData: FormData,
+): Promise<CustomsFormState> {
+  const session = await requirePermission("data.write");
+  const declarationId = text(formData, "declarationId");
+
+  if (!UUID_PATTERN.test(declarationId)) {
+    return { errors: ["Déclaration invalide."] };
+  }
+
+  try {
+    await recordApurement(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      declarationId,
+      raw: {
+        lineId: text(formData, "lineId"),
+        quantity: text(formData, "quantity"),
+        apuredDate: text(formData, "apuredDate"),
+        mode: text(formData, "mode"),
+        reference: text(formData, "reference"),
+      },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect(`/douane/${declarationId}?maj=1`);
+}
+
 export async function createOfficeAction(
   _state: CustomsFormState,
   formData: FormData,
@@ -333,6 +365,7 @@ export async function createRegimeAction(
         label: text(formData, "label"),
         kind: text(formData, "kind"),
         requiresBond: text(formData, "requiresBond") === "on",
+        requiresApurement: text(formData, "requiresApurement") === "on",
       },
     });
   } catch (error) {

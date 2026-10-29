@@ -210,7 +210,8 @@ export type ImportKind =
   | "purchase_lines"
   | "sales_lines"
   | "tasks"
-  | "customs_lines";
+  | "customs_lines"
+  | "customs_apurements";
 export type ImportBatchStatus = "analyzed" | "applied";
 export type ImportRowStatus = "valid" | "warning" | "error";
 export type PurchaseOrderStatus = "draft" | "requested" | "confirmed" | "closed" | "cancelled";
@@ -238,6 +239,7 @@ export type CustomsTaxBase = "cif" | "cif_plus_duty";
 export type CustomsDeclarationStatus =
   "draft" | "deposited" | "liquidated" | "cleared" | "cancelled";
 export type CustomsBondStatus = "open" | "apured";
+export type CustomsApurementMode = "production" | "export" | "destruction" | "transfer";
 export type EmailSecurity = "tls" | "starttls" | "none";
 export type ExchangeType = "purchase_request" | "purchase_confirmation";
 export type ExchangeMessageStatus = "sent" | "failed";
@@ -508,7 +510,7 @@ export const importBatches = pgTable(
     index("import_batches_tenant_created_idx").on(table.tenantId, table.createdAt),
     check(
       "import_batches_kind_check",
-      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines', 'tasks', 'customs_lines')`,
+      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines', 'tasks', 'customs_lines', 'customs_apurements')`,
     ),
     check("import_batches_status_check", sql`${table.status} in ('analyzed', 'applied')`),
     check(
@@ -1681,6 +1683,7 @@ export const customsRegimes = pgTable(
     label: text("label").notNull(),
     kind: text("kind").$type<CustomsRegimeKind>().notNull(),
     requiresBond: boolean("requires_bond").notNull().default(false),
+    requiresApurement: boolean("requires_apurement").notNull().default(false),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1835,6 +1838,11 @@ export const customsDeclarationLines = pgTable(
       table.lineNumber,
     ),
     uniqueIndex("customs_declaration_lines_tenant_id_idx").on(table.tenantId, table.id),
+    uniqueIndex("customs_declaration_lines_tenant_declaration_id_idx").on(
+      table.tenantId,
+      table.declarationId,
+      table.id,
+    ),
     check("customs_declaration_lines_number_check", sql`${table.lineNumber} >= 1`),
     check(
       "customs_declaration_lines_designation_check",
@@ -1990,6 +1998,57 @@ export const customsPayments = pgTable(
   ],
 );
 
+export const customsApurements = pgTable(
+  "customs_apurements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    declarationId: uuid("declaration_id").notNull(),
+    lineId: uuid("line_id").notNull(),
+    quantity: numeric("quantity", { precision: 18, scale: 6 }).notNull(),
+    apuredAt: date("apured_at", { mode: "string" }).notNull(),
+    mode: text("mode").$type<CustomsApurementMode>().notNull(),
+    reference: text("reference").notNull(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("customs_apurements_tenant_id_idx").on(table.tenantId, table.id),
+    index("customs_apurements_tenant_declaration_idx").on(
+      table.tenantId,
+      table.declarationId,
+      table.lineId,
+    ),
+    check("customs_apurements_quantity_check", sql`${table.quantity} > 0`),
+    check(
+      "customs_apurements_mode_check",
+      sql`${table.mode} in ('production', 'export', 'destruction', 'transfer')`,
+    ),
+    check(
+      "customs_apurements_reference_check",
+      sql`char_length(${table.reference}) between 1 and 120`,
+    ),
+    foreignKey({
+      name: "customs_apurements_tenant_declaration_fk",
+      columns: [table.tenantId, table.declarationId],
+      foreignColumns: [customsDeclarations.tenantId, customsDeclarations.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "customs_apurements_tenant_line_fk",
+      columns: [table.tenantId, table.declarationId, table.lineId],
+      foreignColumns: [
+        customsDeclarationLines.tenantId,
+        customsDeclarationLines.declarationId,
+        customsDeclarationLines.id,
+      ],
+    }).onDelete("cascade"),
+  ],
+);
+
 export type HsCodeRow = typeof hsCodes.$inferSelect;
 export type PartnerRow = typeof partners.$inferSelect;
 export type ArticleRow = typeof articles.$inferSelect;
@@ -2021,3 +2080,4 @@ export type CustomsDeclarationLineRow = typeof customsDeclarationLines.$inferSel
 export type CustomsDeclarationTaxRow = typeof customsDeclarationTaxes.$inferSelect;
 export type CustomsBondRow = typeof customsBonds.$inferSelect;
 export type CustomsPaymentRow = typeof customsPayments.$inferSelect;
+export type CustomsApurementRow = typeof customsApurements.$inferSelect;

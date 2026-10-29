@@ -1,16 +1,18 @@
-import type { PaymentMethod } from "@/db/schema";
+import type { CustomsApurementMode, PaymentMethod } from "@/db/schema";
 import { isCountryCode, isUnitCode } from "@/modules/catalog/constants";
 import { parseIsoDate, parseXofPrice } from "@/modules/shared/validation";
 import { parseQuantity } from "@/modules/stock/quantities";
 import { isPaymentMethod } from "@/modules/sales/payment-methods";
 import { todayIsoDate } from "@/lib/dates";
 import {
+  CUSTOMS_MAX_APUREMENT_ENTRY_REFERENCE,
   CUSTOMS_MAX_APUREMENT_REFERENCE,
   CUSTOMS_MAX_DESIGNATION,
   CUSTOMS_MAX_GUARANTEE_REFERENCE,
   CUSTOMS_MAX_PAYMENT_REFERENCE,
   CUSTOMS_MAX_REFERENCE,
 } from "./constants";
+import { normalizeApurementMode } from "./apurement";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HS_CODE_PATTERN = /^[0-9]{6}([0-9]{2}([0-9]{2})?)?$/;
@@ -397,6 +399,7 @@ export interface RegimeInput {
   label: string;
   kind: "import" | "export" | "suspensive" | "transit";
   requiresBond: boolean;
+  requiresApurement: boolean;
 }
 
 export function validateRegimeInput(raw: {
@@ -404,6 +407,7 @@ export function validateRegimeInput(raw: {
   readonly label: unknown;
   readonly kind: unknown;
   readonly requiresBond: unknown;
+  readonly requiresApurement?: unknown;
 }): { data: RegimeInput | null; errors: string[]; warnings: string[] } {
   const text = textOf(raw.code);
   const code = text.toUpperCase();
@@ -434,6 +438,7 @@ export function validateRegimeInput(raw: {
       label: label.value,
       kind: kind as RegimeInput["kind"],
       requiresBond: raw.requiresBond === true || raw.requiresBond === "on",
+      requiresApurement: raw.requiresApurement === true || raw.requiresApurement === "on",
     },
     errors,
     warnings,
@@ -539,4 +544,56 @@ export function validateApurementReference(raw: unknown): {
     maxLength: CUSTOMS_MAX_APUREMENT_REFERENCE,
   });
   return { value: field.value, errors: [...field.errors] };
+}
+
+export interface ApurementEntryInput {
+  readonly lineId: string;
+  readonly quantity: string;
+  readonly apuredDate: string;
+  readonly mode: CustomsApurementMode;
+  readonly reference: string;
+}
+
+export function validateApurementEntryInput(
+  raw: {
+    readonly lineId: unknown;
+    readonly quantity: unknown;
+    readonly apuredDate: unknown;
+    readonly mode: unknown;
+    readonly reference: unknown;
+  },
+  today: string = todayIsoDate(),
+): { data: ApurementEntryInput | null; errors: string[]; warnings: string[] } {
+  const line = uuidField(raw.lineId, "Ligne");
+  const quantity = parseQuantity(raw.quantity, "Quantité apurée");
+  const date = dateField(raw.apuredDate, "Date d'apurement", true);
+  const mode = normalizeApurementMode(raw.mode);
+  const reference = textField(raw.reference, "Référence", {
+    required: true,
+    maxLength: CUSTOMS_MAX_APUREMENT_ENTRY_REFERENCE,
+  });
+
+  const errors = [...line.errors, ...quantity.errors, ...date.errors, ...reference.errors];
+  const warnings = [...quantity.warnings];
+  if (!mode) {
+    errors.push("Mode d'apurement : production, exportation, destruction ou transfert attendu.");
+  }
+  if (date.value && date.value > today) {
+    errors.push("Date d'apurement : aujourd'hui au plus tard.");
+  }
+
+  if (errors.length > 0 || !line.value || !quantity.value || !date.value || !mode) {
+    return { data: null, errors, warnings };
+  }
+  return {
+    data: {
+      lineId: line.value,
+      quantity: quantity.value,
+      apuredDate: date.value,
+      mode,
+      reference: reference.value as string,
+    },
+    errors,
+    warnings,
+  };
 }

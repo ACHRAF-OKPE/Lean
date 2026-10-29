@@ -18,7 +18,11 @@ import { SalesError } from "@/modules/sales/errors";
 import { applyTaskImport, loadTaskImportContext } from "@/modules/tasks/imports";
 import { TasksError } from "@/modules/tasks/errors";
 import { CustomsError } from "@/modules/customs/errors";
-import { applyCustomsLineImport, loadCustomsImportContext } from "@/modules/customs/imports";
+import {
+  applyCustomsApurementImport,
+  applyCustomsLineImport,
+  loadCustomsImportContext,
+} from "@/modules/customs/imports";
 import { CatalogError } from "./errors";
 import { loadValidationContext } from "./queries";
 import {
@@ -103,7 +107,9 @@ export async function analyzeImport(
   const context = await loadValidationContext(db, input.tenantId);
   const taskContext = input.kind === "tasks" ? await loadTaskImportContext(db, input.tenantId) : {};
   const customsContext =
-    input.kind === "customs_lines" ? await loadCustomsImportContext(db, input.tenantId) : {};
+    input.kind === "customs_lines" || input.kind === "customs_apurements"
+      ? await loadCustomsImportContext(db, input.tenantId)
+      : {};
   const validation = validateImportRows(input.kind, input.rows, {
     ...context,
     ...taskContext,
@@ -427,7 +433,8 @@ export async function applyImportBatch(
       batch.kind === "purchase_lines" ||
       batch.kind === "sales_lines" ||
       batch.kind === "tasks" ||
-      batch.kind === "customs_lines"
+      batch.kind === "customs_lines" ||
+      batch.kind === "customs_apurements"
     ) {
       const [previous] = await tx
         .select({ id: importBatches.id })
@@ -456,6 +463,11 @@ export async function applyImportBatch(
         if (batch.kind === "customs_lines") {
           throw new CustomsError(
             "Ce fichier a déjà été importé en lignes de déclaration : un même fichier ne s'applique qu'une fois.",
+          );
+        }
+        if (batch.kind === "customs_apurements") {
+          throw new CustomsError(
+            "Ce fichier a déjà été importé en apurements progressifs : un même fichier ne s'applique qu'une fois.",
           );
         }
         throw new TasksError(
@@ -510,8 +522,15 @@ export async function applyImportBatch(
       await upsertArticles(tx, input.tenantId, rows);
     } else if (batch.kind === "hs_codes") {
       await upsertHsCodes(tx, input.tenantId, rows);
-    } else {
+    } else if (batch.kind === "customs_lines") {
       await applyCustomsLineImport(tx, {
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        batchId: batch.id,
+        rows,
+      });
+    } else {
+      await applyCustomsApurementImport(tx, {
         tenantId: input.tenantId,
         actorUserId: input.actorUserId,
         batchId: batch.id,

@@ -1,11 +1,13 @@
-import type { CustomsDeclarationStatus } from "@/db/schema";
+import type { CustomsApurementMode, CustomsDeclarationStatus } from "@/db/schema";
 import type {
   RawImportRow,
   ValidationContext,
   ValidationResult,
   ValidatedRow,
 } from "@/modules/catalog/validation";
-import { validateDeclarationLine } from "./validation";
+import { microsToQuantity, quantityToMicros } from "@/modules/stock/quantities";
+import { todayIsoDate } from "@/lib/dates";
+import { validateApurementEntryInput, validateDeclarationLine } from "./validation";
 
 export interface CustomsDeclarationReference {
   readonly id: string;
@@ -20,6 +22,32 @@ export interface CustomsHsCodeReference {
 export interface CustomsDeclarationLinesReference {
   readonly hsCodes: ReadonlySet<string>;
   readonly designations: ReadonlySet<string>;
+}
+
+export interface CustomsApurementLineReference {
+  readonly id: string;
+  readonly quantity: string;
+  readonly apuredQuantity: string;
+  readonly unitCode: string;
+}
+
+export interface CustomsApurementDeclarationReference {
+  readonly id: string;
+  readonly status: CustomsDeclarationStatus;
+  readonly requiresApurement: boolean;
+  readonly lines: ReadonlyMap<number, CustomsApurementLineReference>;
+}
+
+export interface CustomsApurementImportData {
+  declarationId: string;
+  declarationNumber: string;
+  lineId: string;
+  lineNumber: number;
+  quantity: string;
+  unitCode: string;
+  apuredDate: string;
+  mode: CustomsApurementMode;
+  reference: string;
 }
 
 export interface CustomsLineImportData {
@@ -157,6 +185,151 @@ export function validateCustomsLineImportRows(
     const plural = countsByDeclaration.size > 1;
     notes.push(
       `${countsByDeclaration.size} déclaration${plural ? "s" : ""} en brouillon ${plural ? "recevront" : "recevra"} des lignes à la confirmation : ${labels.join(" ; ")}${extra}.`,
+    );
+  }
+
+  for (const row of validated) {
+    row.status = row.errors.length > 0 ? "error" : row.warnings.length > 0 ? "warning" : "valid";
+  }
+
+  return {
+    rows: validated,
+    errorCount: validated.filter((row) => row.status === "error").length,
+    warningCount: validated.filter((row) => row.status === "warning").length,
+    notes,
+  };
+}
+
+const UNRESOLVED_LINE_ID = "00000000-0000-0000-0000-000000000000";
+
+function lineNumberOf(raw: unknown): number | null {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  const text = String(raw).trim();
+  if (!/^\d+$/.test(text)) {
+    return null;
+  }
+  const value = Number(text);
+  return Number.isSafeInteger(value) && value >= 1 && value <= 1_000_000 ? value : null;
+}
+
+export function validateCustomsApurementImportRows(
+  rows: readonly RawImportRow[],
+  context: ValidationContext,
+): ValidationResult {
+  const declarations = context.customsApurementsByNumber ?? new Map();
+  const today = todayIsoDate();
+
+  const validated: ValidatedRow[] = rows.map((row) => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const number = declarationNumberOf(row.values["numero_declaration"]);
+    let declaration: CustomsApurementDeclarationReference | undefined;
+    if (!number) {
+      errors.push("Numéro de déclaration : obligatoire.");
+    } else if (!DECLARATION_NUMBER_PATTERN.test(number)) {
+      errors.push("Numéro de déclaration : format DEC-AAAA-NNNN attendu (ex. DEC-2026-0001).");
+    } else {
+      declaration = declarations.get(number);
+      if (!declaration) {
+        errors.push(`Déclaration ${number} introuvable dans cet espace.`);
+      } else if (!declaration.requiresApurement) {
+        errors.push(
+          `Déclaration ${number} : son régime ne prévoit pas d'apurement progressif (IM9).`,
+        );
+      } else if (declaration.status !== "liquidated" && declaration.status !== "cleared") {
+        errors.push(
+          `Déclaration ${number} : l'apurement s'ouvre après la liquidation, pas au statut actuel.`,
+        );
+      }
+    }
+
+    const lineNumber = lineNumberOf(row.values["ligne"]);
+    let line: CustomsApurementLineReference | undefined;
+    if (lineNumber === null) {
+      errors.push("Ligne : numéro de ligne entier, positif, attendu.");
+    } else if (declaration) {
+      line = declaration.lines.get(lineNumber);
+      if (!line) {
+        errors.push(`Ligne ${lineNumber} introuvable sur la déclaration ${number}.`);
+      }
+    }
+
+    const entry = validateApurementEntryInput(
+      {
+        lineId: line?.id ?? UNRESOLVED_LINE_ID,
+        quantity: row.values["quantite"],
+        apuredDate: row.values["date_apurement"],
+        mode: row.values["mode"],
+        reference: row.values["reference"],
+      },
+      today,
+    );
+    errors.push(...entry.errors);
+    warnings.push(...entry.warnings);
+
+    const data: CustomsApurementImportData = {
+      declarationId: declaration?.id ?? "",
+      declarationNumber: number,
+      lineId: line?.id ?? "",
+      lineNumber: lineNumber ?? 0,
+      quantity: entry.data?.quantity ?? "",
+      unitCode: line?.unitCode ?? "",
+      apuredDate: entry.data?.apuredDate ?? "",
+      mode: entry.data?.mode ?? "production",
+      reference: entry.data?.reference ?? "",
+    };
+
+    return {
+      rowNumber: row.rowNumber,
+      status: "valid",
+      code: number || null,
+      errors,
+      warnings,
+      data: { ...data },
+    };
+  });
+
+  const cumulative = new Map<string, bigint>();
+  for (const row of validated) {
+    if (row.errors.length > 0) {
+      continue;
+    }
+    const data = row.data as unknown as CustomsApurementImportData;
+    const declaration = declarations.get(data.declarationNumber);
+    const line = declaration?.lines.get(data.lineNumber);
+    if (!declaration || !line) {
+      continue;
+    }
+    const key = `${declaration.id}:${line.id}`;
+    const declared = quantityToMicros(line.quantity);
+    const base = quantityToMicros(line.apuredQuantity);
+    const running = cumulative.get(key) ?? 0n;
+    const requested = quantityToMicros(data.quantity);
+    if (base + running + requested > declared) {
+      const remaining = declared - base - running;
+      row.errors.push(
+        `Quantité apurée : dépasse le restant de la ligne ${data.lineNumber} (restant ${microsToQuantity(remaining > 0n ? remaining : 0n)} ${line.unitCode}, fichier inclus).`,
+      );
+      continue;
+    }
+    cumulative.set(key, running + requested);
+  }
+
+  const notes: string[] = [];
+  const lineKeys = new Set<string>();
+  for (const row of validated) {
+    if (row.errors.length > 0) {
+      continue;
+    }
+    const data = row.data as unknown as CustomsApurementImportData;
+    lineKeys.add(`${data.declarationNumber}:${data.lineNumber}`);
+  }
+  if (lineKeys.size > 0) {
+    notes.push(
+      `${lineKeys.size} ligne${lineKeys.size > 1 ? "s" : ""} de sommier ${lineKeys.size > 1 ? "recevront" : "recevra"} des écritures d'apurement à la confirmation.`,
     );
   }
 
