@@ -731,11 +731,12 @@ async function Cockpit() {
               <p className="font-mono text-[10px] tracking-[0.18em] text-white/60 uppercase">
                 Feuille de route
               </p>
-              <h2 className="mt-2 text-lg font-medium tracking-tight">Les dix lots sont livrés.</h2>
+              <h2 className="mt-2 text-lg font-medium tracking-tight">Onze lots sont livrés.</h2>
               <p className="mt-2 text-[11px] leading-5 text-white/70">
                 Socle, référentiels, achats, ventes, entreprise, douane, comptabilité SYSCOHADA,
-                supply chain, puis les états de gestion et la clôture annuelle. La suite se décide
-                avec le porteur.
+                supply chain, états de gestion et clôture, puis les droits par module et
+                l&apos;équipe. La suite annoncée : RH socle, paie, puis le paramétrage de chaque
+                module.
               </p>
               <div className="mt-auto flex items-center gap-2 pt-5 font-mono text-[10px] text-white/45">
                 <Database className="size-3" aria-hidden="true" />
