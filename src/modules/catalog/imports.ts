@@ -29,6 +29,8 @@ import {
   applyJournalEntryImport,
   loadAccountingImportContext,
 } from "@/modules/accounting/imports";
+import { HrError } from "@/modules/hr/errors";
+import { applyHrEmployeeImport, loadHrImportContext } from "@/modules/hr/imports";
 import { CatalogError } from "./errors";
 import { MODULE_BY_IMPORT_KIND } from "./constants";
 import type { ModuleKey } from "@/modules/identity/modules";
@@ -122,11 +124,14 @@ export async function analyzeImport(
     input.kind === "accounts" || input.kind === "journal_entries"
       ? await loadAccountingImportContext(db, input.tenantId)
       : {};
+  const hrContext =
+    input.kind === "hr_employees" ? await loadHrImportContext(db, input.tenantId) : {};
   const validation = validateImportRows(input.kind, input.rows, {
     ...context,
     ...taskContext,
     ...customsContext,
     ...accountingContext,
+    ...hrContext,
   });
 
   return db.transaction(async (tx) => {
@@ -465,7 +470,8 @@ export async function applyImportBatch(
       batch.kind === "customs_lines" ||
       batch.kind === "customs_apurements" ||
       batch.kind === "accounts" ||
-      batch.kind === "journal_entries"
+      batch.kind === "journal_entries" ||
+      batch.kind === "hr_employees"
     ) {
       const [previous] = await tx
         .select({ id: importBatches.id })
@@ -509,6 +515,11 @@ export async function applyImportBatch(
         if (batch.kind === "journal_entries") {
           throw new AccountingError(
             "Ce fichier a déjà été importé en écritures : un même fichier ne s'applique qu'une fois.",
+          );
+        }
+        if (batch.kind === "hr_employees") {
+          throw new HrError(
+            "Ce fichier a déjà été importé en personnel : un même fichier ne s'applique qu'une fois.",
           );
         }
         throw new TasksError(
@@ -580,6 +591,14 @@ export async function applyImportBatch(
       });
     } else if (batch.kind === "accounts") {
       const result = await applyAccountImport(tx, {
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        batchId: batch.id,
+        rows,
+      });
+      written = result.written;
+    } else if (batch.kind === "hr_employees") {
+      const result = await applyHrEmployeeImport(tx, {
         tenantId: input.tenantId,
         actorUserId: input.actorUserId,
         batchId: batch.id,

@@ -22,6 +22,7 @@ export const IMPORT_KIND_LABELS: Record<ImportKind, string> = {
   customs_apurements: "Apurements progressifs",
   accounts: "Plan comptable",
   journal_entries: "Écritures comptables",
+  hr_employees: "Personnel",
 };
 
 /** Chaque import écrit dans un module : son garde-fou de droits suit la cible, pas l'écran. */
@@ -36,6 +37,7 @@ export const MODULE_BY_IMPORT_KIND: Record<ImportKind, ModuleKey> = {
   customs_apurements: "customs",
   accounts: "accounting",
   journal_entries: "accounting",
+  hr_employees: "hr",
 };
 
 const IMPORT_KINDS = [
@@ -49,6 +51,7 @@ const IMPORT_KINDS = [
   "customs_apurements",
   "accounts",
   "journal_entries",
+  "hr_employees",
 ] as const;
 
 export function isImportKind(value: string): value is ImportKind {
@@ -66,6 +69,7 @@ export const IMPORT_KIND_PATHS: Record<ImportKind, string> = {
   customs_apurements: "/douane/apurement",
   accounts: "/comptabilite/comptes",
   journal_entries: "/comptabilite/ecritures",
+  hr_employees: "/rh/personnel",
 };
 
 export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
@@ -79,6 +83,7 @@ export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
   customs_apurements: "/api/modeles/apurements",
   accounts: "/api/modeles/comptes",
   journal_entries: "/api/modeles/ecritures",
+  hr_employees: "/api/modeles/personnel",
 };
 
 const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
@@ -92,6 +97,7 @@ const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
   apurements: "customs_apurements",
   comptes: "accounts",
   ecritures: "journal_entries",
+  personnel: "hr_employees",
 };
 
 export function resolveTemplateKind(slug: string): ImportKind | null {
@@ -255,6 +261,18 @@ export const JOURNAL_ENTRY_HEADERS = [
   "credit",
 ] as const;
 
+export const HR_EMPLOYEE_HEADERS = [
+  "matricule",
+  "nom",
+  "prenom",
+  "poste",
+  "date_embauche",
+  "code_service",
+  "matricule_manager",
+  "compte_email",
+  "statut",
+] as const;
+
 export const HEADERS_BY_KIND = {
   partners: PARTNER_HEADERS,
   articles: ARTICLE_HEADERS,
@@ -266,6 +284,7 @@ export const HEADERS_BY_KIND = {
   customs_apurements: CUSTOMS_APUREMENT_HEADERS,
   accounts: ACCOUNT_HEADERS,
   journal_entries: JOURNAL_ENTRY_HEADERS,
+  hr_employees: HR_EMPLOYEE_HEADERS,
 } as const;
 
 export const SHEET_DATA = "Données";

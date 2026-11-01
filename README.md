@@ -3,10 +3,10 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 10 livré — responsabilisation. La feuille de route (lots 0 à 10) est
-complète.** Les droits par module, l'équipe et les responsables sont en production. Le
-prochain lot annoncé est le Lot 11 — RH socle (organisation, personnel, contrats, temps de
-travail), puis la paie et le paramétrage systématique de chaque module.
+**Statut : Lot 11A livré — RH socle (organisation, personnel, contrats).** Les droits par
+module, l'équipe et les responsables sont en production depuis le Lot 10. Le lot 11 reste
+ouvert avec 11B — temps de travail et congés — puis la paie (Lot 12) et le paramétrage
+systématique de chaque module (Lot 13).
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -465,13 +465,14 @@ clôture annuelle :
 Le Lot 10 répond à la demande du porteur : savoir qui est responsable de quel module, qui peut
 voir quoi, qui peut lire, écrire ou gérer.
 
-- **Treize modules, quatre niveaux.** Tiers, Articles, Nomenclature douanière, Douane, Achats,
-  Appels d'offres, Besoins d'achat, Échanges, Ventes, Factures, Stock, Tâches, Comptabilité ;
-  aucun accès < lecture < écriture < gestion. Le catalogue est unique (`TEN-008`) : un module
-  hors liste (paie, RH) ne peut être ni concédé ni gardé tant qu'il n'existe pas.
+- **Quatorze modules, quatre niveaux.** Tiers, Articles, Nomenclature douanière, Douane, Achats,
+  Appels d'offres, Besoins d'achat, Échanges, Ventes, Factures, Stock, Tâches, Comptabilité,
+  Ressources humaines ; aucun accès < lecture < écriture < gestion. Le catalogue est unique
+  (`TEN-008`) : un module hors liste (la paie) ne peut être ni concédé ni gardé tant qu'il
+  n'existe pas.
 - **Le défaut dépend du rôle.** Propriétaire et administrateur gèrent tout. Un membre lit les
-  onze modules courants et ne voit ni la douane ni la comptabilité — les deux modules sensibles
-  sont scellés par défaut.
+  onze modules courants et ne voit ni la douane, ni la comptabilité, ni les ressources humaines
+  — les trois modules sensibles sont scellés par défaut.
 - **La concession écrase le défaut, y compris vers le bas.** Une concession est une ligne
   `(tenant, membre, module)` : `none` est un sceau conservé, pas une suppression. Retirer la
   concession fait retomber sur le défaut du rôle. Le propriétaire gère de droit : toute
@@ -485,7 +486,7 @@ voir quoi, qui peut lire, écrire ou gérer.
   `/tiers/import` n'ouvre pas l'écriture d'un module non concédé. `src/modules/identity/routes.test.ts`
   échoue si une route n'est ni cartographiée ni explicitement plateforme.
 - **`/equipe`** (réservé à `members.read`) : ajouter un membre ou rattacher un compte existant,
-  changer un rôle, ouvrir la matrice des droits des treize modules pour chaque membre, désigner
+  changer un rôle, ouvrir la matrice des droits des quatorze modules pour chaque membre, désigner
   le responsable de chaque module, retirer un membre. L'enregistrement groupé n'écrit et
   n'audite que les concessions réellement changées.
 - **Gardes d'intégrité de l'équipe (`TEN-010`).** Pas de doublon dans l'espace, un compte déjà
@@ -499,6 +500,55 @@ voir quoi, qui peut lire, écrire ou gérer.
   cascade ses concessions et ses responsabilités.
 - **Le cockpit** n'affiche que les modules lisibles et présente la section « Mes droits par
   module » ; `/acces-refuse` reste l'autorité, l'interface ne faisant que masquer.
+
+## Ressources humaines
+
+Le Lot 11A ouvre `/rh` pour l'organisation, le personnel et les contrats de travail (HR-001 à
+HR-008). RH est le quatorzième module du catalogue des droits : un membre n'y a aucun accès par
+défaut et chaque écran est gardé par son niveau (`TEN-013`).
+
+- **Organisation** — `/rh/organisation` rend l'arbre des services avec l'effectif de chaque nœud,
+  cumulé avec ses descendants. Un service porte un code (2 à 10 caractères, normalisé en
+  majuscules) et un nom, uniques dans l'espace, un parent facultatif — jamais lui-même ni l'un de
+  ses descendants — et un responsable choisi parmi les salariés de l'espace. Un service qui a des
+  enfants ou des salariés rattachés ne se supprime pas : il se désactive, disparaît des
+  formulaires, et ses fiches conservent la référence (`HR-002`).
+- **Personnel** — `/rh/personnel` filtre par service, statut et recherche sur le matricule, le nom
+  ou le prénom, et affiche des compteurs recalculés à la lecture : effectif actif, suspendus,
+  sortis, contrats en cours, périodes d'essai, arrivées et sorties du mois civil d'Abidjan. Une
+  fiche porte un matricule unique, un nom et un prénom, un poste facultatif, une date d'embauche,
+  un statut, un service et un manager — un salarié de l'espace, jamais lui-même, jamais un salarié
+  sorti. « Sorti » exige une date de sortie postérieure à l'embauche ; une fiche qui a des
+  contrats ne se supprime pas, elle passe par « sorti » (`HR-003`).
+- **Compte de connexion** — une fiche se rattache en un-à-un à un compte membre de l'espace, depuis
+  la fiche. Le rattachement ne change aucun droit : les niveaux de `hr` se posent dans `/equipe`,
+  et deux fiches ne partagent pas le même compte. Supprimer le membre laisse la fiche intacte et
+  son lien à null (`HR-003`, `HR-008`).
+- **Contrats** — `/rh/contrats` liste les contrats filtrés par statut affiché et par salarié. Un
+  contrat rattache une fiche à un type (CDI, CDD, intérim, stage, mission), avec une date de début,
+  une fin obligatoire pour CDD, intérim et stage, une période d'essai en jours (0 à 365, jamais
+  supérieure à la durée du contrat), une durée hebdomadaire en heures (0 à 80) et un salaire brut
+  entier en XOF. Un seul contrat en cours par salarié et par espace, tenu par un index unique.
+  Brouillon → en cours → éché ou résilié : « éché » se dérive de la date de fin à la lecture,
+  jamais il ne se stocke. Sortir du brouillon, résilier et supprimer relèvent de la gestion ; les
+  caractéristiques d'un contrat qui a quitté le brouillon sont figées, une correction passe par un
+  nouveau contrat, et seul un brouillon se supprime (`HR-004`).
+- **Le salaire est une donnée sociale sensible (`HR-005`).** Il ne s'affiche qu'à partir du niveau
+  écriture, sur le contrat et la fiche de son salarié — jamais dans la liste du personnel, les
+  compteurs d'effectif, le hub, les exports XLSX ni le détail des évènements d'audit. La requête de
+  liste ne le renvoie pas non plus.
+- **Import XLSX du personnel** — `/rh/personnel/import` avec un modèle à neuf colonnes (matricule,
+  nom, prénom, poste, date d'embauche, code service, matricule du manager, e-mail du compte,
+  statut), analyse sans écriture puis rapport ligne à ligne. Un matricule déjà présent est un
+  avertissement et met à jour la fiche au lieu de la dupliquer ; un service ou un manager inconnu,
+  un auto-rattachement, un e-mail hors espace ou un statut inconnu bloquent la ligne. Un fichier ne
+  s'applique qu'une fois, l'application est gardée en écriture sur `hr` et n'écrit aucun montant
+  (`HR-006`).
+- **Les écrans masquent ce que le serveur refuse.** Sur `/rh`, un membre en lecture ne voit ni
+  formulaires, ni bouton de création, ni transitions, ni salaire ; en écriture il saisit services,
+  fiches, rattachements et brouillons de contrat, mais la mise en cours, la résiliation et la
+  suppression restent invisibles. Cette règle, constatée comme écart au Lot 10, est appliquée ici ;
+  son extension aux autres modules est attendue au Lot 13.
 
 ## Scripts
 
@@ -535,7 +585,8 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `journal_entry_line_letterings` et `lettering_sequences`, puis `tender_requests`,
 `tender_request_lines`, `tender_invitations`, `tender_quotes`, `tender_quote_lines` et
 `tender_awards`, puis `article_supply_policies`, `supply_runs` et `supply_run_lines`, puis
-`module_grants` et `module_responsibles`. Les
+`module_grants` et `module_responsibles`, puis `hr_departments`, `hr_employees` et
+`hr_contracts`. Les
 migrations générées sont commitées dans
 `drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
 `0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
@@ -546,7 +597,8 @@ l'apurement progressif des IM9, `0014` pour le socle comptable et `0015` pour le
 les écritures automatiques, le lettrage et le cut-off, `0016` pour les appels d'offres et la
 cotation fournisseur, `0017` pour les politiques d'approvisionnement, les calculs de besoins et
 les propositions d'achat, `0018` pour les sources d'écriture de clôture et d'à-nouveaux, `0019`
-pour les droits par module et les responsables. Les
+pour les droits par module et les responsables, `0020` pour l'organisation, le personnel et les
+contrats de travail. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire, d'idempotence des évènements, d'unicité des
 écritures de clôture, d'appartenance à l'espace (clé composite `(tenant_id, user_id)` vers

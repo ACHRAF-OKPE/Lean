@@ -141,6 +141,13 @@
       "when": 1793520257917,
       "tag": "0019_needy_doomsday",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793530892212,
+      "tag": "0020_rich_clint_barton",
+      "breakpoints": true
     }
   ]
 }

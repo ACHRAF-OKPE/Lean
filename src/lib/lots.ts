@@ -74,4 +74,22 @@ export const LOTS: readonly Lot[] = [
     scope: "Droits par module, équipe, responsables, matrice des droits",
     status: "done",
   },
+  {
+    id: 11,
+    title: "RH socle",
+    scope: "Organisation, personnel et contrats livrés (11A) ; temps de travail et congés (11B)",
+    status: "next",
+  },
+  {
+    id: 12,
+    title: "Paie",
+    scope: "Périodes, rubriques et taux paramétrés, bulletins, export et écritures",
+    status: "planned",
+  },
+  {
+    id: 13,
+    title: "Paramétrage systématique",
+    scope: "Réglages de chaque module et masquage des actions hors niveau de droit",
+    status: "planned",
+  },
 ];

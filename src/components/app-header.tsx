@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   ShoppingCart,
+  UserCog,
   Users,
   Warehouse,
 } from "lucide-react";
@@ -43,6 +44,7 @@ export type ActiveSection =
   | "stock"
   | "tasks"
   | "accounting"
+  | "hr"
   | "team"
   | "settings"
   | "notifications"
@@ -93,6 +95,13 @@ const NAV_ITEMS: readonly {
     label: "Comptabilité",
     icon: BookOpen,
     module: "accounting",
+  },
+  {
+    key: "hr",
+    href: "/rh",
+    label: "Ressources humaines",
+    icon: UserCog,
+    module: "hr",
   },
   { key: "settings", href: "/parametres", label: "Paramètres", icon: Settings },
 ];

@@ -20,6 +20,7 @@ export const MODULE_KEYS = [
   "stock",
   "tasks",
   "accounting",
+  "hr",
 ] as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[number];
@@ -43,6 +44,7 @@ const CATALOG: Record<ModuleKey, ModuleDescriptor> = {
   stock: { label: "Stock", memberDefault: "read" },
   tasks: { label: "Tâches", memberDefault: "read" },
   accounting: { label: "Comptabilité", memberDefault: "none" },
+  hr: { label: "Ressources humaines", memberDefault: "none" },
 };
 
 const RANK: Record<Level, number> = { none: 0, read: 1, write: 2, manage: 3 };

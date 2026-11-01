@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import { LOTS } from "./lots";
 
 describe("plan de lots", () => {
-  it("numérote les lots de 0 à 10 sans trou ni doublon", () => {
+  it("numérote les lots de 0 à 13 sans trou ni doublon", () => {
     const ids = LOTS.map((lot) => lot.id);
-    expect(ids).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(ids).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("laisse un seul lot annoncé comme prochain", () => {
+    expect(LOTS.filter((lot) => lot.status === "next")).toHaveLength(1);
   });
 
   it("donne à chaque lot un titre et un périmètre non vides", () => {

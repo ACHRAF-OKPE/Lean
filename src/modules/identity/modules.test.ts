@@ -26,14 +26,15 @@ describe("TEN-008 — niveaux d'accès par module", () => {
     }
   });
 
-  it("scelle la comptabilité et la douane pour un membre sans concession", () => {
+  it("scelle la comptabilité, la douane et les RH pour un membre sans concession", () => {
     expect(defaultLevel("member", "accounting")).toBe("none");
     expect(defaultLevel("member", "customs")).toBe("none");
+    expect(defaultLevel("member", "hr")).toBe("none");
   });
 
   it("donne au membre la lecture des autres modules", () => {
     for (const key of MODULE_KEYS) {
-      if (key === "accounting" || key === "customs") {
+      if (key === "accounting" || key === "customs" || key === "hr") {
         continue;
       }
       expect(defaultLevel("member", key)).toBe("read");
@@ -84,5 +85,24 @@ describe("TEN-008 — niveaux d'accès par module", () => {
     expect(isLevel("read")).toBe(true);
     expect(isLevel("rw")).toBe(false);
     expect(LEVELS).toEqual(["none", "read", "write", "manage"]);
+  });
+});
+
+describe("HR-001 — le module RH rejoint le catalogue des droits", () => {
+  it("compte quatorze modules dont les ressources humaines", () => {
+    expect(MODULE_KEYS).toHaveLength(14);
+    expect(isModuleKey("hr")).toBe(true);
+    expect(moduleLabel("hr")).toBe("Ressources humaines");
+    expect(MODULE_KEYS).not.toContain("payroll");
+  });
+
+  it("ouvre le module RH par concession et le referme par le sceau", () => {
+    expect(effectiveLevel("member", "hr", null)).toBe("none");
+    expect(effectiveLevel("member", "hr", "read")).toBe("read");
+    expect(effectiveLevel("member", "hr", "write")).toBe("write");
+    expect(effectiveLevel("member", "hr", "manage")).toBe("manage");
+    expect(effectiveLevel("member", "hr", "none")).toBe("none");
+    expect(effectiveLevel("owner", "hr", "none")).toBe("manage");
+    expect(atLeast(defaultLevel("admin", "hr"), "manage")).toBe(true);
   });
 });

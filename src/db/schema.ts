@@ -279,7 +279,8 @@ export type ImportKind =
   | "customs_lines"
   | "customs_apurements"
   | "accounts"
-  | "journal_entries";
+  | "journal_entries"
+  | "hr_employees";
 export type ImportBatchStatus = "analyzed" | "applied";
 export type ImportRowStatus = "valid" | "warning" | "error";
 export type PurchaseOrderStatus = "draft" | "requested" | "confirmed" | "closed" | "cancelled";
@@ -312,6 +313,9 @@ export type CustomsTaxBase = "cif" | "cif_plus_duty";
 export type CustomsDeclarationStatus =
   "draft" | "deposited" | "liquidated" | "cleared" | "cancelled";
 export type CustomsBondStatus = "open" | "apured";
+export type HrEmployeeStatus = "active" | "suspended" | "left";
+export type HrContractKind = "cdi" | "cdd" | "temporary" | "internship" | "mission";
+export type HrContractStatus = "draft" | "running" | "terminated";
 export type CustomsApurementMode = "production" | "export" | "destruction" | "transfer";
 export type FiscalYearStatus = "open" | "closed";
 export type AccountingJournalType = "sale" | "purchase" | "bank" | "cash" | "misc";
@@ -595,7 +599,7 @@ export const importBatches = pgTable(
     index("import_batches_tenant_created_idx").on(table.tenantId, table.createdAt),
     check(
       "import_batches_kind_check",
-      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines', 'tasks', 'customs_lines', 'customs_apurements', 'accounts', 'journal_entries')`,
+      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines', 'tasks', 'customs_lines', 'customs_apurements', 'accounts', 'journal_entries', 'hr_employees')`,
     ),
     check("import_batches_status_check", sql`${table.status} in ('analyzed', 'applied')`),
     check(
@@ -2967,6 +2971,161 @@ export const letteringSequences = pgTable(
   (table) => [check("lettering_sequences_value_check", sql`${table.lastValue} >= 0`)],
 );
 
+export const hrDepartments = pgTable(
+  "hr_departments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    parentId: uuid("parent_id"),
+    responsibleEmployeeId: uuid("responsible_employee_id"),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hr_departments_tenant_code_idx").on(table.tenantId, table.code),
+    uniqueIndex("hr_departments_tenant_name_idx").on(table.tenantId, table.name),
+    uniqueIndex("hr_departments_tenant_id_idx").on(table.tenantId, table.id),
+    index("hr_departments_tenant_parent_idx").on(table.tenantId, table.parentId),
+    check("hr_departments_code_check", sql`${table.code} ~ '^[A-Z0-9][A-Z0-9._-]{1,9}$'`),
+    check("hr_departments_name_check", sql`length(trim(${table.name})) between 1 and 80`),
+    foreignKey({
+      name: "hr_departments_tenant_parent_fk",
+      columns: [table.tenantId, table.parentId],
+      foreignColumns: [table.tenantId, table.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const hrEmployees = pgTable(
+  "hr_employees",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    lastName: text("last_name").notNull(),
+    firstName: text("first_name").notNull(),
+    position: text("position"),
+    hireDate: date("hire_date").notNull(),
+    status: text("status").$type<HrEmployeeStatus>().notNull().default("active"),
+    departureDate: date("departure_date"),
+    departmentId: uuid("department_id"),
+    managerEmployeeId: uuid("manager_employee_id"),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hr_employees_tenant_code_idx").on(table.tenantId, table.code),
+    uniqueIndex("hr_employees_tenant_id_idx").on(table.tenantId, table.id),
+    uniqueIndex("hr_employees_tenant_user_idx").on(table.tenantId, table.userId),
+    index("hr_employees_tenant_department_idx").on(table.tenantId, table.departmentId),
+    index("hr_employees_tenant_status_idx").on(table.tenantId, table.status),
+    check("hr_employees_code_check", sql`${table.code} ~ '^[A-Z0-9][A-Z0-9._/-]{0,15}$'`),
+    check(
+      "hr_employees_names_check",
+      sql`length(trim(${table.lastName})) between 1 and 60 and length(trim(${table.firstName})) between 1 and 60`,
+    ),
+    check(
+      "hr_employees_position_check",
+      sql`${table.position} is null or length(trim(${table.position})) between 1 and 80`,
+    ),
+    check("hr_employees_status_check", sql`${table.status} in ('active', 'suspended', 'left')`),
+    check(
+      "hr_employees_departure_check",
+      sql`(${table.status} = 'left') = (${table.departureDate} is not null) and (${table.departureDate} is null or ${table.departureDate} > ${table.hireDate})`,
+    ),
+    foreignKey({
+      name: "hr_employees_tenant_department_fk",
+      columns: [table.tenantId, table.departmentId],
+      foreignColumns: [hrDepartments.tenantId, hrDepartments.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "hr_employees_tenant_manager_fk",
+      columns: [table.tenantId, table.managerEmployeeId],
+      foreignColumns: [table.tenantId, table.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const hrContracts = pgTable(
+  "hr_contracts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id").notNull(),
+    kind: text("kind").$type<HrContractKind>().notNull(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date"),
+    trialPeriodDays: integer("trial_period_days").notNull().default(0),
+    weeklyHours: numeric("weekly_hours", { precision: 18, scale: 6 }).notNull().default("0"),
+    salaryXof: integer("salary_xof").notNull().default(0),
+    status: text("status").$type<HrContractStatus>().notNull().default("draft"),
+    terminatedOn: date("terminated_on"),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hr_contracts_tenant_id_idx").on(table.tenantId, table.id),
+    index("hr_contracts_tenant_employee_idx").on(table.tenantId, table.employeeId),
+    index("hr_contracts_tenant_status_idx").on(table.tenantId, table.status),
+    uniqueIndex("hr_contracts_tenant_employee_running_idx")
+      .on(table.tenantId, table.employeeId)
+      .where(sql`${table.status} = 'running'`),
+    check(
+      "hr_contracts_kind_check",
+      sql`${table.kind} in ('cdi', 'cdd', 'temporary', 'internship', 'mission')`,
+    ),
+    check("hr_contracts_status_check", sql`${table.status} in ('draft', 'running', 'terminated')`),
+    check(
+      "hr_contracts_fixed_term_check",
+      sql`${table.kind} not in ('cdd', 'temporary', 'internship') or ${table.endDate} is not null`,
+    ),
+    check(
+      "hr_contracts_dates_check",
+      sql`(${table.endDate} is null or ${table.endDate} > ${table.startDate}) and (${table.terminatedOn} is null or ${table.terminatedOn} >= ${table.startDate})`,
+    ),
+    check(
+      "hr_contracts_termination_check",
+      sql`(${table.status} = 'terminated') = (${table.terminatedOn} is not null)`,
+    ),
+    check(
+      "hr_contracts_trial_check",
+      sql`${table.trialPeriodDays} between 0 and 365 and (${table.endDate} is null or ${table.trialPeriodDays} <= (${table.endDate} - ${table.startDate}))`,
+    ),
+    check("hr_contracts_hours_check", sql`${table.weeklyHours} between 0 and 80`),
+    check("hr_contracts_salary_check", sql`${table.salaryXof} between 0 and 2000000000`),
+    foreignKey({
+      name: "hr_contracts_tenant_employee_fk",
+      columns: [table.tenantId, table.employeeId],
+      foreignColumns: [hrEmployees.tenantId, hrEmployees.id],
+    }).onDelete("restrict"),
+  ],
+);
+
 export type HsCodeRow = typeof hsCodes.$inferSelect;
 export type PartnerRow = typeof partners.$inferSelect;
 export type ArticleRow = typeof articles.$inferSelect;
@@ -3013,3 +3172,6 @@ export type JournalEntryLineRow = typeof journalEntryLines.$inferSelect;
 export type JournalEntrySequenceRow = typeof journalEntrySequences.$inferSelect;
 export type AccountingSettingsRow = typeof accountingSettings.$inferSelect;
 export type JournalEntryLineLetteringRow = typeof journalEntryLineLetterings.$inferSelect;
+export type HrDepartmentRow = typeof hrDepartments.$inferSelect;
+export type HrEmployeeRow = typeof hrEmployees.$inferSelect;
+export type HrContractRow = typeof hrContracts.$inferSelect;

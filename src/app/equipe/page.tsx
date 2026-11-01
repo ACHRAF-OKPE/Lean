@@ -166,7 +166,8 @@ async function TeamContent({ searchParams }: Pick<PageProps<"/equipe">, "searchP
                 </details>
               ) : member.role === "owner" ? (
                 <p className="mt-4 text-[10px] text-muted">
-                  Le propriétaire gère les treize modules : aucune concession ne s&apos;applique.
+                  Le propriétaire gère les {MODULE_KEYS.length} modules : aucune concession ne
+                  s&apos;applique.
                 </p>
               ) : null}
             </article>

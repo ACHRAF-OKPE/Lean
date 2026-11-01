@@ -8,6 +8,7 @@ import {
   CUSTOMS_APUREMENT_HEADERS,
   CUSTOMS_LINE_HEADERS,
   HEADERS_BY_KIND,
+  HR_EMPLOYEE_HEADERS,
   HS_HEADERS,
   IMPORT_KIND_LABELS,
   JOURNAL_ENTRY_HEADERS,
@@ -46,6 +47,7 @@ const TEMPLATE_FILE_NAMES: Record<ImportKind, string> = {
   customs_apurements: "lean-modele-apurements.xlsx",
   accounts: "lean-modele-comptes.xlsx",
   journal_entries: "lean-modele-ecritures.xlsx",
+  hr_employees: "lean-modele-personnel.xlsx",
 };
 
 export function templateFileName(kind: ImportKind): string {
@@ -388,6 +390,18 @@ const JOURNAL_ENTRY_COLUMN_META: Record<(typeof JOURNAL_ENTRY_HEADERS)[number], 
   credit: { width: 16, integer: true },
 };
 
+const HR_EMPLOYEE_COLUMN_META: Record<(typeof HR_EMPLOYEE_HEADERS)[number], ColumnMeta> = {
+  matricule: { width: 14, text: true },
+  nom: { width: 24 },
+  prenom: { width: 20 },
+  poste: { width: 28 },
+  date_embauche: { width: 18, text: true },
+  code_service: { width: 16, text: true },
+  matricule_manager: { width: 20, text: true },
+  compte_email: { width: 32 },
+  statut: { width: 14, list: '"Actif,Suspendu,Sorti"' },
+};
+
 const COLUMN_META: Record<ImportKind, Record<string, ColumnMeta>> = {
   partners: PARTNER_COLUMN_META,
   articles: ARTICLE_COLUMN_META,
@@ -399,6 +413,7 @@ const COLUMN_META: Record<ImportKind, Record<string, ColumnMeta>> = {
   customs_apurements: CUSTOMS_APUREMENT_COLUMN_META,
   accounts: ACCOUNT_COLUMN_META,
   journal_entries: JOURNAL_ENTRY_COLUMN_META,
+  hr_employees: HR_EMPLOYEE_COLUMN_META,
 };
 
 const PARTNER_COLUMN_HELP: Record<(typeof PARTNER_HEADERS)[number], string> = {
@@ -518,6 +533,23 @@ const JOURNAL_ENTRY_COLUMN_HELP: Record<(typeof JOURNAL_ENTRY_HEADERS)[number], 
     "Montant XOF entier strictement positif, ou vide. Le total du groupe doit égaler le débit.",
 };
 
+const HR_EMPLOYEE_COLUMN_HELP: Record<(typeof HR_EMPLOYEE_HEADERS)[number], string> = {
+  matricule:
+    "Obligatoire. 1 à 16 caractères : lettres, chiffres, point, tiret, barre oblique, souligné. Normalisé en majuscules, il identifie la fiche salarié.",
+  nom: "Obligatoire. 60 caractères maximum.",
+  prenom: "Obligatoire. 60 caractères maximum.",
+  poste: "80 caractères maximum, facultatif.",
+  date_embauche: "Obligatoire. Date AAAA-MM-JJ (ex. 2026-03-01).",
+  code_service:
+    "Facultatif. Code d'un service existant et actif de l'espace. Vide conserve le service déjà rattaché.",
+  matricule_manager:
+    "Facultatif. Matricule d'un salarié existant de l'espace, autre que lui-même et non sorti. Vide conserve le manager déjà rattaché.",
+  compte_email:
+    "Facultatif. Adresse e-mail d'un membre de l'espace, rattachée en un-à-un à la fiche. Vide conserve le compte déjà rattaché.",
+  statut:
+    "Actif, Suspendu ou Sorti. Vide conserve le statut de la fiche. « Sorti » exige une date de sortie déjà enregistrée sur la fiche.",
+};
+
 const COLUMN_HELP: Record<ImportKind, Record<string, string>> = {
   partners: PARTNER_COLUMN_HELP,
   articles: ARTICLE_COLUMN_HELP,
@@ -529,6 +561,7 @@ const COLUMN_HELP: Record<ImportKind, Record<string, string>> = {
   customs_apurements: CUSTOMS_APUREMENT_COLUMN_HELP,
   accounts: ACCOUNT_COLUMN_HELP,
   journal_entries: JOURNAL_ENTRY_COLUMN_HELP,
+  hr_employees: HR_EMPLOYEE_COLUMN_HELP,
 };
 
 const EXAMPLES: Record<ImportKind, Record<string, string>> = {
@@ -627,6 +660,17 @@ const EXAMPLES: Record<ImportKind, Record<string, string>> = {
     debit: "2500000",
     credit: "",
   },
+  hr_employees: {
+    matricule: "EMP0001",
+    nom: "DIALLO",
+    prenom: "Aminata",
+    poste: "Responsable logistique",
+    date_embauche: "2026-03-01",
+    code_service: "LOG",
+    matricule_manager: "EMP0000",
+    compte_email: "associe@exemple.sn",
+    statut: "Actif",
+  },
 };
 
 const KIND_RULES: Record<ImportKind, readonly string[]> = {
@@ -699,6 +743,13 @@ const KIND_RULES: Record<ImportKind, readonly string[]> = {
     "La date doit être couverte par un exercice ouvert ; la numérotation est attribuée à la confirmation.",
     "L'import crée des écritures en brouillon : la validation reste une décision explicite.",
     "Un même fichier ne peut être appliqué qu'une seule fois.",
+  ],
+  hr_employees: [
+    "Le matricule est unique dans l'espace : une fiche existante est mise à jour, jamais dupliquée.",
+    "Le service, le manager et le compte rattaché doivent déjà exister dans l'espace ; l'import n'en crée aucun.",
+    "Un manager ne peut pas être lui-même ni un salarié sorti.",
+    "Le statut vide conserve le statut de la fiche ; « Sorti » exige une date de sortie déjà enregistrée.",
+    "L'import ne touche ni les contrats ni les salaires : un même fichier ne s'applique qu'une seule fois.",
   ],
 };
 

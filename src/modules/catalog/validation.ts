@@ -23,6 +23,12 @@ import {
   validateAccountImportRows,
   validateJournalEntryImportRows,
 } from "@/modules/accounting/import-validation";
+import type {
+  HrDepartmentReference,
+  HrEmployeeReference,
+  HrMemberReference,
+} from "@/modules/hr/import-validation";
+import { validateHrEmployeeImportRows } from "@/modules/hr/import-validation";
 import { validatePurchaseLines } from "@/modules/purchases/import-validation";
 import { validateSalesLines } from "@/modules/sales/import-validation";
 import { validateTaskImportRows } from "@/modules/tasks/import-validation";
@@ -52,6 +58,10 @@ export interface ValidationContext {
   readonly accountingJournalsByCode?: ReadonlyMap<string, AccountingJournalReference>;
   readonly accountingPartnersByCode?: ReadonlyMap<string, AccountingPartnerReference>;
   readonly accountingOpenFiscalYears?: readonly AccountingFiscalYearRange[];
+  readonly hrDepartmentsByCode?: ReadonlyMap<string, HrDepartmentReference>;
+  readonly hrEmployeesByCode?: ReadonlyMap<string, HrEmployeeReference>;
+  readonly hrMembersByEmail?: ReadonlyMap<string, HrMemberReference>;
+  readonly hrLinkedUserIds?: ReadonlyMap<string, string>;
 }
 
 export interface ValidatedRow {
@@ -684,6 +694,9 @@ export function validateImportRows(
   }
   if (kind === "journal_entries") {
     return validateJournalEntryImportRows(rows, context);
+  }
+  if (kind === "hr_employees") {
+    return validateHrEmployeeImportRows(rows, context);
   }
 
   const validated = rows.map((row) => {
