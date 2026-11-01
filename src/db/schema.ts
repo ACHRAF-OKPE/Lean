@@ -12,6 +12,7 @@ import {
   numeric,
   pgTable,
   text,
+  time,
   timestamp,
   uniqueIndex,
   uuid,
@@ -280,7 +281,8 @@ export type ImportKind =
   | "customs_apurements"
   | "accounts"
   | "journal_entries"
-  | "hr_employees";
+  | "hr_employees"
+  | "hr_time_entries";
 export type ImportBatchStatus = "analyzed" | "applied";
 export type ImportRowStatus = "valid" | "warning" | "error";
 export type PurchaseOrderStatus = "draft" | "requested" | "confirmed" | "closed" | "cancelled";
@@ -316,6 +318,13 @@ export type CustomsBondStatus = "open" | "apured";
 export type HrEmployeeStatus = "active" | "suspended" | "left";
 export type HrContractKind = "cdi" | "cdd" | "temporary" | "internship" | "mission";
 export type HrContractStatus = "draft" | "running" | "terminated";
+export type HrCalendarDay =
+  "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+export type HrDayPeriod = "full" | "morning" | "afternoon";
+export type HrHolidayKind = "public_holiday" | "unworked";
+export type HrTimeEntryKind = "worked" | "absence";
+export type HrTimeEntryPeriod = "full" | "morning" | "afternoon" | "hours";
+export type HrTimeEntryStatus = "draft" | "validated";
 export type CustomsApurementMode = "production" | "export" | "destruction" | "transfer";
 export type FiscalYearStatus = "open" | "closed";
 export type AccountingJournalType = "sale" | "purchase" | "bank" | "cash" | "misc";
@@ -599,7 +608,7 @@ export const importBatches = pgTable(
     index("import_batches_tenant_created_idx").on(table.tenantId, table.createdAt),
     check(
       "import_batches_kind_check",
-      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines', 'tasks', 'customs_lines', 'customs_apurements', 'accounts', 'journal_entries', 'hr_employees')`,
+      sql`${table.kind} in ('partners', 'articles', 'hs_codes', 'purchase_lines', 'sales_lines', 'tasks', 'customs_lines', 'customs_apurements', 'accounts', 'journal_entries', 'hr_employees', 'hr_time_entries')`,
     ),
     check("import_batches_status_check", sql`${table.status} in ('analyzed', 'applied')`),
     check(
@@ -3004,6 +3013,120 @@ export const hrDepartments = pgTable(
   ],
 );
 
+export const hrWorkCalendars = pgTable(
+  "hr_work_calendars",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hr_work_calendars_tenant_name_idx").on(table.tenantId, table.name),
+    uniqueIndex("hr_work_calendars_tenant_id_idx").on(table.tenantId, table.id),
+    uniqueIndex("hr_work_calendars_tenant_default_idx")
+      .on(table.tenantId)
+      .where(sql`${table.isDefault}`),
+    check("hr_work_calendars_name_check", sql`length(trim(${table.name})) between 1 and 80`),
+  ],
+);
+
+export const hrWorkCalendarDays = pgTable(
+  "hr_work_calendar_days",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    calendarId: uuid("calendar_id").notNull(),
+    dayOfWeek: text("day_of_week").$type<HrCalendarDay>().notNull(),
+    morningFrom: time("morning_from"),
+    morningTo: time("morning_to"),
+    afternoonFrom: time("afternoon_from"),
+    afternoonTo: time("afternoon_to"),
+    sequence: integer("sequence").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hr_work_calendar_days_tenant_id_idx").on(table.tenantId, table.id),
+    uniqueIndex("hr_work_calendar_days_calendar_day_idx").on(
+      table.tenantId,
+      table.calendarId,
+      table.dayOfWeek,
+    ),
+    check(
+      "hr_work_calendar_days_day_check",
+      sql`${table.dayOfWeek} in ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')`,
+    ),
+    check("hr_work_calendar_days_sequence_check", sql`${table.sequence} between 1 and 7`),
+    check(
+      "hr_work_calendar_days_morning_check",
+      sql`(${table.morningFrom} is null) = (${table.morningTo} is null) and (${table.morningFrom} is null or ${table.morningFrom} <= ${table.morningTo})`,
+    ),
+    check(
+      "hr_work_calendar_days_afternoon_check",
+      sql`(${table.afternoonFrom} is null) = (${table.afternoonTo} is null) and (${table.afternoonFrom} is null or ${table.afternoonFrom} <= ${table.afternoonTo})`,
+    ),
+    check(
+      "hr_work_calendar_days_period_order_check",
+      sql`${table.morningTo} is null or ${table.afternoonFrom} is null or ${table.morningTo} <= ${table.afternoonFrom}`,
+    ),
+    foreignKey({
+      name: "hr_work_calendar_days_tenant_calendar_fk",
+      columns: [table.tenantId, table.calendarId],
+      foreignColumns: [hrWorkCalendars.tenantId, hrWorkCalendars.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const hrPublicHolidays = pgTable(
+  "hr_public_holidays",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    workDate: date("work_date").notNull(),
+    kind: text("kind").$type<HrHolidayKind>().notNull(),
+    period: text("period").$type<HrDayPeriod>().notNull().default("full"),
+    label: text("label").notNull(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hr_public_holidays_tenant_id_idx").on(table.tenantId, table.id),
+    uniqueIndex("hr_public_holidays_tenant_date_period_idx").on(
+      table.tenantId,
+      table.workDate,
+      table.period,
+    ),
+    index("hr_public_holidays_tenant_date_idx").on(table.tenantId, table.workDate),
+    check("hr_public_holidays_kind_check", sql`${table.kind} in ('public_holiday', 'unworked')`),
+    check(
+      "hr_public_holidays_period_check",
+      sql`${table.period} in ('full', 'morning', 'afternoon')`,
+    ),
+    check("hr_public_holidays_label_check", sql`length(trim(${table.label})) between 1 and 80`),
+  ],
+);
+
 export const hrEmployees = pgTable(
   "hr_employees",
   {
@@ -3020,6 +3143,7 @@ export const hrEmployees = pgTable(
     departureDate: date("departure_date"),
     departmentId: uuid("department_id"),
     managerEmployeeId: uuid("manager_employee_id"),
+    workCalendarId: uuid("work_calendar_id"),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     createdByUserId: uuid("created_by_user_id").references(() => users.id, {
       onDelete: "set null",
@@ -3059,6 +3183,11 @@ export const hrEmployees = pgTable(
       name: "hr_employees_tenant_manager_fk",
       columns: [table.tenantId, table.managerEmployeeId],
       foreignColumns: [table.tenantId, table.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "hr_employees_tenant_work_calendar_fk",
+      columns: [table.tenantId, table.workCalendarId],
+      foreignColumns: [hrWorkCalendars.tenantId, hrWorkCalendars.id],
     }).onDelete("restrict"),
   ],
 );
@@ -3126,6 +3255,66 @@ export const hrContracts = pgTable(
   ],
 );
 
+export const hrTimeEntries = pgTable(
+  "hr_time_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id").notNull(),
+    workDate: date("work_date").notNull(),
+    kind: text("kind").$type<HrTimeEntryKind>().notNull().default("worked"),
+    period: text("period").$type<HrTimeEntryPeriod>().notNull(),
+    hours: numeric("hours", { precision: 18, scale: 6 }),
+    status: text("status").$type<HrTimeEntryStatus>().notNull().default("draft"),
+    note: text("note"),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hr_time_entries_tenant_id_idx").on(table.tenantId, table.id),
+    uniqueIndex("hr_time_entries_tenant_period_idx")
+      .on(table.tenantId, table.employeeId, table.workDate, table.period)
+      .where(sql`${table.period} <> 'hours'`),
+    index("hr_time_entries_tenant_employee_date_idx").on(
+      table.tenantId,
+      table.employeeId,
+      table.workDate,
+    ),
+    index("hr_time_entries_tenant_status_idx").on(table.tenantId, table.status),
+    check("hr_time_entries_kind_check", sql`${table.kind} in ('worked', 'absence')`),
+    check(
+      "hr_time_entries_period_check",
+      sql`${table.period} in ('full', 'morning', 'afternoon', 'hours')`,
+    ),
+    check("hr_time_entries_status_check", sql`${table.status} in ('draft', 'validated')`),
+    check(
+      "hr_time_entries_hours_check",
+      sql`(${table.period} = 'hours') = (${table.hours} is not null) and (${table.hours} is null or (${table.hours} between 0.25 and 24 and ${table.hours} * 4 = floor(${table.hours} * 4)))`,
+    ),
+    check(
+      "hr_time_entries_note_check",
+      sql`${table.note} is null or length(trim(${table.note})) between 1 and 120`,
+    ),
+    check(
+      "hr_time_entries_absence_check",
+      sql`${table.kind} = 'worked' or length(trim(${table.note})) between 1 and 120`,
+    ),
+    foreignKey({
+      name: "hr_time_entries_tenant_employee_fk",
+      columns: [table.tenantId, table.employeeId],
+      foreignColumns: [hrEmployees.tenantId, hrEmployees.id],
+    }).onDelete("restrict"),
+  ],
+);
+
 export type HsCodeRow = typeof hsCodes.$inferSelect;
 export type PartnerRow = typeof partners.$inferSelect;
 export type ArticleRow = typeof articles.$inferSelect;
@@ -3175,3 +3364,7 @@ export type JournalEntryLineLetteringRow = typeof journalEntryLineLetterings.$in
 export type HrDepartmentRow = typeof hrDepartments.$inferSelect;
 export type HrEmployeeRow = typeof hrEmployees.$inferSelect;
 export type HrContractRow = typeof hrContracts.$inferSelect;
+export type HrWorkCalendarRow = typeof hrWorkCalendars.$inferSelect;
+export type HrWorkCalendarDayRow = typeof hrWorkCalendarDays.$inferSelect;
+export type HrPublicHolidayRow = typeof hrPublicHolidays.$inferSelect;
+export type HrTimeEntryRow = typeof hrTimeEntries.$inferSelect;

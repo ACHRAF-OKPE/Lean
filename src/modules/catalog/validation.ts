@@ -1,4 +1,10 @@
-import type { ArticleType, ImportKind, ImportRowStatus, PartnerType } from "@/db/schema";
+import type {
+  ArticleType,
+  HrDayPeriod,
+  ImportKind,
+  ImportRowStatus,
+  PartnerType,
+} from "@/db/schema";
 import type { ArticleReference, SupplierReference } from "@/modules/purchases/validation";
 import type { CustomerReference, SalesArticleReference } from "@/modules/sales/validation";
 import type {
@@ -29,6 +35,12 @@ import type {
   HrMemberReference,
 } from "@/modules/hr/import-validation";
 import { validateHrEmployeeImportRows } from "@/modules/hr/import-validation";
+import type {
+  CalendarDaysByWeekDay,
+  HrExistingTimeEntry,
+  HrTimeEmployeeReference,
+} from "@/modules/hr/time-import-validation";
+import { validateHrTimeEntryImportRows } from "@/modules/hr/time-import-validation";
 import { validatePurchaseLines } from "@/modules/purchases/import-validation";
 import { validateSalesLines } from "@/modules/sales/import-validation";
 import { validateTaskImportRows } from "@/modules/tasks/import-validation";
@@ -62,6 +74,12 @@ export interface ValidationContext {
   readonly hrEmployeesByCode?: ReadonlyMap<string, HrEmployeeReference>;
   readonly hrMembersByEmail?: ReadonlyMap<string, HrMemberReference>;
   readonly hrLinkedUserIds?: ReadonlyMap<string, string>;
+  readonly hrTimeEmployeesByCode?: ReadonlyMap<string, HrTimeEmployeeReference>;
+  readonly hrTimeCalendarDays?: ReadonlyMap<string, CalendarDaysByWeekDay>;
+  readonly hrTimeDefaultCalendarId?: string | null;
+  readonly hrTimeHolidaysByDate?: ReadonlyMap<string, readonly HrDayPeriod[]>;
+  readonly hrTimeExistingEntries?: ReadonlyMap<string, readonly HrExistingTimeEntry[]>;
+  readonly hrTimeToday?: string;
 }
 
 export interface ValidatedRow {
@@ -697,6 +715,9 @@ export function validateImportRows(
   }
   if (kind === "hr_employees") {
     return validateHrEmployeeImportRows(rows, context);
+  }
+  if (kind === "hr_time_entries") {
+    return validateHrTimeEntryImportRows(rows, context);
   }
 
   const validated = rows.map((row) => {

@@ -1,7 +1,8 @@
-import type { HrEmployeeStatus } from "@/db/schema";
+import type { HrEmployeeStatus, HrTimeEntryStatus } from "@/db/schema";
 import {
   HR_CONTRACT_DISPLAY_LABELS,
   HR_EMPLOYEE_STATUS_LABELS,
+  HR_TIME_ENTRY_STATUS_LABELS,
   type HrContractDisplayStatus,
 } from "@/modules/hr/constants";
 
@@ -33,5 +34,17 @@ export function ContractStatusBadge({ status }: { status: HrContractDisplayStatu
     <span className={`${BASE} ${CONTRACT_CLASS[status]}`}>
       {HR_CONTRACT_DISPLAY_LABELS[status]}
     </span>
+  );
+}
+
+const ENTRY_CLASS: Record<HrTimeEntryStatus, string> = {
+  draft: "border-line bg-canvas text-muted",
+  validated: "border-brand/20 bg-brand-soft text-brand-strong",
+};
+
+/** HR-011 — un pointage validé ne se corrige qu'après retour au brouillon. */
+export function TimeEntryStatusBadge({ status }: { status: HrTimeEntryStatus }) {
+  return (
+    <span className={`${BASE} ${ENTRY_CLASS[status]}`}>{HR_TIME_ENTRY_STATUS_LABELS[status]}</span>
   );
 }

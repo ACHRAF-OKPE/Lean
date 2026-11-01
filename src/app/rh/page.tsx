@@ -2,7 +2,15 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ArrowUpRight, Briefcase, Network, UserCog, Users } from "lucide-react";
+import {
+  ArrowUpRight,
+  Briefcase,
+  CalendarDays,
+  Fingerprint,
+  Network,
+  UserCog,
+  Users,
+} from "lucide-react";
 import { ContractStatusBadge, EmployeeStatusBadge } from "@/components/hr-badges";
 import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
@@ -25,6 +33,8 @@ const SECTIONS = [
   { href: "/rh/organisation", label: "Organisation", icon: Network },
   { href: "/rh/personnel", label: "Personnel", icon: Users },
   { href: "/rh/contrats", label: "Contrats de travail", icon: Briefcase },
+  { href: "/rh/temps", label: "Temps de travail", icon: CalendarDays },
+  { href: "/rh/pointages", label: "Pointages", icon: Fingerprint },
 ] as const;
 
 export default function HrPage() {

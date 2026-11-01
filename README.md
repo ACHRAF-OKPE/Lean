@@ -3,10 +3,10 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 11A livré — RH socle (organisation, personnel, contrats).** Les droits par
-module, l'équipe et les responsables sont en production depuis le Lot 10. Le lot 11 reste
-ouvert avec 11B — temps de travail et congés — puis la paie (Lot 12) et le paramétrage
-systématique de chaque module (Lot 13).
+**Statut : Lot 11B livré — temps de travail (calendriers, jours fériés, pointages, import).**
+Les droits par module, l'équipe et les responsables sont en production depuis le Lot 10. Le lot 11
+reste ouvert avec 11C — congés — puis la paie (Lot 12) et le paramétrage systématique de chaque
+module (Lot 13).
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -549,6 +549,52 @@ défaut et chaque écran est gardé par son niveau (`TEN-013`).
   fiches, rattachements et brouillons de contrat, mais la mise en cours, la résiliation et la
   suppression restent invisibles. Cette règle, constatée comme écart au Lot 10, est appliquée ici ;
   son extension aux autres modules est attendue au Lot 13.
+
+Le Lot 11B ajoute le temps de travail au même module `hr` : `/rh/temps` pour le paramétrage —
+calendriers hebdomadaires, jours fériés et chômés — et `/rh/pointages` pour la feuille de temps
+(HR-009 à HR-012). Le paramétrage et la validation relèvent de la gestion, la saisie d'un pointage
+relève de l'écriture.
+
+- **Calendrier hebdomadaire (`HR-009`)** — `/rh/temps/calendriers` liste les calendriers de
+  l'espace avec leur valeur hebdomadaire en demi-journées et en heures et le nombre de fiches
+  rattachées. Un calendrier décrit les sept jours, un seul par jour, chacun avec un matin et une
+  après-midi en deux bornes horaires : une demi-journée ne compte comme travaillée que si ses deux
+  bornes sont posées. La saisie refuse une fin antérieure à son début, une après-midi qui commence
+  avant la fin du matin et une demi-journée à une seule borne. Un seul calendrier est celui de
+  l'espace, tenu par un index unique partiel, et une fiche peut en pointer un autre qui prime pour
+  elle seule ; le premier jour de la semaine est le jour de plus faible rang. Le calendrier de
+  l'espace, comme un calendrier encore rattaché, ne se supprime pas.
+- **Jours fériés et chômés (`HR-010`)** — `/rh/temps/feries` pose une ligne par date et par période
+  — journée, matin ou après-midi — avec un libellé. La fraction couverte ne doit rien au décompte :
+  la valeur travaillée du jour en est minorée, et une fraction posée sur une demi-journée déjà non
+  travaillée ne change rien — un férié tombant un dimanche reste à 0. La nature, férié ou chômé,
+  sert au libellé et aux états, pas au calcul. Un calendrier modifié rétroagit sur les décomptes
+  déjà lus, les pointages validés restant acquis.
+- **Pointages (`HR-011`)** — `/rh/pointages` filtre par salarié, statut et période et recalcule à
+  la lecture ses compteurs : brouillons en attente, validés et absences du mois civil d'Abidjan,
+  demi-journées et heures travaillées du mois, salariés pointés. Une ligne rattache une fiche à une
+  date d'au plus aujourd'hui, à une nature — travaillé ou absence — et à une durée exprimée soit en
+  période soit en heures au quart d'heure. La capacité du jour se calcule sur le calendrier
+  applicable au salarié, jour férié déduit : une journée ne vaut pas deux demi-journées et les
+  heures ne dépassent pas la capacité horaire du jour. Deux lignes de même salarié, date et période
+  sont refusées, sauf les lignes en heures qui se cumulent. Une absence explique son motif, un
+  travaillé n'en porte pas. Le pointage naît en brouillon : sa sortie fige la ligne, seul le retour
+  au brouillon en gestion l'ouvre à nouveau, et la suppression reste réservée au brouillon.
+- **Nouvelle ligue** — le bouton de la liste `/rh/pointages`, celui d'une ligne déjà pointée et
+  celui de la fiche d'un salarié ouvrent `/rh/pointages/nouveau` avec le salarié pré-sélectionné et
+  la date pré-remplie. L'écran affiche les demi-journées attendues pour le jour visé, calculées sur
+  le calendrier applicable et les jours fériés de la semaine, et ne laisse ouvertes que les périodes
+  réellement travaillées.
+- **Import XLSX des pointages (`HR-012`)** — `/rh/pointages/import` propose un modèle à six
+  colonnes (matricule, date, nature, période, heures, motif), une analyse sans écriture et un
+  rapport ligne à ligne. Sont bloquants un matricule inconnu de l'espace ou en doublon dans le
+  fichier, une date invalide ou future, une nature ou une période inconnue, une saisie sur un jour
+  non travaillée ou couverte par un férié, des heures hors capacité en cumulant les lignes du
+  fichier et les pointages déjà posés, et une ligne qui reprendrait un pointage validé. Une ligne
+  qui reprend un brouillon de la même période est un avertissement : ce brouillon est mis à jour,
+  pas dupliqué. Un même fichier ne s'applique qu'une fois et l'application n'écrit aucun montant.
+- **Le temps de travail ne lit jamais un salaire (`HR-005`).** Listes, fiches, compteurs, imports et
+  audits des pointages ignorent la rémunération : la paie reste le Lot 12.
 
 ## Scripts
 

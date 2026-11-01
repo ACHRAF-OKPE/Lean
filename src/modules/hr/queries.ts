@@ -5,6 +5,7 @@ import {
   hrContracts,
   hrDepartments,
   hrEmployees,
+  hrWorkCalendars,
   memberships,
   users,
   type HrContractKind,
@@ -193,6 +194,19 @@ async function requireDepartment(db: DbLike, tenantId: string, id: string): Prom
     rethrow("Service introuvable dans cet espace.");
   }
   return row.code;
+}
+
+/** HR-009 — le calendrier rattaché à une fiche est celui du même espace. */
+async function requireWorkCalendar(db: DbLike, tenantId: string, id: string): Promise<string> {
+  const [row] = await db
+    .select({ name: hrWorkCalendars.name })
+    .from(hrWorkCalendars)
+    .where(and(eq(hrWorkCalendars.tenantId, tenantId), eq(hrWorkCalendars.id, id)))
+    .limit(1);
+  if (!row) {
+    rethrow("Calendrier de travail introuvable dans cet espace.");
+  }
+  return row.name;
 }
 
 /** HR-002 — la remontée de l'arbre refuse le parent lui-même ou l'un de ses descendants. */
@@ -429,6 +443,7 @@ export interface EmployeeSummary {
   readonly departmentCode: string | null;
   readonly managerEmployeeId: string | null;
   readonly managerName: string | null;
+  readonly workCalendarId: string | null;
   readonly userId: string | null;
   readonly userEmail: string | null;
 }
@@ -449,6 +464,7 @@ const EMPLOYEE_COLUMNS = {
   departmentId: hrEmployees.departmentId,
   departmentCode: hrDepartments.code,
   managerEmployeeId: hrEmployees.managerEmployeeId,
+  workCalendarId: hrEmployees.workCalendarId,
   userId: hrEmployees.userId,
   userEmail: users.email,
 };
@@ -465,6 +481,7 @@ function toEmployeeSummary(row: {
   readonly departmentId: string | null;
   readonly departmentCode: string | null;
   readonly managerEmployeeId: string | null;
+  readonly workCalendarId: string | null;
   readonly userId: string | null;
   readonly userEmail: string | null;
   readonly managerName?: string | null;
@@ -484,6 +501,7 @@ function toEmployeeSummary(row: {
     departmentCode: row.departmentCode,
     managerEmployeeId: row.managerEmployeeId,
     managerName: row.managerName ?? null,
+    workCalendarId: row.workCalendarId,
     userId: row.userId,
     userEmail: row.userEmail,
   };
@@ -627,6 +645,9 @@ export async function createEmployee(
           rethrow(`Manager : ${manager.fullName} est sorti de l'effectif.`);
         }
       }
+      if (data.workCalendarId) {
+        await requireWorkCalendar(tx, input.tenantId, data.workCalendarId);
+      }
       const [created] = await tx
         .insert(hrEmployees)
         .values({
@@ -640,6 +661,7 @@ export async function createEmployee(
           departureDate: data.departureDate,
           departmentId: data.departmentId,
           managerEmployeeId: data.managerEmployeeId,
+          workCalendarId: data.workCalendarId,
           createdByUserId: input.actorUserId,
         })
         .returning({ id: hrEmployees.id });
@@ -721,6 +743,9 @@ export async function updateEmployee(
     if (data.departmentId) {
       await requireDepartment(tx, input.tenantId, data.departmentId);
     }
+    if (data.workCalendarId) {
+      await requireWorkCalendar(tx, input.tenantId, data.workCalendarId);
+    }
     if (before.status !== "left" && data.status === "left") {
       await assertLeavingAllowed(tx, input.tenantId, before.id);
     }
@@ -736,6 +761,7 @@ export async function updateEmployee(
         departureDate: data.departureDate,
         departmentId: data.departmentId,
         managerEmployeeId: data.managerEmployeeId,
+        workCalendarId: data.workCalendarId,
         updatedByUserId: input.actorUserId,
         updatedAt: new Date(),
       })

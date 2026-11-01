@@ -9,6 +9,7 @@ import {
   CUSTOMS_LINE_HEADERS,
   HEADERS_BY_KIND,
   HR_EMPLOYEE_HEADERS,
+  HR_TIME_ENTRY_HEADERS,
   HS_HEADERS,
   IMPORT_KIND_LABELS,
   JOURNAL_ENTRY_HEADERS,
@@ -48,6 +49,7 @@ const TEMPLATE_FILE_NAMES: Record<ImportKind, string> = {
   accounts: "lean-modele-comptes.xlsx",
   journal_entries: "lean-modele-ecritures.xlsx",
   hr_employees: "lean-modele-personnel.xlsx",
+  hr_time_entries: "lean-modele-pointages.xlsx",
 };
 
 export function templateFileName(kind: ImportKind): string {
@@ -402,6 +404,15 @@ const HR_EMPLOYEE_COLUMN_META: Record<(typeof HR_EMPLOYEE_HEADERS)[number], Colu
   statut: { width: 14, list: '"Actif,Suspendu,Sorti"' },
 };
 
+const HR_TIME_ENTRY_COLUMN_META: Record<(typeof HR_TIME_ENTRY_HEADERS)[number], ColumnMeta> = {
+  matricule: { width: 14, text: true },
+  date: { width: 12, text: true },
+  nature: { width: 14, list: '"Travaillé,Absence"' },
+  periode: { width: 14, list: '"Journée,Matin,Après-midi,Heures"' },
+  heures: { width: 12, text: true },
+  motif: { width: 40 },
+};
+
 const COLUMN_META: Record<ImportKind, Record<string, ColumnMeta>> = {
   partners: PARTNER_COLUMN_META,
   articles: ARTICLE_COLUMN_META,
@@ -414,6 +425,7 @@ const COLUMN_META: Record<ImportKind, Record<string, ColumnMeta>> = {
   accounts: ACCOUNT_COLUMN_META,
   journal_entries: JOURNAL_ENTRY_COLUMN_META,
   hr_employees: HR_EMPLOYEE_COLUMN_META,
+  hr_time_entries: HR_TIME_ENTRY_COLUMN_META,
 };
 
 const PARTNER_COLUMN_HELP: Record<(typeof PARTNER_HEADERS)[number], string> = {
@@ -550,6 +562,20 @@ const HR_EMPLOYEE_COLUMN_HELP: Record<(typeof HR_EMPLOYEE_HEADERS)[number], stri
     "Actif, Suspendu ou Sorti. Vide conserve le statut de la fiche. « Sorti » exige une date de sortie déjà enregistrée sur la fiche.",
 };
 
+const HR_TIME_ENTRY_COLUMN_HELP: Record<(typeof HR_TIME_ENTRY_HEADERS)[number], string> = {
+  matricule:
+    "Obligatoire. Matricule d'un salarié existant de l'espace, autre qu'un salarié sorti. L'import ne crée aucune fiche salarié.",
+  date: "Obligatoire. Date AAAA-MM-JJ (ex. 2026-11-03), jamais postérieure à aujourd'hui.",
+  nature:
+    "Travaillé ou Absence. Vide : Travaillé. Une absence exige un motif et se compte en journée, matin ou après-midi.",
+  periode:
+    "Journée, Matin, Après-midi ou Heures. Obligatoire. Heures : la durée se saisit dans la colonne heures.",
+  heures:
+    "Obligatoire quand la période est Heures, vide sinon. Durée de 0,25 à 24 heures, au quart d'heure (ex. 7,25).",
+  motif:
+    "Obligatoire pour une absence, facultatif pour un temps travaillé. 120 caractères maximum.",
+};
+
 const COLUMN_HELP: Record<ImportKind, Record<string, string>> = {
   partners: PARTNER_COLUMN_HELP,
   articles: ARTICLE_COLUMN_HELP,
@@ -562,6 +588,7 @@ const COLUMN_HELP: Record<ImportKind, Record<string, string>> = {
   accounts: ACCOUNT_COLUMN_HELP,
   journal_entries: JOURNAL_ENTRY_COLUMN_HELP,
   hr_employees: HR_EMPLOYEE_COLUMN_HELP,
+  hr_time_entries: HR_TIME_ENTRY_COLUMN_HELP,
 };
 
 const EXAMPLES: Record<ImportKind, Record<string, string>> = {
@@ -671,6 +698,14 @@ const EXAMPLES: Record<ImportKind, Record<string, string>> = {
     compte_email: "associe@exemple.sn",
     statut: "Actif",
   },
+  hr_time_entries: {
+    matricule: "EMP0001",
+    date: "2026-11-03",
+    nature: "Travaillé",
+    periode: "Journée",
+    heures: "",
+    motif: "",
+  },
 };
 
 const KIND_RULES: Record<ImportKind, readonly string[]> = {
@@ -750,6 +785,14 @@ const KIND_RULES: Record<ImportKind, readonly string[]> = {
     "Un manager ne peut pas être lui-même ni un salarié sorti.",
     "Le statut vide conserve le statut de la fiche ; « Sorti » exige une date de sortie déjà enregistrée.",
     "L'import ne touche ni les contrats ni les salaires : un même fichier ne s'applique qu'une seule fois.",
+  ],
+  hr_time_entries: [
+    "Chaque ligne crée un pointage en brouillon : aucune ligne existante n'est modifiée et la validation reste une décision explicite.",
+    "Le matricule doit déjà exister dans l'espace et ne pas être sorti ; l'import ne crée aucune fiche salarié.",
+    "Une date ne peut pas être postérieure à aujourd'hui ; la journée se décompte en Africa/Abidjan.",
+    "La période doit être ouverte par le calendrier applicable au salarié, hors jours fériés et chômés déjà déduits.",
+    "Un salarié ne peut pas pointer deux fois la même journée, le même matin ou le même après-midi, y compris sur plusieurs lignes du fichier ; les lignes en heures restent cumulables.",
+    "Un même fichier ne peut être appliqué qu'une seule fois.",
   ],
 };
 

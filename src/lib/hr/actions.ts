@@ -147,6 +147,7 @@ export async function createEmployeeAction(
         departureDate: optionalText(formData, "departureDate") ?? "",
         departmentId: optionalText(formData, "departmentId") ?? "",
         managerEmployeeId: optionalText(formData, "managerEmployeeId") ?? "",
+        workCalendarId: optionalText(formData, "workCalendarId") ?? "",
       },
     });
     employeeId = created.id;
@@ -180,6 +181,7 @@ export async function updateEmployeeAction(
         departureDate: optionalText(formData, "departureDate") ?? "",
         departmentId: optionalText(formData, "departmentId") ?? "",
         managerEmployeeId: optionalText(formData, "managerEmployeeId") ?? "",
+        workCalendarId: optionalText(formData, "workCalendarId") ?? "",
       },
     });
   } catch (error) {

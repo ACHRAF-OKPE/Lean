@@ -38,7 +38,7 @@ export function uuidField(raw: unknown, label: string, required = false): Field<
   return { value, errors: [], warnings: [] };
 }
 
-function textField(
+export function textField(
   raw: unknown,
   label: string,
   options: { required?: boolean; maxLength: number },
@@ -202,6 +202,7 @@ export interface EmployeeInput {
   readonly departureDate: string | null;
   readonly departmentId: string | null;
   readonly managerEmployeeId: string | null;
+  readonly workCalendarId: string | null;
 }
 
 export function validateEmployeeInput(raw: {
@@ -214,6 +215,7 @@ export function validateEmployeeInput(raw: {
   readonly departureDate?: unknown;
   readonly departmentId?: unknown;
   readonly managerEmployeeId?: unknown;
+  readonly workCalendarId?: unknown;
   readonly employeeId?: unknown;
 }): { data: EmployeeInput | null; errors: string[]; warnings: string[] } {
   const code = normalizeEmployeeCode(raw.code);
@@ -230,6 +232,7 @@ export function validateEmployeeInput(raw: {
   const departureDate = parseIsoDate(raw.departureDate, "Date de sortie");
   const department = uuidField(raw.departmentId, "Service");
   const manager = uuidField(raw.managerEmployeeId, "Manager");
+  const calendar = uuidField(raw.workCalendarId, "Calendrier de travail");
   const self = uuidField(raw.employeeId, "Fiche modifiée");
 
   const statusText = textOf(raw.status) || "active";
@@ -242,6 +245,7 @@ export function validateEmployeeInput(raw: {
     ...departureDate.errors,
     ...department.errors,
     ...manager.errors,
+    ...calendar.errors,
     ...self.errors,
   ];
   const warnings = [...code.warnings, ...hireDate.warnings, ...departureDate.warnings];
@@ -279,6 +283,7 @@ export function validateEmployeeInput(raw: {
       departureDate: departureDate.value,
       departmentId: department.value,
       managerEmployeeId: manager.value,
+      workCalendarId: calendar.value,
     },
     errors,
     warnings,

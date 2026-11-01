@@ -49,7 +49,7 @@ function textOf(raw: unknown): string {
   return raw === null || raw === undefined ? "" : String(raw).trim();
 }
 
-function labelOf(value: string): string {
+export function labelOf(value: string): string {
   return value
     .toLowerCase()
     .normalize("NFD")

@@ -154,14 +154,15 @@ async function Cockpit() {
         <section className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] lg:items-end">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-brand uppercase">
-              Lot 11A · RH socle
+              Lot 11B · Temps de travail
             </p>
             <h1 className="mt-5 max-w-2xl text-4xl leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-5xl md:text-[3.25rem]">
-              Le personnel a<span className="block">son dossier.</span>
+              Le travail a<span className="block">son calendrier.</span>
             </h1>
             <p className="mt-5 max-w-xl text-sm leading-6 text-muted">
-              Services en arbre, fiches salariés, contrats du brouillon à la résiliation et import
-              XLSX du personnel : la RH entre dans l&apos;ERP, salaire réservé au niveau écriture.
+              Calendriers hebdomadaires, jours fériés et chômés, pointages du brouillon au validé et
+              import XLSX des feuilles de temps : la capacité du jour se calcule sur le calendrier
+              applicable au salarié, salaire toujours hors de portée.
             </p>
           </div>
 
@@ -177,7 +178,7 @@ async function Cockpit() {
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Lot courant</dt>
                 <dd className="text-right text-[11px] font-medium">
-                  RH socle : organisation, personnel, contrats
+                  11B livré : calendriers, jours fériés, pointages — 11C congés en suite
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
@@ -737,7 +738,7 @@ async function Cockpit() {
               <p className="mt-2 text-[11px] leading-5 text-white/70">
                 Socle, référentiels, achats, ventes, entreprise, douane, comptabilité SYSCOHADA,
                 supply chain, états de gestion et clôture, les droits par module et l&apos;équipe,
-                puis le RH socle. La suite annoncée : le temps de travail et les congés, la paie,
+                puis le RH socle et son temps de travail. La suite annoncée : les congés, la paie,
                 puis le paramétrage de chaque module.
               </p>
               <div className="mt-auto flex items-center gap-2 pt-5 font-mono text-[10px] text-white/45">

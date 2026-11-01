@@ -23,6 +23,7 @@ export const IMPORT_KIND_LABELS: Record<ImportKind, string> = {
   accounts: "Plan comptable",
   journal_entries: "Écritures comptables",
   hr_employees: "Personnel",
+  hr_time_entries: "Pointages",
 };
 
 /** Chaque import écrit dans un module : son garde-fou de droits suit la cible, pas l'écran. */
@@ -38,6 +39,7 @@ export const MODULE_BY_IMPORT_KIND: Record<ImportKind, ModuleKey> = {
   accounts: "accounting",
   journal_entries: "accounting",
   hr_employees: "hr",
+  hr_time_entries: "hr",
 };
 
 const IMPORT_KINDS = [
@@ -52,6 +54,7 @@ const IMPORT_KINDS = [
   "accounts",
   "journal_entries",
   "hr_employees",
+  "hr_time_entries",
 ] as const;
 
 export function isImportKind(value: string): value is ImportKind {
@@ -70,6 +73,7 @@ export const IMPORT_KIND_PATHS: Record<ImportKind, string> = {
   accounts: "/comptabilite/comptes",
   journal_entries: "/comptabilite/ecritures",
   hr_employees: "/rh/personnel",
+  hr_time_entries: "/rh/pointages",
 };
 
 export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
@@ -84,6 +88,7 @@ export const IMPORT_TEMPLATE_PATHS: Record<ImportKind, string> = {
   accounts: "/api/modeles/comptes",
   journal_entries: "/api/modeles/ecritures",
   hr_employees: "/api/modeles/personnel",
+  hr_time_entries: "/api/modeles/pointages",
 };
 
 const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
@@ -98,6 +103,7 @@ const TEMPLATE_KIND_BY_SLUG: Record<string, ImportKind> = {
   comptes: "accounts",
   ecritures: "journal_entries",
   personnel: "hr_employees",
+  pointages: "hr_time_entries",
 };
 
 export function resolveTemplateKind(slug: string): ImportKind | null {
@@ -273,6 +279,15 @@ export const HR_EMPLOYEE_HEADERS = [
   "statut",
 ] as const;
 
+export const HR_TIME_ENTRY_HEADERS = [
+  "matricule",
+  "date",
+  "nature",
+  "periode",
+  "heures",
+  "motif",
+] as const;
+
 export const HEADERS_BY_KIND = {
   partners: PARTNER_HEADERS,
   articles: ARTICLE_HEADERS,
@@ -285,6 +300,7 @@ export const HEADERS_BY_KIND = {
   accounts: ACCOUNT_HEADERS,
   journal_entries: JOURNAL_ENTRY_HEADERS,
   hr_employees: HR_EMPLOYEE_HEADERS,
+  hr_time_entries: HR_TIME_ENTRY_HEADERS,
 } as const;
 
 export const SHEET_DATA = "Données";

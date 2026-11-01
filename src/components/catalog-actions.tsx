@@ -18,6 +18,7 @@ const CREATE_LABELS: Record<ImportKind, string> = {
   accounts: "Créer un compte",
   journal_entries: "Saisir une écriture",
   hr_employees: "Créer une fiche salarié",
+  hr_time_entries: "Créer un pointage",
 };
 
 const CREATE_PATHS: Partial<Record<ImportKind, string>> = {
@@ -27,6 +28,7 @@ const CREATE_PATHS: Partial<Record<ImportKind, string>> = {
   accounts: "/comptabilite/comptes",
   journal_entries: "/comptabilite/ecritures/nouvelle",
   hr_employees: "/rh/personnel/nouvelle",
+  hr_time_entries: "/rh/pointages/nouveau",
 };
 
 const IMPORT_LABELS: Record<ImportKind, string> = {
@@ -41,6 +43,7 @@ const IMPORT_LABELS: Record<ImportKind, string> = {
   accounts: "Importer le plan comptable",
   journal_entries: "Importer des écritures",
   hr_employees: "Importer le personnel",
+  hr_time_entries: "Importer des pointages",
 };
 
 export function CatalogActions({ kind }: { kind: ImportKind }) {

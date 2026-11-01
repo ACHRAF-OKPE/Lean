@@ -11,6 +11,7 @@ import { requireModule } from "@/lib/auth/session";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { HR_LIST_LIMIT } from "@/modules/hr/constants";
 import { listDepartments, listEmployees } from "@/modules/hr/queries";
+import { listWorkCalendars } from "@/modules/hr/time-queries";
 
 export const metadata: Metadata = {
   title: "Nouvelle fiche salarié",
@@ -31,9 +32,10 @@ async function NewEmployeeContent() {
   await connection();
   const session = await requireModule("hr", "write");
   const db = getDb();
-  const [departments, staff, memberships] = await Promise.all([
+  const [departments, staff, calendars, memberships] = await Promise.all([
     listDepartments(db, { tenantId: session.tenantId, activeOnly: true }),
     listEmployees(db, { tenantId: session.tenantId, limit: HR_LIST_LIMIT }),
+    listWorkCalendars(db, session.tenantId),
     listMembershipsForUser(db, session.userId),
   ]);
   const managers = staff.filter((employee) => employee.status !== "left");
@@ -60,8 +62,9 @@ async function NewEmployeeContent() {
           </div>
         </div>
         <p className="mt-3 max-w-2xl text-[11px] leading-5 text-muted">
-          Le matricule est unique dans l&apos;espace. Le service et le manager se choisissent parmi
-          les données déjà saisies ; le compte de connexion se rattache depuis la fiche, et ce
+          Le matricule est unique dans l&apos;espace. Le service, le manager et le calendrier de
+          travail se choisissent parmi les données déjà saisies ; sans calendrier, la fiche suit
+          celui de l&apos;espace. Le compte de connexion se rattache depuis la fiche, et ce
           rattachement ne change aucun droit. La fiche ne porte jamais de salaire : le montant brut
           appartient au contrat.
         </p>
@@ -83,6 +86,11 @@ async function NewEmployeeContent() {
                 id: employee.id,
                 code: employee.code,
                 fullName: employee.fullName,
+              }))}
+              calendars={calendars.map((calendar) => ({
+                id: calendar.id,
+                name: calendar.name,
+                isDefault: calendar.isDefault,
               }))}
             />
           </div>

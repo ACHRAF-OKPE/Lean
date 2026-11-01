@@ -247,6 +247,12 @@ export function DepartmentActiveButton({
   );
 }
 
+export interface CalendarOption {
+  readonly id: string;
+  readonly name: string;
+  readonly isDefault: boolean;
+}
+
 export interface EmployeeValues {
   readonly code: string;
   readonly lastName: string;
@@ -257,6 +263,7 @@ export interface EmployeeValues {
   readonly departureDate: string | null;
   readonly departmentId: string | null;
   readonly managerEmployeeId: string | null;
+  readonly workCalendarId: string | null;
 }
 
 export function EmployeeForm({
@@ -264,12 +271,14 @@ export function EmployeeForm({
   employeeId,
   departments,
   managers,
+  calendars,
   employee,
 }: {
   mode: "create" | "edit";
   employeeId?: string;
   departments: readonly DepartmentOption[];
   managers: readonly EmployeeOption[];
+  calendars: readonly CalendarOption[];
   employee?: EmployeeValues;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -417,6 +426,29 @@ export function EmployeeForm({
                 {managers.map((manager) => (
                   <option key={manager.id} value={manager.id}>
                     {manager.fullName} · {manager.code}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+
+          <div className="md:col-span-2">
+            <Field
+              label="Calendrier de travail"
+              htmlFor="employee-calendar"
+              hint="Sans choix, la fiche suit le calendrier de l'espace."
+            >
+              <select
+                id="employee-calendar"
+                name="workCalendarId"
+                defaultValue={employee?.workCalendarId ?? ""}
+                className={INPUT_CLASS}
+              >
+                <option value="">Calendrier de l&apos;espace</option>
+                {calendars.map((calendar) => (
+                  <option key={calendar.id} value={calendar.id}>
+                    {calendar.name}
+                    {calendar.isDefault ? " · calendrier de l'espace" : ""}
                   </option>
                 ))}
               </select>
@@ -577,12 +609,14 @@ export function ContractForm({
   employees,
   contract,
   locked,
+  presetEmployeeId,
 }: {
   mode: "create" | "edit";
   contractId?: string;
   employees: readonly EmployeeOption[];
   contract?: ContractValues;
   locked?: boolean;
+  presetEmployeeId?: string;
 }) {
   const [state, formAction, pending] = useActionState(
     mode === "create" ? createContractAction : updateContractAction,
@@ -616,7 +650,7 @@ export function ContractForm({
               id="contract-employee"
               name="employeeId"
               required
-              defaultValue={contract?.employeeId ?? ""}
+              defaultValue={contract?.employeeId ?? presetEmployeeId ?? ""}
               className={INPUT_CLASS}
             >
               <option value="" disabled>

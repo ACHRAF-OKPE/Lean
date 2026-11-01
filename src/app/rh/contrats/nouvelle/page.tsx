@@ -19,22 +19,33 @@ export const metadata: Metadata = {
 const ACTION_LINK =
   "grid size-9 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand";
 
-export default function NewContractPage() {
+export default function NewContractPage(props: PageProps<"/rh/contrats/nouvelle">) {
   return (
     <Suspense fallback={<LoadingShell label="Ouverture de la saisie du contrat…" />}>
-      <NewContractContent />
+      <NewContractContent searchParams={props.searchParams} />
     </Suspense>
   );
 }
 
-async function NewContractContent() {
+async function NewContractContent({
+  searchParams,
+}: Pick<PageProps<"/rh/contrats/nouvelle">, "searchParams">) {
   await connection();
   const session = await requireModule("hr", "write");
   const db = getDb();
-  const [employees, memberships] = await Promise.all([
+  const [employees, memberships, query] = await Promise.all([
     listEmployees(db, { tenantId: session.tenantId, limit: HR_LIST_LIMIT }),
     listMembershipsForUser(db, session.userId),
+    searchParams,
   ]);
+
+  // HR-004 — la fiche salarié qui ouvre l'écran porte déjà son salarié sur le contrat.
+  const salarieParam = typeof query.salarie === "string" ? query.salarie : "";
+  const presetEmployeeId = employees.some(
+    (employee) => employee.id === salarieParam && employee.status !== "left",
+  )
+    ? salarieParam
+    : undefined;
 
   return (
     <div className="min-h-dvh">
@@ -72,6 +83,7 @@ async function NewContractContent() {
           <div className="mt-4">
             <ContractForm
               mode="create"
+              presetEmployeeId={presetEmployeeId}
               employees={employees.map((employee) => ({
                 id: employee.id,
                 code: employee.code,
