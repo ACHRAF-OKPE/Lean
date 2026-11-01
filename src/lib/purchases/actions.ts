@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { PurchaseError } from "@/modules/purchases/errors";
 import type { PurchaseAction } from "@/modules/purchases/lifecycle";
 import { createPurchaseOrder, transitionPurchaseOrder } from "@/modules/purchases/queries";
@@ -29,7 +29,7 @@ export async function createPurchaseOrderAction(
   _state: PurchaseFormState,
   formData: FormData,
 ): Promise<PurchaseFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("purchases", "write");
   const articleIds = formData.getAll("articleId").map(String);
   const quantities = formData.getAll("quantite").map(String);
   const prices = formData.getAll("prix_unitaire_xof").map(String);
@@ -68,7 +68,7 @@ export async function transitionPurchaseOrderAction(
   _state: PurchaseFormState,
   formData: FormData,
 ): Promise<PurchaseFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("purchases", "manage");
   const orderId = text(formData, "orderId");
   const requested = text(formData, "action") as PurchaseAction;
 
@@ -99,7 +99,7 @@ export async function createReceptionAction(
   _state: PurchaseFormState,
   formData: FormData,
 ): Promise<PurchaseFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("stock", "write");
   const orderId = text(formData, "orderId");
   const locationId = text(formData, "locationId");
 
@@ -140,7 +140,7 @@ export async function cancelReceptionAction(
   _state: PurchaseFormState,
   formData: FormData,
 ): Promise<PurchaseFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("stock", "manage");
   const receptionId = text(formData, "receptionId");
   const orderId = text(formData, "orderId");
 

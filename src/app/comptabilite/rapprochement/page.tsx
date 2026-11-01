@@ -9,7 +9,7 @@ import { PostCutoffButton } from "@/components/accounting-forms";
 import { Field, INPUT_CLASS } from "@/components/form-fields";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { can } from "@/modules/identity/permissions";
@@ -37,7 +37,7 @@ async function CutoffContent({
   searchParams,
 }: Pick<PageProps<"/comptabilite/rapprochement">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("accounting", "read");
   const db = getDb();
   const [years, memberships, query] = await Promise.all([
     listFiscalYears(db, session.tenantId),

@@ -10,7 +10,7 @@ import { DocumentTasks } from "@/components/document-tasks";
 import { LoadingShell } from "@/components/loading-shell";
 import { InvoiceStatusBadge } from "@/components/sales-badges";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { can } from "@/modules/identity/permissions";
@@ -73,7 +73,7 @@ async function InvoiceContent({
   searchParams,
 }: Pick<PageProps<"/factures/[id]">, "params" | "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("invoices", "read");
   const { id: invoiceId } = await params;
   if (!UUID_PATTERN.test(invoiceId)) {
     notFound();

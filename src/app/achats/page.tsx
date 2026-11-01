@@ -8,7 +8,7 @@ import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
 import { PurchaseStatusBadge, ReceiptStateBadge } from "@/components/purchase-badges";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -31,7 +31,7 @@ export default function PurchasesPage() {
 
 async function PurchasesContent() {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("purchases", "read");
   const db = getDb();
   const [orders, stats, memberships] = await Promise.all([
     listPurchaseOrders(db, session.tenantId),

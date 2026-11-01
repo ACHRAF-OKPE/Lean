@@ -9,7 +9,7 @@ import { DeleteEntryButton, ValidateEntryButton } from "@/components/accounting-
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { can } from "@/modules/identity/permissions";
@@ -48,7 +48,7 @@ async function JournalEntryContent({
   searchParams,
 }: Pick<PageProps<"/comptabilite/ecritures/[id]">, "params" | "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("accounting", "read");
   const { id: entryId } = await params;
   if (!UUID_PATTERN.test(entryId)) {
     notFound();

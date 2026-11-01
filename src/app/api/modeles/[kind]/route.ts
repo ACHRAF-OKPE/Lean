@@ -1,5 +1,5 @@
-import { requirePermission } from "@/lib/auth/session";
-import { resolveTemplateKind } from "@/modules/catalog/constants";
+import { requireModule } from "@/lib/auth/session";
+import { MODULE_BY_IMPORT_KIND, resolveTemplateKind } from "@/modules/catalog/constants";
 import { buildTemplate, templateFileName } from "@/modules/catalog/xlsx";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ kind: string }> }) {
@@ -9,7 +9,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
     return new Response("Modèle inconnu.", { status: 404 });
   }
 
-  await requirePermission("data.read");
+  await requireModule(MODULE_BY_IMPORT_KIND[kind], "read");
   const bytes = await buildTemplate(kind);
 
   return new Response(new Blob([bytes]), {

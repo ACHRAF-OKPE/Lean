@@ -5,8 +5,12 @@ import type { ImportKind } from "@/db/schema";
 import { AppHeader, type ActiveSection } from "@/components/app-header";
 import { ImportUploader } from "@/components/import-uploader";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
-import { IMPORT_KIND_LABELS, IMPORT_KIND_PATHS } from "@/modules/catalog/constants";
+import { requireModule } from "@/lib/auth/session";
+import {
+  IMPORT_KIND_LABELS,
+  IMPORT_KIND_PATHS,
+  MODULE_BY_IMPORT_KIND,
+} from "@/modules/catalog/constants";
 import { listImportBatches } from "@/modules/catalog/imports";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 
@@ -31,7 +35,7 @@ const IMPORT_TITLES: Record<ImportKind, string> = {
 
 export async function ImportSection({ kind, active }: { kind: ImportKind; active: ActiveSection }) {
   await connection();
-  const session = await requirePermission("data.write");
+  const session = await requireModule(MODULE_BY_IMPORT_KIND[kind], "write");
   const db = getDb();
   const [memberships, history] = await Promise.all([
     listMembershipsForUser(db, session.userId),

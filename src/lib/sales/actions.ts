@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { cancelDelivery, createDelivery } from "@/modules/sales/deliveries";
 import { SalesError } from "@/modules/sales/errors";
 import { createInvoice, validateInvoice } from "@/modules/sales/invoices";
@@ -31,7 +31,7 @@ export async function createSalesOrderAction(
   _state: SalesFormState,
   formData: FormData,
 ): Promise<SalesFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("sales", "write");
   const articleIds = formData.getAll("articleId").map(String);
   const quantities = formData.getAll("quantite").map(String);
   const prices = formData.getAll("prix_unitaire_xof").map(String);
@@ -74,7 +74,7 @@ export async function transitionSalesOrderAction(
   _state: SalesFormState,
   formData: FormData,
 ): Promise<SalesFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("sales", "manage");
   const orderId = text(formData, "orderId");
   const requested = text(formData, "action") as SalesAction;
 
@@ -105,7 +105,7 @@ export async function createDeliveryAction(
   _state: SalesFormState,
   formData: FormData,
 ): Promise<SalesFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("stock", "write");
   const orderId = text(formData, "orderId");
   const locationId = text(formData, "locationId");
 
@@ -143,7 +143,7 @@ export async function cancelDeliveryAction(
   _state: SalesFormState,
   formData: FormData,
 ): Promise<SalesFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("stock", "manage");
   const deliveryId = text(formData, "deliveryId");
   const orderId = text(formData, "orderId");
 
@@ -170,7 +170,7 @@ export async function createInvoiceAction(
   _state: SalesFormState,
   formData: FormData,
 ): Promise<SalesFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("invoices", "write");
   const orderId = text(formData, "orderId");
 
   if (!UUID_PATTERN.test(orderId)) {
@@ -207,7 +207,7 @@ export async function validateInvoiceAction(
   _state: SalesFormState,
   formData: FormData,
 ): Promise<SalesFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("invoices", "manage");
   const invoiceId = text(formData, "invoiceId");
 
   if (!UUID_PATTERN.test(invoiceId)) {
@@ -233,7 +233,7 @@ export async function createPaymentAction(
   _state: SalesFormState,
   formData: FormData,
 ): Promise<SalesFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("invoices", "write");
   const invoiceId = text(formData, "invoiceId");
 
   if (!UUID_PATTERN.test(invoiceId)) {

@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { AccountingSettingsForm } from "@/components/accounting-forms";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { listAccounts, listJournals } from "@/modules/accounting/queries";
@@ -29,7 +29,7 @@ async function AccountingSettingsContent({
   searchParams,
 }: Pick<PageProps<"/comptabilite/parametres">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("accounting", "read");
   const db = getDb();
   const [settings, journals, accounts, memberships, query] = await Promise.all([
     getAccountingSettingsView(db, session.tenantId),

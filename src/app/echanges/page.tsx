@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { ExchangeStatusBadge, ExchangeTypeBadge } from "@/components/exchange-badges";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { listExchangeMessages } from "@/modules/exchange/queries";
@@ -33,7 +33,7 @@ export default function ExchangeJournalPage() {
 
 async function ExchangeJournalContent() {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("exchanges", "read");
   const db = getDb();
   const [messages, memberships] = await Promise.all([
     listExchangeMessages(db, { tenantId: session.tenantId, limit: 100 }),

@@ -68,4 +68,10 @@ export const LOTS: readonly Lot[] = [
     scope: "États de gestion, clôture, exports",
     status: "done",
   },
+  {
+    id: 10,
+    title: "Responsabilisation",
+    scope: "Droits par module, équipe, responsables, matrice des droits",
+    status: "done",
+  },
 ];

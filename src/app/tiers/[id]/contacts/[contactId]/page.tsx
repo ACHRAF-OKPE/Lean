@@ -8,7 +8,7 @@ import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { PartnerContactForm } from "@/components/partner-contact-form";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { getPartner } from "@/modules/catalog/queries";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getPartnerContact } from "@/modules/settings/contacts";
@@ -31,7 +31,7 @@ async function EditContactContent({
   params,
 }: Pick<PageProps<"/tiers/[id]/contacts/[contactId]">, "params">) {
   await connection();
-  const session = await requirePermission("data.write");
+  const session = await requireModule("partners", "write");
   const { id: partnerId, contactId } = await params;
   if (!UUID_PATTERN.test(partnerId) || !UUID_PATTERN.test(contactId)) {
     notFound();

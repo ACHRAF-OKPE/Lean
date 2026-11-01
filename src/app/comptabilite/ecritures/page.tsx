@@ -7,7 +7,7 @@ import { EntryStatusBadge } from "@/components/accounting-badges";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { can } from "@/modules/identity/permissions";
@@ -42,7 +42,7 @@ async function JournalEntriesContent({
   searchParams,
 }: Pick<PageProps<"/comptabilite/ecritures">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("accounting", "read");
   const db = getDb();
   const query = await searchParams;
   const statusFilter =

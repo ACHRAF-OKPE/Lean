@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { JournalForm, JournalToggleButton } from "@/components/accounting-forms";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { ACCOUNTING_JOURNAL_TYPE_LABELS } from "@/modules/accounting/constants";
@@ -31,7 +31,7 @@ async function JournalsContent({
   searchParams,
 }: Pick<PageProps<"/comptabilite/journaux">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("accounting", "read");
   const db = getDb();
   const [journals, memberships, query] = await Promise.all([
     listJournals(db, { tenantId: session.tenantId }),

@@ -12,7 +12,7 @@ import { TaskAssigneeForm, TaskStatusActions } from "@/components/task-controls"
 import { TaskPriorityBadge, TaskStatusBadge } from "@/components/task-badges";
 import { TaskForm } from "@/components/task-form";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { listMentionableMembers } from "@/modules/discussion/queries";
 import { can } from "@/modules/identity/permissions";
@@ -56,7 +56,7 @@ async function TaskContent({
   searchParams,
 }: Pick<PageProps<"/taches/[id]">, "params" | "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("tasks", "read");
   const { id } = await params;
   if (!UUID_PATTERN.test(id)) {
     notFound();

@@ -120,5 +120,13 @@ Un lot est livré quand :
 
 - Authentification et autorisation vérifiées côté serveur, jamais uniquement dans l'UI.
 - Principe du moindre privilège pour les rôles ; les actions sensibles sont auditées.
+- Chaque écran d'affaires est gardé par `requireModule(module, niveau)` du module qu'il
+  affiche ou modifie, et par la permission globale en dessous (`TEN-013`). Une nouvelle route
+  est ajoutée à la cartographie de `src/modules/identity/routes.test.ts` ou déclarée
+  plateforme : la suite échoue sinon.
+- `write` = créer et modifier un brouillon ou une donnée de base ; `manage` = sortir un
+  document du brouillon et enregistrer le paramétrage du module (`GEN-012`).
+- Un import est gardé sur le module de sa cible, du modèle XLSX jusqu'à l'application du lot,
+  jamais sur l'écran qui l'affiche.
 - Chaque mutation est traçable : acteur, tenant, entité, avant/après.
 - Les secrets ne sont ni loggés, ni committés, ni envoyés au client.

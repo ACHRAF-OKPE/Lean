@@ -1,5 +1,5 @@
 import { getDb } from "@/db/client";
-import { getSession } from "@/lib/auth/session";
+import { canAccessModule, getSession } from "@/lib/auth/session";
 import { getSupplierReplyAttachment } from "@/modules/exchange/reply-queries";
 import { can } from "@/modules/identity/permissions";
 
@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!session) {
     return new Response("Non authentifié", { status: 401 });
   }
-  if (!can(session.role, "data.read")) {
+  if (!can(session.role, "data.read") || !(await canAccessModule(session, "tenders", "read"))) {
     return new Response("Accès refusé", { status: 403 });
   }
 

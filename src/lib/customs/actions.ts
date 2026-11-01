@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import type { DeclarationTransition } from "@/modules/customs/lifecycle";
 import { CustomsError } from "@/modules/customs/errors";
 import { NEW_CUSTOMS_REGIME_OPTION } from "@/modules/customs/constants";
@@ -64,7 +64,7 @@ export async function createDeclarationAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "write");
   const regimeChoice = text(formData, "regimeId");
 
   let declarationId: string;
@@ -100,7 +100,7 @@ export async function updateDeclarationAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "write");
   const declarationId = text(formData, "declarationId");
 
   if (!UUID_PATTERN.test(declarationId)) {
@@ -125,7 +125,7 @@ export async function addDeclarationLineAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "write");
   const declarationId = text(formData, "declarationId");
 
   if (!UUID_PATTERN.test(declarationId)) {
@@ -158,7 +158,7 @@ export async function removeDeclarationLineAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "write");
   const declarationId = text(formData, "declarationId");
   const lineId = text(formData, "lineId");
 
@@ -184,7 +184,7 @@ export async function transitionDeclarationAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "manage");
   const declarationId = text(formData, "declarationId");
   const transition = text(formData, "transition");
 
@@ -213,7 +213,7 @@ export async function createBondAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "write");
   const declarationId = text(formData, "declarationId");
 
   if (!UUID_PATTERN.test(declarationId)) {
@@ -241,7 +241,7 @@ export async function apureBondAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "write");
   const bondId = text(formData, "bondId");
   const declarationId = text(formData, "declarationId");
 
@@ -269,7 +269,7 @@ export async function recordCustomsPaymentAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "write");
   const declarationId = text(formData, "declarationId");
 
   if (!UUID_PATTERN.test(declarationId)) {
@@ -299,7 +299,7 @@ export async function recordApurementAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "write");
   const declarationId = text(formData, "declarationId");
 
   if (!UUID_PATTERN.test(declarationId)) {
@@ -330,7 +330,7 @@ export async function createOfficeAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "manage");
 
   try {
     await createCustomsOffice(getDb(), {
@@ -349,7 +349,7 @@ export async function toggleOfficeAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "manage");
   const officeId = text(formData, "officeId");
 
   if (!UUID_PATTERN.test(officeId)) {
@@ -374,7 +374,7 @@ export async function createRegimeAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "manage");
 
   try {
     await createCustomsRegime(getDb(), {
@@ -399,7 +399,7 @@ export async function toggleRegimeAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "manage");
   const regimeId = text(formData, "regimeId");
 
   if (!UUID_PATTERN.test(regimeId)) {
@@ -424,7 +424,7 @@ export async function createTaxAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "manage");
 
   try {
     await createCustomsTax(getDb(), {
@@ -449,7 +449,7 @@ export async function toggleTaxAction(
   _state: CustomsFormState,
   formData: FormData,
 ): Promise<CustomsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "manage");
   const taxId = text(formData, "taxId");
 
   if (!UUID_PATTERN.test(taxId)) {

@@ -5,7 +5,7 @@ import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { listHsCodes } from "@/modules/catalog/queries";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 
@@ -25,7 +25,7 @@ export default function HsCodesPage({ searchParams }: PageProps<"/nomenclature">
 
 async function HsCodesContent({ searchParams }: Pick<PageProps<"/nomenclature">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("nomenclature", "read");
   const db = getDb();
   const [page, memberships, params] = await Promise.all([
     listHsCodes(db, session.tenantId),

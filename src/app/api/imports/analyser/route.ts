@@ -1,9 +1,10 @@
 import { getDb } from "@/db/client";
-import { getSession } from "@/lib/auth/session";
+import { canAccessModule, getSession } from "@/lib/auth/session";
 import {
   isImportKind,
   MAX_IMPORT_FILE_BYTES,
   MAX_IMPORT_FILE_MB,
+  MODULE_BY_IMPORT_KIND,
 } from "@/modules/catalog/constants";
 import { CatalogError } from "@/modules/catalog/errors";
 import { analyzeImport } from "@/modules/catalog/imports";
@@ -33,6 +34,9 @@ export async function POST(request: Request) {
   const kind = String(form.get("kind") ?? "");
   if (!isImportKind(kind)) {
     return jsonError("Type d'import inconnu.", 400);
+  }
+  if (!(await canAccessModule(session, MODULE_BY_IMPORT_KIND[kind], "write"))) {
+    return jsonError("Droit insuffisant sur le module visé par cet import.", 403);
   }
 
   const file = form.get("file");

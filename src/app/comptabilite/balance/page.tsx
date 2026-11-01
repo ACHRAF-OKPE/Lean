@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowUpRight, Scale } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -32,7 +32,7 @@ async function BalanceContent({
   searchParams,
 }: Pick<PageProps<"/comptabilite/balance">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("accounting", "read");
   const db = getDb();
   const [years, memberships, query] = await Promise.all([
     listFiscalYears(db, session.tenantId),

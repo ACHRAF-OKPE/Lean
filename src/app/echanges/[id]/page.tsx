@@ -8,7 +8,7 @@ import { AppHeader } from "@/components/app-header";
 import { ExchangeStatusBadge, ExchangeTypeBadge } from "@/components/exchange-badges";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getExchangeMessage } from "@/modules/exchange/queries";
@@ -62,7 +62,7 @@ async function ExchangeMessageContent({
   searchParams,
 }: Pick<PageProps<"/echanges/[id]">, "params" | "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("exchanges", "read");
   const { id } = await params;
   if (!UUID_PATTERN.test(id)) {
     notFound();

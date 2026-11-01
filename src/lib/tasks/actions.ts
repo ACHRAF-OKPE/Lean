@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import {
   isTaskRelatedEntityType,
   isTaskStatus,
@@ -38,7 +38,7 @@ export async function createTaskAction(
   _state: TasksFormState,
   formData: FormData,
 ): Promise<TasksFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tasks", "write");
   const db = getDb();
 
   let relatedEntityType = text(formData, "relatedEntityType").trim();
@@ -94,7 +94,7 @@ export async function updateTaskAction(
   _state: TasksFormState,
   formData: FormData,
 ): Promise<TasksFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tasks", "write");
   const db = getDb();
   const taskId = text(formData, "taskId");
 
@@ -133,7 +133,7 @@ export async function changeTaskStatusAction(
   _state: TasksFormState,
   formData: FormData,
 ): Promise<TasksFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tasks", "write");
   const taskId = text(formData, "taskId");
   const status = text(formData, "status");
 
@@ -162,7 +162,7 @@ export async function assignTaskAction(
   _state: TasksFormState,
   formData: FormData,
 ): Promise<TasksFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tasks", "write");
   const taskId = text(formData, "taskId");
   const assignee = text(formData, "assigneeUserId").trim();
 

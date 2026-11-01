@@ -15,12 +15,15 @@ import {
   ReceiptText,
   ScrollText,
   Settings,
+  ShieldCheck,
   ShoppingBag,
   ShoppingCart,
   Users,
   Warehouse,
 } from "lucide-react";
+import { getAccessLevels } from "@/lib/auth/session";
 import { logoutAction, switchTenantAction } from "@/lib/auth/actions";
+import { atLeast, type ModuleKey } from "@/modules/identity/modules";
 import { can } from "@/modules/identity/permissions";
 import type { MembershipSummary, SessionContext } from "@/modules/identity/queries";
 import { NotificationBell } from "./notification-bell";
@@ -40,32 +43,59 @@ export type ActiveSection =
   | "stock"
   | "tasks"
   | "accounting"
+  | "team"
   | "settings"
   | "notifications"
   | "audit";
 
-const NAV_ITEMS = [
+/** Une entrée sans `module` relève de la plateforme ; une entrée module n'apparaît qu'à partir du niveau `read`. */
+const NAV_ITEMS: readonly {
+  key: ActiveSection;
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  module?: ModuleKey;
+}[] = [
   { key: "home", href: "/", label: "Poste de pilotage", icon: LayoutDashboard },
-  { key: "partners", href: "/tiers", label: "Tiers", icon: Users },
-  { key: "articles", href: "/articles", label: "Articles", icon: Package },
-  { key: "nomenclature", href: "/nomenclature", label: "Nomenclature douanière", icon: Barcode },
-  { key: "customs", href: "/douane", label: "Douane", icon: Landmark },
-  { key: "purchases", href: "/achats", label: "Achats", icon: ShoppingCart },
+  { key: "partners", href: "/tiers", label: "Tiers", icon: Users, module: "partners" },
+  { key: "articles", href: "/articles", label: "Articles", icon: Package, module: "articles" },
+  {
+    key: "nomenclature",
+    href: "/nomenclature",
+    label: "Nomenclature douanière",
+    icon: Barcode,
+    module: "nomenclature",
+  },
+  { key: "customs", href: "/douane", label: "Douane", icon: Landmark, module: "customs" },
+  { key: "purchases", href: "/achats", label: "Achats", icon: ShoppingCart, module: "purchases" },
   {
     key: "tenders",
     href: "/achats/appels-offres",
     label: "Appels d'offres",
     icon: FileSignature,
+    module: "tenders",
   },
-  { key: "supply", href: "/achats/besoins", label: "Besoins", icon: PackageSearch },
-  { key: "exchanges", href: "/echanges", label: "Échanges", icon: Mail },
-  { key: "sales", href: "/ventes", label: "Ventes", icon: ShoppingBag },
-  { key: "invoices", href: "/factures", label: "Factures", icon: ReceiptText },
-  { key: "stock", href: "/stock", label: "Stock", icon: Warehouse },
-  { key: "tasks", href: "/taches", label: "Tâches", icon: ListTodo },
-  { key: "accounting", href: "/comptabilite", label: "Comptabilité", icon: BookOpen },
+  {
+    key: "supply",
+    href: "/achats/besoins",
+    label: "Besoins",
+    icon: PackageSearch,
+    module: "supply",
+  },
+  { key: "exchanges", href: "/echanges", label: "Échanges", icon: Mail, module: "exchanges" },
+  { key: "sales", href: "/ventes", label: "Ventes", icon: ShoppingBag, module: "sales" },
+  { key: "invoices", href: "/factures", label: "Factures", icon: ReceiptText, module: "invoices" },
+  { key: "stock", href: "/stock", label: "Stock", icon: Warehouse, module: "stock" },
+  { key: "tasks", href: "/taches", label: "Tâches", icon: ListTodo, module: "tasks" },
+  {
+    key: "accounting",
+    href: "/comptabilite",
+    label: "Comptabilité",
+    icon: BookOpen,
+    module: "accounting",
+  },
   { key: "settings", href: "/parametres", label: "Paramètres", icon: Settings },
-] as const;
+];
 
 const ICON_BUTTON =
   "grid size-8 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand";
@@ -74,7 +104,7 @@ const NAV_LINK = "grid size-9 place-items-center rounded-md border transition-co
 const NAV_LINK_ACTIVE = "border-brand/20 bg-brand-soft text-brand-strong";
 const NAV_LINK_IDLE = "border-line bg-panel text-muted hover:border-brand/30 hover:text-brand";
 
-export function AppHeader({
+export async function AppHeader({
   session,
   memberships,
   active,
@@ -83,6 +113,11 @@ export function AppHeader({
   memberships: readonly MembershipSummary[];
   active: ActiveSection;
 }) {
+  const levels = await getAccessLevels(session);
+  const visibleItems = NAV_ITEMS.filter(
+    (item) => item.module === undefined || atLeast(levels[item.module], "read"),
+  );
+
   return (
     <header className="border-b border-line">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-6 py-4 md:px-10">
@@ -157,7 +192,7 @@ export function AppHeader({
           aria-label="Navigation principale"
           className="order-3 flex w-full items-center gap-1.5 border-t border-line pt-3 sm:order-2 sm:w-auto sm:border-0 sm:pt-0"
         >
-          {NAV_ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             return (
               <Link
@@ -172,6 +207,17 @@ export function AppHeader({
               </Link>
             );
           })}
+          {can(session.role, "members.read") ? (
+            <Link
+              href="/equipe"
+              aria-label="Équipe et droits"
+              title="Équipe et droits"
+              aria-current={active === "team" ? "page" : undefined}
+              className={`${NAV_LINK} ${active === "team" ? NAV_LINK_ACTIVE : NAV_LINK_IDLE}`}
+            >
+              <ShieldCheck className="size-4" aria-hidden="true" />
+            </Link>
+          ) : null}
           {can(session.role, "audit.read") ? (
             <Link
               href="/audit"

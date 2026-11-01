@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getArticleOptions } from "@/modules/purchases/queries";
 import { getTender, getTenderSupplierOptions } from "@/modules/tenders/queries";
@@ -29,7 +29,7 @@ async function EditTenderContent({
   params,
 }: Pick<PageProps<"/achats/appels-offres/[id]/modifier">, "params">) {
   await connection();
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tenders", "write");
   const { id } = await params;
   if (!UUID_PATTERN.test(id)) {
     notFound();

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { resolveAppUrl } from "@/lib/app-url";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { SequenceError } from "@/modules/stock/sequences";
 import { TenderError } from "@/modules/tenders/errors";
 import { getPublicTender, submitTenderQuote } from "@/modules/tenders/quote-queries";
@@ -76,7 +76,7 @@ export async function createTenderAction(
   _state: TenderFormState,
   formData: FormData,
 ): Promise<TenderFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tenders", "write");
   let createdId: string;
   try {
     const created = await createTenderDraft(getDb(), {
@@ -95,7 +95,7 @@ export async function updateTenderAction(
   _state: TenderFormState,
   formData: FormData,
 ): Promise<TenderFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tenders", "write");
   const tenderId = text(formData, "tenderId");
   if (!UUID_PATTERN.test(tenderId)) {
     return { errors: ["Demande invalide."] };
@@ -117,7 +117,7 @@ export async function deleteTenderAction(
   _state: TenderFormState,
   formData: FormData,
 ): Promise<TenderFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tenders", "manage");
   const tenderId = text(formData, "tenderId");
   if (!UUID_PATTERN.test(tenderId)) {
     return { errors: ["Demande invalide."] };
@@ -138,7 +138,7 @@ export async function sendTenderAction(
   _state: TenderFormState,
   formData: FormData,
 ): Promise<TenderFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tenders", "manage");
   const tenderId = text(formData, "tenderId");
   if (!UUID_PATTERN.test(tenderId)) {
     return { errors: ["Demande invalide."] };
@@ -165,7 +165,7 @@ export async function resendInvitationAction(
   _state: TenderFormState,
   formData: FormData,
 ): Promise<TenderFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tenders", "manage");
   const tenderId = text(formData, "tenderId");
   const invitationId = text(formData, "invitationId");
   if (!UUID_PATTERN.test(tenderId) || !UUID_PATTERN.test(invitationId)) {
@@ -191,7 +191,7 @@ export async function cancelTenderAction(
   _state: TenderFormState,
   formData: FormData,
 ): Promise<TenderFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tenders", "manage");
   const tenderId = text(formData, "tenderId");
   if (!UUID_PATTERN.test(tenderId)) {
     return { errors: ["Demande invalide."] };
@@ -213,7 +213,7 @@ export async function awardTenderLineAction(
   _state: TenderFormState,
   formData: FormData,
 ): Promise<TenderFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tenders", "manage");
   const tenderId = text(formData, "tenderId");
   const quoteLineId = text(formData, "quoteLineId");
   if (!UUID_PATTERN.test(tenderId) || !UUID_PATTERN.test(quoteLineId)) {
@@ -237,7 +237,7 @@ export async function rejectTenderLineAction(
   _state: TenderFormState,
   formData: FormData,
 ): Promise<TenderFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tenders", "manage");
   const tenderId = text(formData, "tenderId");
   const tenderLineId = text(formData, "tenderLineId");
   if (!UUID_PATTERN.test(tenderId) || !UUID_PATTERN.test(tenderLineId)) {
@@ -260,7 +260,7 @@ export async function generateTenderOrdersAction(
   _state: TenderFormState,
   formData: FormData,
 ): Promise<TenderFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("purchases", "manage");
   const tenderId = text(formData, "tenderId");
   if (!UUID_PATTERN.test(tenderId)) {
     return { errors: ["Demande invalide."] };

@@ -8,7 +8,7 @@ import { CatalogActions } from "@/components/catalog-actions";
 import { DeclarationStatusBadge } from "@/components/customs-badges";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -32,7 +32,7 @@ export default function CustomsPage() {
 
 async function CustomsContent() {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("customs", "read");
   const db = getDb();
   const [declarations, counters, memberships] = await Promise.all([
     listDeclarations(db, { tenantId: session.tenantId }),

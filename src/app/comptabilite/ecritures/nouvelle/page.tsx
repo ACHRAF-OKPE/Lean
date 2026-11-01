@@ -7,7 +7,7 @@ import { EntryForm } from "@/components/accounting-forms";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { todayIsoDate } from "@/lib/dates";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { listAccounts, listJournals, listOpenFiscalYears } from "@/modules/accounting/queries";
@@ -30,7 +30,7 @@ export default function NewJournalEntryPage() {
 
 async function NewJournalEntryContent() {
   await connection();
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "write");
   const db = getDb();
   const [years, journals, accounts, partners, memberships] = await Promise.all([
     listOpenFiscalYears(db, session.tenantId),

@@ -6,7 +6,7 @@ import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { PARTNER_TYPE_LABELS } from "@/modules/catalog/constants";
 import { listPartners } from "@/modules/catalog/queries";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -27,7 +27,7 @@ export default function PartnersPage({ searchParams }: PageProps<"/tiers">) {
 
 async function PartnersContent({ searchParams }: Pick<PageProps<"/tiers">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("partners", "read");
   const db = getDb();
   const [page, memberships, params] = await Promise.all([
     listPartners(db, session.tenantId),

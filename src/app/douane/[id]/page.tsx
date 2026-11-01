@@ -16,7 +16,7 @@ import {
 import { BondStatusBadge, DeclarationStatusBadge } from "@/components/customs-badges";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { can } from "@/modules/identity/permissions";
@@ -72,7 +72,7 @@ async function DeclarationContent({
   searchParams,
 }: Pick<PageProps<"/douane/[id]">, "params" | "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("customs", "read");
   const { id: declarationId } = await params;
   if (!UUID_PATTERN.test(declarationId)) {
     notFound();

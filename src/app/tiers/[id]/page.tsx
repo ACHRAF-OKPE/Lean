@@ -9,7 +9,7 @@ import { DiscussionPanel } from "@/components/discussion-panel";
 import { DocumentTasks } from "@/components/document-tasks";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { getPartner } from "@/modules/catalog/queries";
 import { PARTNER_TYPE_LABELS } from "@/modules/catalog/constants";
 import { can } from "@/modules/identity/permissions";
@@ -52,7 +52,7 @@ async function PartnerContent({
   searchParams,
 }: Pick<PageProps<"/tiers/[id]">, "params" | "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("partners", "read");
   const { id: partnerId } = await params;
   if (!UUID_PATTERN.test(partnerId)) {
     notFound();

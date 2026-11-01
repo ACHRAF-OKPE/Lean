@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { AccountingError } from "@/modules/accounting/errors";
 import { letterLines, unletterGroup } from "@/modules/accounting/lettering";
 import { postCutoffDocuments } from "@/modules/accounting/posting";
@@ -42,7 +42,7 @@ export async function createFiscalYearAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "manage");
   try {
     await createFiscalYear(getDb(), {
       tenantId: session.tenantId,
@@ -63,7 +63,7 @@ export async function closeFiscalYearAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "manage");
   const fiscalYearId = text(formData, "fiscalYearId");
   if (!UUID_PATTERN.test(fiscalYearId)) {
     return { errors: ["Exercice invalide."] };
@@ -84,7 +84,7 @@ export async function createAccountAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "manage");
   try {
     await createAccount(getDb(), {
       tenantId: session.tenantId,
@@ -105,7 +105,7 @@ export async function toggleAccountAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "manage");
   const accountId = text(formData, "accountId");
   if (!UUID_PATTERN.test(accountId)) {
     return { errors: ["Compte invalide."] };
@@ -127,7 +127,7 @@ export async function createJournalAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "manage");
   try {
     await createJournal(getDb(), {
       tenantId: session.tenantId,
@@ -148,7 +148,7 @@ export async function toggleJournalAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "manage");
   const journalId = text(formData, "journalId");
   if (!UUID_PATTERN.test(journalId)) {
     return { errors: ["Journal invalide."] };
@@ -170,7 +170,7 @@ export async function createEntryAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "write");
   const accountIds = values(formData, "compte");
   const partnerIds = values(formData, "tiers");
   const lineLabels = values(formData, "libelle_ligne");
@@ -208,7 +208,7 @@ export async function validateEntryAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "manage");
   const entryId = text(formData, "entryId");
   if (!UUID_PATTERN.test(entryId)) {
     return { errors: ["Écriture invalide."] };
@@ -229,7 +229,7 @@ export async function deleteEntryAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "manage");
   const entryId = text(formData, "entryId");
   if (!UUID_PATTERN.test(entryId)) {
     return { errors: ["Écriture invalide."] };
@@ -250,7 +250,7 @@ export async function saveAccountingSettingsAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "manage");
   try {
     await saveAccountingSettings(getDb(), {
       tenantId: session.tenantId,
@@ -276,7 +276,7 @@ export async function letterLinesAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "write");
   const lineIds = values(formData, "ligne");
   if (lineIds.length < 2) {
     return { errors: ["Sélectionnez au moins deux lignes de tiers."] };
@@ -297,7 +297,7 @@ export async function unletterGroupAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "write");
   try {
     await unletterGroup(getDb(), {
       tenantId: session.tenantId,
@@ -314,7 +314,7 @@ export async function postCutoffAction(
   _state: AccountingFormState,
   formData: FormData,
 ): Promise<AccountingFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("accounting", "manage");
   const fiscalYearId = text(formData, "fiscalYearId");
   if (!UUID_PATTERN.test(fiscalYearId)) {
     return { errors: ["Exercice invalide."] };

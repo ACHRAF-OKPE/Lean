@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule, requirePermission } from "@/lib/auth/session";
 import type { SettingsFormState } from "@/lib/settings/form-state";
 import { createPartnerContact, updatePartnerContact } from "@/modules/settings/contacts";
 import { SettingsError } from "@/modules/settings/errors";
@@ -148,7 +148,7 @@ export async function createContactAction(
   _state: SettingsFormState,
   formData: FormData,
 ): Promise<SettingsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("partners", "write");
   const partnerId = String(formData.get("partnerId") ?? "");
   if (!UUID_PATTERN.test(partnerId)) {
     return { errors: ["Tiers invalide."] };
@@ -178,7 +178,7 @@ export async function updateContactAction(
   _state: SettingsFormState,
   formData: FormData,
 ): Promise<SettingsFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("partners", "write");
   const partnerId = String(formData.get("partnerId") ?? "");
   const contactId = String(formData.get("contactId") ?? "");
   if (!UUID_PATTERN.test(partnerId) || !UUID_PATTERN.test(contactId)) {

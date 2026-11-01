@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { TaskForm, type LinkedDocument } from "@/components/task-form";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { listMentionableMembers } from "@/modules/discussion/queries";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { isTaskRelatedEntityType, TASK_RELATED_LABELS } from "@/modules/tasks/constants";
@@ -30,7 +30,7 @@ async function NewTaskContent({
   searchParams,
 }: Pick<PageProps<"/taches/nouvelle">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tasks", "write");
   const query = await searchParams;
   const db = getDb();
   const [memberships, members] = await Promise.all([

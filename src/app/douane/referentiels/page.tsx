@@ -13,7 +13,7 @@ import {
 } from "@/components/customs-forms";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { CUSTOMS_REGIME_KIND_LABELS, CUSTOMS_TAX_BASE_LABELS } from "@/modules/customs/constants";
@@ -37,7 +37,7 @@ async function ReferentialsContent({
   searchParams,
 }: Pick<PageProps<"/douane/referentiels">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("customs", "read");
   const db = getDb();
   const [referentials, memberships, query] = await Promise.all([
     listCustomsReferentials(db, session.tenantId),

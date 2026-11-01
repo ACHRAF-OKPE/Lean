@@ -6,7 +6,7 @@ import { ArrowLeft, CircleAlert } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getArticleOptions, getSupplierOptions } from "@/modules/purchases/queries";
 import { PurchaseOrderForm } from "./order-form";
@@ -25,7 +25,7 @@ export default function NewPurchasePage() {
 
 async function NewPurchaseContent() {
   await connection();
-  const session = await requirePermission("data.write");
+  const session = await requireModule("purchases", "write");
   const db = getDb();
   const [suppliers, articles, memberships] = await Promise.all([
     getSupplierOptions(db, session.tenantId),

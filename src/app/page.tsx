@@ -22,12 +22,14 @@ import {
   Users,
   Warehouse,
 } from "lucide-react";
+import { LevelBadge } from "@/components/level-badge";
 import { AppHeader } from "@/components/app-header";
 import { getDb } from "@/db/client";
-import { requireSession } from "@/lib/auth/session";
+import { getAccessLevels, requireSession } from "@/lib/auth/session";
 import { LOTS, type LotStatus } from "@/lib/lots";
 import { formatXof } from "@/lib/money";
 import { ROLE_LABELS } from "@/modules/identity/labels";
+import { MODULE_KEYS, moduleLabel } from "@/modules/identity/modules";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { listFiscalYears } from "@/modules/accounting/queries";
@@ -124,6 +126,7 @@ async function Cockpit() {
     customs,
     supply,
     years,
+    levels,
   ] = await Promise.all([
     listMembershipsForUser(db, session.userId),
     getCatalogCounts(db, session.tenantId),
@@ -135,6 +138,7 @@ async function Cockpit() {
     customsCounters(db, session.tenantId),
     getSupplyStats(db, session.tenantId),
     listFiscalYears(db, session.tenantId),
+    getAccessLevels(session),
   ]);
   const deliveredCount = LOTS.filter((lot) => lot.status === "done").length;
   const nextLot = LOTS.find((lot) => lot.status === "next");
@@ -150,23 +154,22 @@ async function Cockpit() {
         <section className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] lg:items-end">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-brand uppercase">
-              Lot 09 · rapports &amp; clôture
+              Lot 10 · responsabilisation
             </p>
             <h1 className="mt-5 max-w-2xl text-4xl leading-[1.08] font-medium tracking-[-0.03em] text-balance sm:text-5xl md:text-[3.25rem]">
-              L&apos;exercice se ferme.
-              <span className="block">Les états se lisent.</span>
+              Chaque module a<span className="block">ses responsables.</span>
             </h1>
             <p className="mt-5 max-w-xl text-sm leading-6 text-muted">
-              Compte de résultat, balance âgée des créances, engagements fournisseurs, exports XLSX
-              et clôture annuelle avec écriture de résultat et à-nouveaux.
+              Lecture, écriture et gestion séparées module par module, refus par défaut, modules
+              sensibles scellés, équipe et matrice des droits lisibles par tous.
             </p>
           </div>
 
           <div className="rounded-xl border border-line bg-panel p-5">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-medium">Dossier rapports &amp; clôture</p>
+              <p className="text-xs font-medium">Dossier responsabilisation</p>
               <span className="rounded-full border border-brand/15 bg-brand-soft px-2 py-0.5 font-mono text-[10px] text-brand-strong">
-                L09
+                L10
               </span>
             </div>
 
@@ -174,7 +177,7 @@ async function Cockpit() {
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[11px] text-muted">Lot courant</dt>
                 <dd className="text-right text-[11px] font-medium">
-                  États de gestion et clôture annuelle
+                  Droits par module et équipe responsable
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
@@ -289,6 +292,40 @@ async function Cockpit() {
               </div>
             </div>
           </div>
+        </section>
+
+        <section aria-labelledby="access-title" className="mt-12">
+          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-line pb-4">
+            <div>
+              <p className="font-mono text-[10px] tracking-[0.18em] text-muted uppercase">
+                Responsabilisation
+              </p>
+              <h2 id="access-title" className="mt-1 text-lg font-medium tracking-tight">
+                Mes droits par module
+              </h2>
+            </div>
+            {can(session.role, "members.read") ? (
+              <Link
+                href="/equipe"
+                className="inline-flex items-center gap-1.5 rounded-md border border-line bg-panel px-3 py-1.5 text-[11px] text-muted transition-colors hover:border-brand/30 hover:text-brand"
+              >
+                Équipe et droits
+                <ArrowUpRight className="size-3" aria-hidden="true" />
+              </Link>
+            ) : null}
+          </div>
+
+          <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {MODULE_KEYS.map((key) => (
+              <li
+                key={key}
+                className="flex items-center justify-between gap-3 rounded-lg border border-line bg-panel px-3 py-2"
+              >
+                <span className="text-[11px]">{moduleLabel(key)}</span>
+                <LevelBadge level={levels[key]} />
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section aria-labelledby="catalog-title" className="mt-12">

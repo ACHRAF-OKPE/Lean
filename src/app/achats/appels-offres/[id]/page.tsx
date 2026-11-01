@@ -17,7 +17,7 @@ import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { TenderInvitationStatusBadge, TenderStatusBadge } from "@/components/tender-badges";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { can } from "@/modules/identity/permissions";
@@ -122,7 +122,7 @@ async function TenderDetailContent({
   searchParams,
 }: Pick<PageProps<"/achats/appels-offres/[id]">, "params" | "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("tenders", "read");
   const { id } = await params;
   if (!UUID_PATTERN.test(id)) {
     notFound();

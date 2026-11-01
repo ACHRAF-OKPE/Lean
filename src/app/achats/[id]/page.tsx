@@ -21,7 +21,7 @@ import { ExchangeStatusBadge, ExchangeTypeBadge } from "@/components/exchange-ba
 import { LoadingShell } from "@/components/loading-shell";
 import { PurchaseStatusBadge, ReceiptStateBadge } from "@/components/purchase-badges";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { can } from "@/modules/identity/permissions";
@@ -135,7 +135,7 @@ async function PurchaseOrderContent({
   searchParams,
 }: Pick<PageProps<"/achats/[id]">, "params" | "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("purchases", "read");
   const { id: orderId } = await params;
   if (!UUID_PATTERN.test(orderId)) {
     notFound();

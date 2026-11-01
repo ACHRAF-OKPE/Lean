@@ -16,12 +16,15 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { MODULE_KEYS, type Level, type ModuleKey } from "@/modules/identity/modules";
 
 const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   dataType() {
     return "bytea";
   },
 });
+
+const MODULE_SQL_LIST = MODULE_KEYS.map((key) => `'${key}'`).join(", ");
 
 export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -76,6 +79,69 @@ export const sessions = pgTable(
     uniqueIndex("sessions_token_hash_idx").on(table.tokenHash),
     index("sessions_user_idx").on(table.userId),
     index("sessions_tenant_idx").on(table.tenantId),
+  ],
+);
+
+export const moduleGrants = pgTable(
+  "module_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull(),
+    module: text("module").$type<ModuleKey>().notNull(),
+    level: text("level").$type<Level>().notNull(),
+    grantedByUserId: uuid("granted_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("module_grants_tenant_user_module_idx").on(
+      table.tenantId,
+      table.userId,
+      table.module,
+    ),
+    index("module_grants_tenant_module_idx").on(table.tenantId, table.module),
+    check("module_grants_module_check", sql`${table.module} in (${sql.raw(MODULE_SQL_LIST)})`),
+    check("module_grants_level_check", sql`${table.level} in ('none', 'read', 'write', 'manage')`),
+    foreignKey({
+      name: "module_grants_tenant_user_fk",
+      columns: [table.tenantId, table.userId],
+      foreignColumns: [memberships.tenantId, memberships.userId],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const moduleResponsibles = pgTable(
+  "module_responsibles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    module: text("module").$type<ModuleKey>().notNull(),
+    userId: uuid("user_id").notNull(),
+    assignedByUserId: uuid("assigned_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("module_responsibles_tenant_module_idx").on(table.tenantId, table.module),
+    index("module_responsibles_tenant_user_idx").on(table.tenantId, table.userId),
+    check(
+      "module_responsibles_module_check",
+      sql`${table.module} in (${sql.raw(MODULE_SQL_LIST)})`,
+    ),
+    foreignKey({
+      name: "module_responsibles_tenant_user_fk",
+      columns: [table.tenantId, table.userId],
+      foreignColumns: [memberships.tenantId, memberships.userId],
+    }).onDelete("cascade"),
   ],
 );
 

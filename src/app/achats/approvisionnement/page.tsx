@@ -6,7 +6,7 @@ import { ArrowLeftRight, ClipboardList, ShieldCheck } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { formatXof } from "@/lib/money";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -37,7 +37,7 @@ async function SupplyPoliciesContent({
   searchParams,
 }: Pick<PageProps<"/achats/approvisionnement">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("supply", "read");
   const query = await searchParams;
   const db = getDb();
   const [page, memberships] = await Promise.all([

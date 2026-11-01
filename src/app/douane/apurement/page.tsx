@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { APUREMENT_DECLARATION_STATE_LABELS } from "@/modules/customs/apurement";
@@ -30,7 +30,7 @@ export default function ApurementPage() {
 
 async function ApurementContent() {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("customs", "read");
   const db = getDb();
   const [rows, memberships] = await Promise.all([
     listApurementOverviews(db, session.tenantId),

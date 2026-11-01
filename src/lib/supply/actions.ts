@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { SupplyError } from "@/modules/supply/errors";
 import { parseSupplyGrouping } from "@/modules/supply/proposals";
 import {
@@ -33,7 +33,7 @@ export async function savePolicyAction(
   _state: SupplyFormState,
   formData: FormData,
 ): Promise<SupplyFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("supply", "manage");
   const articleId = text(formData, "articleId");
   if (!UUID_PATTERN.test(articleId)) {
     return { errors: ["Article invalide."] };
@@ -63,7 +63,7 @@ export async function runCalculationAction(
   _state: SupplyFormState,
   formData: FormData,
 ): Promise<SupplyFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("supply", "write");
   let created: { id: string; number: string };
   try {
     created = await runSupplyCalculation(getDb(), {
@@ -81,7 +81,7 @@ export async function generateOrdersAction(
   _state: SupplyFormState,
   formData: FormData,
 ): Promise<SupplyFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("purchases", "manage");
   const runId = text(formData, "runId");
   if (!UUID_PATTERN.test(runId)) {
     return { errors: ["Calcul des besoins invalide."] };
@@ -111,7 +111,7 @@ export async function generateTenderAction(
   _state: SupplyFormState,
   formData: FormData,
 ): Promise<SupplyFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("tenders", "manage");
   const runId = text(formData, "runId");
   if (!UUID_PATTERN.test(runId)) {
     return { errors: ["Calcul des besoins invalide."] };
@@ -137,7 +137,7 @@ export async function dismissLineAction(
   _state: SupplyFormState,
   formData: FormData,
 ): Promise<SupplyFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("supply", "write");
   const runId = text(formData, "runId");
   const lineId = text(formData, "lineId");
   if (!UUID_PATTERN.test(runId) || !UUID_PATTERN.test(lineId)) {

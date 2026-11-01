@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { TenderStatusBadge } from "@/components/tender-badges";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { listTenders } from "@/modules/tenders/queries";
@@ -30,7 +30,7 @@ async function TendersContent({
   searchParams,
 }: Pick<PageProps<"/achats/appels-offres">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("tenders", "read");
   const query = await searchParams;
   const db = getDb();
   const [tenders, memberships] = await Promise.all([

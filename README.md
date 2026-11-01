@@ -3,9 +3,10 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 9 livré — rapports et clôture. La feuille de route (lots 0 à 9) est complète.**
-Les états de gestion, leurs exports XLSX et la clôture annuelle avec à-nouveaux sont en
-production ; le prochain travail est du durcissement et de la demande du porteur.
+**Statut : Lot 10 livré — responsabilisation. La feuille de route (lots 0 à 10) est
+complète.** Les droits par module, l'équipe et les responsables sont en production. Le
+prochain lot annoncé est le Lot 11 — RH socle (organisation, personnel, contrats, temps de
+travail), puis la paie et le paramétrage systématique de chaque module.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -76,6 +77,8 @@ Vercel avec la base Neon.
 - Rôles : **propriétaire** (tout), **administrateur** (membres, audit, données, paramètres),
   **membre** (données). Le refus est la valeur par défaut ; l'interface ne fait que masquer ce
   que le serveur interdit.
+- Depuis le Lot 10, chaque rôle porte aussi un **niveau par module** (aucun accès, lecture,
+  écriture, gestion) détaillé plus bas : la permission globale reste exigée en dessous.
 - Connexion, déconnexion, changement d'espace et amorçage alimentent le journal d'audit,
   filtré par tenant et réservé aux rôles autorisés.
 
@@ -428,8 +431,8 @@ couvrent SCM-007 à SCM-012.
 
 ## Rapports et clôture
 
-Le Lot 9 ferme la feuille de route avec trois états de gestion, leur export et la clôture
-annuelle :
+Le Lot 9 ferme la feuille de route initiale avec trois états de gestion, leur export et la
+clôture annuelle :
 
 - **Compte de résultat** — `/comptabilite/resultat` calcule à la lecture, pour l'exercice
   choisi, les soldes nets des comptes de classe 6 (charges), 7 (produits) et 8 (hors activité
@@ -456,6 +459,46 @@ annuelle :
   ou sans exercice ouvert commençant le lendemain, la clôture est refusée et aucune écriture
   n'est produite. Chaque écriture porte sa source (`fiscal_year_close`, `fiscal_year_open`),
   n'est produite qu'une fois, et les deux sont auditées.
+
+## Équipe et droits par module
+
+Le Lot 10 répond à la demande du porteur : savoir qui est responsable de quel module, qui peut
+voir quoi, qui peut lire, écrire ou gérer.
+
+- **Treize modules, quatre niveaux.** Tiers, Articles, Nomenclature douanière, Douane, Achats,
+  Appels d'offres, Besoins d'achat, Échanges, Ventes, Factures, Stock, Tâches, Comptabilité ;
+  aucun accès < lecture < écriture < gestion. Le catalogue est unique (`TEN-008`) : un module
+  hors liste (paie, RH) ne peut être ni concédé ni gardé tant qu'il n'existe pas.
+- **Le défaut dépend du rôle.** Propriétaire et administrateur gèrent tout. Un membre lit les
+  onze modules courants et ne voit ni la douane ni la comptabilité — les deux modules sensibles
+  sont scellés par défaut.
+- **La concession écrase le défaut, y compris vers le bas.** Une concession est une ligne
+  `(tenant, membre, module)` : `none` est un sceau conservé, pas une suppression. Retirer la
+  concession fait retomber sur le défaut du rôle. Le propriétaire gère de droit : toute
+  concession sur lui est refusée (`TEN-009`).
+- **`write` ou `manage` (`GEN-012`).** Écrire = créer et modifier un brouillon ou une donnée de
+  base. Gérer = faire sortir un document du brouillon (demande, confirmation, validation,
+  clôture, annulation, réouverture, suppression) et enregistrer le paramétrage du module.
+- **Chaque écran est gardé par son module (`TEN-013`).** Les pages de liste exigent la lecture,
+  la saisie l'écriture, les transitions et le paramétrage la gestion — en plus de la permission
+  globale. Les imports sont gardés sur la cible du lot, du modèle XLSX jusqu'à l'application :
+  `/tiers/import` n'ouvre pas l'écriture d'un module non concédé. `src/modules/identity/routes.test.ts`
+  échoue si une route n'est ni cartographiée ni explicitement plateforme.
+- **`/equipe`** (réservé à `members.read`) : ajouter un membre ou rattacher un compte existant,
+  changer un rôle, ouvrir la matrice des droits des treize modules pour chaque membre, désigner
+  le responsable de chaque module, retirer un membre. L'enregistrement groupé n'écrit et
+  n'audite que les concessions réellement changées.
+- **Gardes d'intégrité de l'équipe (`TEN-010`).** Pas de doublon dans l'espace, un compte déjà
+  connu est rattaché sans être recréé, seul le propriétaire nomme un propriétaire, l'espace garde
+  toujours au moins un propriétaire, et personne ne modifie son propre rôle, ses propres droits
+  ni ne se retire lui-même. Un changement de rôle efface les concessions.
+- **Le responsable est une addressabilité, pas une permission (`TEN-011`).** Un seul responsable
+  par module et par espace ; le désigner ne change aucun droit.
+- **Toute mutation est auditée (`TEN-012`).** Membre, rôle, concession, responsabilité :
+  acteur, entité, module, valeurs avant/après, en français. Un retrait de membre supprime en
+  cascade ses concessions et ses responsabilités.
+- **Le cockpit** n'affiche que les modules lisibles et présente la section « Mes droits par
+  module » ; `/acces-refuse` reste l'autorité, l'interface ne faisant que masquer.
 
 ## Scripts
 
@@ -491,7 +534,8 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `journal_entry_lines`, `journal_entry_sequences`, `accounting_settings`,
 `journal_entry_line_letterings` et `lettering_sequences`, puis `tender_requests`,
 `tender_request_lines`, `tender_invitations`, `tender_quotes`, `tender_quote_lines` et
-`tender_awards`, puis `article_supply_policies`, `supply_runs` et `supply_run_lines`. Les
+`tender_awards`, puis `article_supply_policies`, `supply_runs` et `supply_run_lines`, puis
+`module_grants` et `module_responsibles`. Les
 migrations générées sont commitées dans
 `drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
 `0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
@@ -501,10 +545,13 @@ pour les tâches, `0011` pour leur chronomètre, `0012` pour la douane, `0013` p
 l'apurement progressif des IM9, `0014` pour le socle comptable et `0015` pour le paramétrage,
 les écritures automatiques, le lettrage et le cut-off, `0016` pour les appels d'offres et la
 cotation fournisseur, `0017` pour les politiques d'approvisionnement, les calculs de besoins et
-les propositions d'achat, `0018` pour les sources d'écriture de clôture et d'à-nouveaux. Les
+les propositions d'achat, `0018` pour les sources d'écriture de clôture et d'à-nouveaux, `0019`
+pour les droits par module et les responsables. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
-cohérence article/nomenclature, de bloc bancaire, d'idempotence des évènements et d'unicité des
-écritures de clôture sont posées en base, en complément de la validation applicative.
+cohérence article/nomenclature, de bloc bancaire, d'idempotence des évènements, d'unicité des
+écritures de clôture, d'appartenance à l'espace (clé composite `(tenant_id, user_id)` vers
+`memberships`) et du catalogue des modules et des niveaux (contraintes `CHECK`) sont posées en
+base, en complément de la validation applicative.
 
 ```bash
 npm run db:generate

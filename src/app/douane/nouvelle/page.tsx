@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { DeclarationHeaderForm } from "@/components/customs-forms";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { todayIsoDate } from "@/lib/dates";
 import { getDeclarationOptions } from "@/modules/customs/queries";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -26,7 +26,7 @@ export default function NewDeclarationPage() {
 
 async function NewDeclarationContent() {
   await connection();
-  const session = await requirePermission("data.write");
+  const session = await requireModule("customs", "write");
   const db = getDb();
   const [options, memberships] = await Promise.all([
     getDeclarationOptions(db, session.tenantId),

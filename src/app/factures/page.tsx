@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { InvoiceStatusBadge } from "@/components/sales-badges";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -29,7 +29,7 @@ export default function InvoicesPage() {
 
 async function InvoicesContent() {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("invoices", "read");
   const db = getDb();
   const [invoices, stats, memberships] = await Promise.all([
     listInvoices(db, session.tenantId),

@@ -1,6 +1,6 @@
 import { getDb } from "@/db/client";
 import { todayIsoDate } from "@/lib/dates";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isReportKind, type ReportKind } from "@/modules/reports/constants";
 import {
   agedReceivablesFileName,
@@ -61,7 +61,7 @@ async function exportBalanceAgee(
 
 export async function GET(request: Request, { params }: { params: Promise<{ kind: string }> }) {
   const { kind: slug } = await params;
-  const session = await requirePermission("data.read");
+  const session = await requireModule("accounting", "read");
 
   if (!isReportKind(slug)) {
     return new Response("État inconnu.", { status: 404 });

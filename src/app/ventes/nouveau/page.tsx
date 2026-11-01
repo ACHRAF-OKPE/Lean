@@ -6,7 +6,7 @@ import { ArrowLeft, CircleAlert } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getCustomerOptions, getSalesArticleOptions } from "@/modules/sales/queries";
 import { SalesOrderForm } from "./order-form";
@@ -25,7 +25,7 @@ export default function NewSalesPage() {
 
 async function NewSalesContent() {
   await connection();
-  const session = await requirePermission("data.write");
+  const session = await requireModule("sales", "write");
   const db = getDb();
   const [customers, articles, memberships] = await Promise.all([
     getCustomerOptions(db, session.tenantId),

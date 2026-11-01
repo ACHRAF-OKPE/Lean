@@ -7,7 +7,7 @@ import { ArrowLeft, CircleAlert, ClipboardList, ShieldCheck } from "lucide-react
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { todayIsoDate } from "@/lib/dates";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -73,7 +73,7 @@ async function SupplyRunDetailContent({
   searchParams,
 }: Pick<PageProps<"/achats/besoins/[id]">, "params" | "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("supply", "read");
   const { id } = await params;
   if (!UUID_PATTERN.test(id)) {
     notFound();

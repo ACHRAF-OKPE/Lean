@@ -6,7 +6,7 @@ import type { StockMoveType } from "@/db/schema";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getStockCounts, getStockOverview } from "@/modules/stock/queries";
@@ -44,7 +44,7 @@ export default function StockPage() {
 
 async function StockContent() {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("stock", "read");
   const db = getDb();
   const [overview, counts, memberships] = await Promise.all([
     getStockOverview(db, session.tenantId),

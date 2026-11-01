@@ -5,7 +5,7 @@ import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { formatXof } from "@/lib/money";
 import { ARTICLE_TYPE_LABELS, unitLabel } from "@/modules/catalog/constants";
 import { listArticles } from "@/modules/catalog/queries";
@@ -27,7 +27,7 @@ export default function ArticlesPage({ searchParams }: PageProps<"/articles">) {
 
 async function ArticlesContent({ searchParams }: Pick<PageProps<"/articles">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("articles", "read");
   const db = getDb();
   const [page, memberships, params] = await Promise.all([
     listArticles(db, session.tenantId),

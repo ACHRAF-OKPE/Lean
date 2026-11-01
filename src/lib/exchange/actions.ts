@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { resolveAppUrl } from "@/lib/app-url";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule, requirePermission } from "@/lib/auth/session";
 import type { ExchangeFormState } from "@/lib/exchange/form-state";
 import { ExchangeError } from "@/modules/exchange/errors";
 import {
@@ -176,7 +176,7 @@ export async function sendPurchaseExchangeAction(
   _state: ExchangeFormState,
   formData: FormData,
 ): Promise<ExchangeFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("exchanges", "write");
   const orderId = text(formData, "orderId") ?? "";
   const type = text(formData, "type") ?? "";
   const templateId = text(formData, "templateId") ?? "";
@@ -238,7 +238,7 @@ export async function resendExchangeMessageAction(
   _state: ExchangeFormState,
   formData: FormData,
 ): Promise<ExchangeFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("exchanges", "write");
   const messageId = text(formData, "messageId") ?? "";
   if (!UUID_PATTERN.test(messageId)) {
     return { errors: ["Message invalide."] };

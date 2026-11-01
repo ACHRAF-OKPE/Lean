@@ -2,11 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule, requirePermission } from "@/lib/auth/session";
 import type { CatalogFormState } from "@/lib/catalog/form-state";
 import { HEADERS_BY_KIND } from "@/modules/catalog/constants";
 import { CatalogError } from "@/modules/catalog/errors";
-import { applyImportBatch } from "@/modules/catalog/imports";
+import { applyImportBatch, getImportBatchModule } from "@/modules/catalog/imports";
 import {
   createArticle,
   createHsCode,
@@ -56,7 +56,7 @@ export async function createPartnerAction(
   _state: CatalogFormState,
   formData: FormData,
 ): Promise<CatalogFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("partners", "write");
   const db = getDb();
   const context = await loadValidationContext(db, session.tenantId);
   const [row] = validateImportRows(
@@ -92,7 +92,7 @@ export async function createArticleAction(
   _state: CatalogFormState,
   formData: FormData,
 ): Promise<CatalogFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("articles", "write");
   const db = getDb();
   const context = await loadValidationContext(db, session.tenantId);
   const [row] = validateImportRows(
@@ -128,7 +128,7 @@ export async function createHsCodeAction(
   _state: CatalogFormState,
   formData: FormData,
 ): Promise<CatalogFormState> {
-  const session = await requirePermission("data.write");
+  const session = await requireModule("nomenclature", "write");
   const db = getDb();
   const context = await loadValidationContext(db, session.tenantId);
   const [row] = validateImportRows(
@@ -172,6 +172,15 @@ export async function applyImportAction(
   if (!UUID_PATTERN.test(batchId)) {
     return { errors: ["Import invalide."] };
   }
+
+  const moduleKey = await getImportBatchModule(getDb(), {
+    tenantId: session.tenantId,
+    batchId,
+  });
+  if (!moduleKey) {
+    return { errors: ["Import introuvable dans cet espace de travail."] };
+  }
+  await requireModule(moduleKey, "write");
 
   try {
     await applyImportBatch(getDb(), {

@@ -30,6 +30,8 @@ import {
   loadAccountingImportContext,
 } from "@/modules/accounting/imports";
 import { CatalogError } from "./errors";
+import { MODULE_BY_IMPORT_KIND } from "./constants";
+import type { ModuleKey } from "@/modules/identity/modules";
 import { loadValidationContext } from "./queries";
 import {
   validateImportRows,
@@ -233,6 +235,22 @@ export async function getImportBatch(
     .orderBy(asc(importRows.rowNumber));
 
   return { batch, rows };
+}
+
+export async function getImportBatchModule(
+  db: Database,
+  input: { tenantId: string; batchId: string },
+): Promise<ModuleKey | null> {
+  const [batch] = await db
+    .select({ kind: importBatches.kind })
+    .from(importBatches)
+    .where(and(eq(importBatches.tenantId, input.tenantId), eq(importBatches.id, input.batchId)))
+    .limit(1);
+
+  if (!batch) {
+    return null;
+  }
+  return MODULE_BY_IMPORT_KIND[batch.kind];
 }
 
 export async function listImportBatches(

@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { AccountForm, AccountToggleButton } from "@/components/accounting-forms";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { ACCOUNTING_LIST_LIMIT } from "@/modules/accounting/constants";
@@ -34,7 +34,7 @@ async function AccountsContent({
   searchParams,
 }: Pick<PageProps<"/comptabilite/comptes">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("accounting", "read");
   const db = getDb();
   const [accounts, memberships, query] = await Promise.all([
     listAccounts(db, { tenantId: session.tenantId }),

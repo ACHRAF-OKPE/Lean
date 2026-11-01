@@ -10,7 +10,7 @@ import { LoadingShell } from "@/components/loading-shell";
 import { TaskChrono } from "@/components/task-chrono";
 import { TaskPriorityBadge, TaskStatusBadge } from "@/components/task-badges";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { listMentionableMembers } from "@/modules/discussion/queries";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -79,7 +79,7 @@ export default function TasksPage(props: PageProps<"/taches">) {
 
 async function TasksContent({ searchParams }: Pick<PageProps<"/taches">, "searchParams">) {
   await connection();
-  const session = await requirePermission("data.read");
+  const session = await requireModule("tasks", "read");
   const db = getDb();
   const [query, memberships, members] = await Promise.all([
     searchParams,

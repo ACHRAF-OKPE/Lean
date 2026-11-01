@@ -1,4 +1,5 @@
 import type { ArticleType, ImportKind, PartnerType } from "@/db/schema";
+import type { ModuleKey } from "@/modules/identity/modules";
 
 export const PARTNER_TYPE_LABELS: Record<PartnerType, string> = {
   company: "Entreprise",
@@ -21,6 +22,20 @@ export const IMPORT_KIND_LABELS: Record<ImportKind, string> = {
   customs_apurements: "Apurements progressifs",
   accounts: "Plan comptable",
   journal_entries: "Écritures comptables",
+};
+
+/** Chaque import écrit dans un module : son garde-fou de droits suit la cible, pas l'écran. */
+export const MODULE_BY_IMPORT_KIND: Record<ImportKind, ModuleKey> = {
+  partners: "partners",
+  articles: "articles",
+  hs_codes: "nomenclature",
+  purchase_lines: "purchases",
+  sales_lines: "sales",
+  tasks: "tasks",
+  customs_lines: "customs",
+  customs_apurements: "customs",
+  accounts: "accounting",
+  journal_entries: "accounting",
 };
 
 const IMPORT_KINDS = [
