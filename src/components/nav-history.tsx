@@ -4,7 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
-import { breadcrumbFor, recordVisit, type TrailEntry } from "./nav-items";
+import { pageEntryFor, recordVisit, type TrailEntry } from "./nav-items";
 
 const STORAGE_KEY = "lean.nav.history";
 const HISTORY_EVENT = "lean:nav-history";
@@ -63,8 +63,7 @@ export function NavHistoryTrail() {
   const history = useSyncExternalStore(subscribe, readHistory, () => EMPTY_HISTORY);
 
   useEffect(() => {
-    const current = breadcrumbFor(pathname).at(-1);
-    if (!current) return;
+    const current = pageEntryFor(pathname);
 
     const stored = readHistory();
     const next = recordVisit(stored, current);

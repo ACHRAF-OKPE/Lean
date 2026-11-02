@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MODULE_KEYS, type Level, type ModuleKey } from "@/modules/identity/modules";
-import { breadcrumbFor, recordVisit, visibleNavItems, type TrailEntry } from "./nav-items";
+import { pageEntryFor, recordVisit, visibleNavItems, type TrailEntry } from "./nav-items";
 
 function levels(overrides: Partial<Record<ModuleKey, Level>> = {}): Record<ModuleKey, Level> {
   const base = Object.fromEntries(MODULE_KEYS.map((key) => [key, "none"])) as Record<
@@ -33,34 +33,24 @@ describe("GEN-014 — la barre de navigation", () => {
   });
 });
 
-describe("GEN-014 — fil d'Ariane", () => {
-  it("réduit le cockpit à l'accueil seul", () => {
-    expect(breadcrumbFor("/")).toEqual([{ label: "Accueil", href: "/" }]);
+describe("GEN-014 — la page courante", () => {
+  it("nomme le cockpit « Accueil »", () => {
+    expect(pageEntryFor("/")).toEqual({ label: "Accueil", href: "/" });
   });
 
-  it("empile les segments nommés avec leur adresse", () => {
-    expect(breadcrumbFor("/tiers/categories")).toEqual([
-      { label: "Accueil", href: "/" },
-      { label: "Tiers", href: "/tiers" },
-      { label: "Catégories", href: "/tiers/categories" },
-    ]);
+  it("rend le libellé français et l'adresse du dernier segment", () => {
+    expect(pageEntryFor("/tiers/categories")).toEqual({
+      label: "Catégories",
+      href: "/tiers/categories",
+    });
   });
 
   it("garde le libellé brut d'un segment inconnu, comme un code de tiers", () => {
-    expect(breadcrumbFor("/tiers/CLI001/modifier").map((entry) => entry.label)).toEqual([
-      "Accueil",
-      "Tiers",
-      "CLI001",
-      "Modifier",
-    ]);
+    expect(pageEntryFor("/tiers/CLI001")).toEqual({ label: "CLI001", href: "/tiers/CLI001" });
   });
 
-  it("ignore une barre finale sans dernier niveau vide", () => {
-    expect(breadcrumbFor("/rh/temps/").map((entry) => entry.href)).toEqual([
-      "/",
-      "/rh",
-      "/rh/temps",
-    ]);
+  it("ignore une barre finale", () => {
+    expect(pageEntryFor("/rh/temps/")).toEqual({ label: "Temps de travail", href: "/rh/temps/" });
   });
 });
 

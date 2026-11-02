@@ -4,7 +4,6 @@ import { getAccessLevels } from "@/lib/auth/session";
 import { logoutAction, switchTenantAction } from "@/lib/auth/actions";
 import { can } from "@/modules/identity/permissions";
 import type { MembershipSummary, SessionContext } from "@/modules/identity/queries";
-import { NavBreadcrumb } from "./nav-breadcrumb";
 import { NavHistoryTrail } from "./nav-history";
 import { NotificationBell } from "./notification-bell";
 import {
@@ -34,8 +33,6 @@ export async function AppHeader({
 
   return (
     <>
-      <NavBreadcrumb />
-
       <header className="border-b border-line">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-6 py-4 md:px-10">
           <div className="order-2 ml-auto flex items-center gap-2 sm:order-3">

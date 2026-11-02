@@ -165,20 +165,17 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
 };
 
 /**
- * GEN-014 — le fil d'Ariane se déduit de l'adresse, sans requête : « Accueil », puis chaque
- * segment nommé. Un segment inconnu garde son libellé brut — le code d'un tiers, par exemple.
+ * GEN-014 — la page courante se déduit de l'adresse, sans requête : le dernier segment nommé prend
+ * son libellé français, un segment inconnu garde son libellé brut — le code d'un tiers, par exemple
+ * — et le cockpit s'appelle « Accueil ».
  */
-export function breadcrumbFor(pathname: string): readonly TrailEntry[] {
-  const trail: TrailEntry[] = [{ label: "Accueil", href: "/" }];
-  let href = "";
-
-  for (const segment of pathname.split("/")) {
-    if (segment === "") continue;
-    href += `/${segment}`;
-    trail.push({ label: SEGMENT_LABELS[segment] ?? segment, href });
-  }
-
-  return trail;
+export function pageEntryFor(pathname: string): TrailEntry {
+  const last = pathname
+    .split("/")
+    .filter((segment) => segment !== "")
+    .at(-1);
+  if (last === undefined) return { label: "Accueil", href: "/" };
+  return { label: SEGMENT_LABELS[last] ?? last, href: pathname };
 }
 
 /** GEN-014 — l'historique ne retient que les huit dernières pages. */
