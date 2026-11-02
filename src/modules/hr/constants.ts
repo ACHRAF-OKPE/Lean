@@ -5,6 +5,8 @@ import type {
   HrDayPeriod,
   HrEmployeeStatus,
   HrHolidayKind,
+  HrLeaveHalfDay,
+  HrLeaveRequestStatus,
   HrTimeEntryKind,
   HrTimeEntryPeriod,
   HrTimeEntryStatus,
@@ -163,4 +165,36 @@ export function isHrTimeEntryPeriod(value: string): value is HrTimeEntryPeriod {
 
 export function isHrTimeEntryStatus(value: string): value is HrTimeEntryStatus {
   return (HR_TIME_ENTRY_STATUSES as readonly string[]).includes(value);
+}
+
+/* ----------------------------------------------------------------------- congés */
+
+export const HR_LEAVE_HALF_DAYS = ["morning", "afternoon"] as const;
+
+export const HR_LEAVE_HALF_DAY_LABELS: Record<HrLeaveHalfDay, string> = {
+  morning: "Matin",
+  afternoon: "Après-midi",
+};
+
+export const HR_LEAVE_REQUEST_STATUSES = ["draft", "validated", "refused", "cancelled"] as const;
+
+export const HR_LEAVE_REQUEST_STATUS_LABELS: Record<HrLeaveRequestStatus, string> = {
+  draft: "Brouillon",
+  validated: "Validé",
+  refused: "Refusé",
+  cancelled: "Annulé",
+};
+
+export const LEAVE_TYPE_CODE_PATTERN = /^[A-Z0-9][A-Z0-9._-]{1,11}$/;
+export const MAX_LEAVE_TYPE_NAME_LENGTH = 80;
+export const MAX_LEAVE_REASON_LENGTH = 200;
+export const MAX_LEAVE_DECISION_NOTE_LENGTH = 200;
+export const MAX_ANNUAL_ALLOWANCE_DAYS = 366;
+
+export function isHrLeaveHalfDay(value: string): value is HrLeaveHalfDay {
+  return (HR_LEAVE_HALF_DAYS as readonly string[]).includes(value);
+}
+
+export function isHrLeaveRequestStatus(value: string): value is HrLeaveRequestStatus {
+  return (HR_LEAVE_REQUEST_STATUSES as readonly string[]).includes(value);
 }

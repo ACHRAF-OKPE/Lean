@@ -104,8 +104,8 @@ export function holidayMinutes(bounds: CalendarDayBounds, period: HrDayPeriod): 
   return isAfternoonWorked(bounds) ? minuteSpan(bounds.afternoonFrom, bounds.afternoonTo) : 0;
 }
 
-/** HR-009 + HR-010 — valeur travaillée du jour, jours fériés et chômés déduits, jamais négative. */
-export function availableHalfDays(
+/** HR-009 + HR-010 : valeur travaillée du jour en demi-journées, jours fériés et chômés déduits. */
+export function availableHalfDayUnits(
   bounds: CalendarDayBounds,
   holidays: readonly HrDayPeriod[],
 ): number {
@@ -113,7 +113,15 @@ export function availableHalfDays(
   for (const period of holidays) {
     units -= holidayHalfDayUnits(bounds, period);
   }
-  return Math.max(0, units) / HALF_DAY_UNIT;
+  return Math.max(0, units);
+}
+
+/** HR-009 + HR-010 : la même valeur exprimée en journées, jamais négative. */
+export function availableHalfDays(
+  bounds: CalendarDayBounds,
+  holidays: readonly HrDayPeriod[],
+): number {
+  return availableHalfDayUnits(bounds, holidays) / HALF_DAY_UNIT;
 }
 
 /** HR-009 + HR-010 — capacité horaire du jour, fractions fériées déduites, arrondie au centième. */

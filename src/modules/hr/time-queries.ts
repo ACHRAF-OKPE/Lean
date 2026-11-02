@@ -18,6 +18,7 @@ import type { Database } from "@/db/client";
 import {
   auditEvents,
   hrEmployees,
+  hrLeaveRequests,
   hrPublicHolidays,
   hrTimeEntries,
   hrWorkCalendarDays,
@@ -29,6 +30,7 @@ import {
 import { todayIsoDate } from "@/lib/dates";
 import { HR_LIST_LIMIT, HR_WEEK_DAY_LABELS } from "./constants";
 import { HrError } from "./errors";
+import { leaveCoveredPeriods, type LeaveDayCapacity } from "./leave";
 import {
   availableHalfDays,
   availableHours,
@@ -685,6 +687,7 @@ export interface DayCapacity {
   readonly calendarName: string | null;
   readonly bounds: CalendarDayBounds;
   readonly holidays: readonly HrDayPeriod[];
+  readonly leavePeriods: readonly HrDayPeriod[];
   readonly halfDays: number;
   readonly hours: number;
 }
@@ -699,6 +702,44 @@ async function holidayPeriods(
     .from(hrPublicHolidays)
     .where(and(eq(hrPublicHolidays.tenantId, tenantId), eq(hrPublicHolidays.workDate, workDate)));
   return rows.map((row) => row.period as HrDayPeriod);
+}
+
+/** HR-017 — les périodes qu'un congé validé d'un salarié retire ce jour-là, comme un jour férié. */
+async function leavePeriods(
+  db: DbLike,
+  tenantId: string,
+  employeeId: string,
+  workDate: string,
+): Promise<readonly HrDayPeriod[]> {
+  const rows = await db
+    .select({
+      startDate: hrLeaveRequests.startDate,
+      endDate: hrLeaveRequests.endDate,
+      startHalfDay: hrLeaveRequests.startHalfDay,
+      endHalfDay: hrLeaveRequests.endHalfDay,
+    })
+    .from(hrLeaveRequests)
+    .where(
+      and(
+        eq(hrLeaveRequests.tenantId, tenantId),
+        eq(hrLeaveRequests.employeeId, employeeId),
+        eq(hrLeaveRequests.status, "validated"),
+        lte(hrLeaveRequests.startDate, workDate),
+        gte(hrLeaveRequests.endDate, workDate),
+      ),
+    );
+  const periods: HrDayPeriod[] = [];
+  for (const row of rows) {
+    periods.push(
+      ...leaveCoveredPeriods(workDate, {
+        startDate: row.startDate,
+        endDate: row.endDate,
+        startHalfDay: row.startHalfDay,
+        endHalfDay: row.endHalfDay,
+      }),
+    );
+  }
+  return periods;
 }
 
 /** HR-009 — le calendrier de la fiche prime sur celui de l'espace. */
@@ -734,13 +775,17 @@ export async function resolveDayCapacity(
         .where(and(eq(hrWorkCalendars.tenantId, tenantId), eq(hrWorkCalendars.isDefault, true)))
         .limit(1);
 
-  const holidays = await holidayPeriods(db, tenantId, workDate);
+  const [holidays, leave] = await Promise.all([
+    holidayPeriods(db, tenantId, workDate),
+    leavePeriods(db, tenantId, employeeId, workDate),
+  ]);
   if (!calendar) {
     return {
       calendarId: null,
       calendarName: null,
       bounds: EMPTY_BOUNDS,
       holidays,
+      leavePeriods: leave,
       halfDays: 0,
       hours: 0,
     };
@@ -751,13 +796,15 @@ export async function resolveDayCapacity(
     (candidate) => candidate.dayOfWeek === weekDayOf(workDate),
   );
   const bounds = boundsOfDay(day);
+  const blocked = [...holidays, ...leave];
   return {
     calendarId: calendar.id,
     calendarName: calendar.name,
     bounds,
     holidays,
-    halfDays: availableHalfDays(bounds, holidays),
-    hours: availableHours(bounds, holidays),
+    leavePeriods: leave,
+    halfDays: availableHalfDays(bounds, blocked),
+    hours: availableHours(bounds, blocked),
   };
 }
 
@@ -928,7 +975,7 @@ export async function entryCapacityErrors(
     const hours = entryHours("hours", data.hours);
     if (capacity.hours <= 0) {
       errors.push(
-        `${data.workDate} : ce jour ne compte aucune heure travaillée au calendrier applicable (jours fériés déduits).`,
+        `${data.workDate} : ce jour ne compte aucune heure travaillée au calendrier applicable (jours fériés et congés validés déduits).`,
       );
     } else if (totals.hours + hours - capacity.hours > 0.001) {
       errors.push(
@@ -940,10 +987,11 @@ export async function entryCapacityErrors(
     return errors;
   }
 
-  if (!isPeriodAvailable(capacity.bounds, capacity.holidays, data.period)) {
+  const blocked = [...capacity.holidays, ...capacity.leavePeriods];
+  if (!isPeriodAvailable(capacity.bounds, blocked, data.period)) {
     const label = HR_WEEK_DAY_LABELS[weekDayOf(data.workDate)];
     errors.push(
-      `${data.workDate} (${label}) : demi-journée non travaillée au calendrier applicable, ou déjà couverte par un jour férié ou chômé.`,
+      `${data.workDate} (${label}) : demi-journée non travaillée au calendrier applicable, ou déjà couverte par un jour férié, un jour chômé ou un congé validé.`,
     );
   } else {
     const halfDays = totals.halfDays + entryHalfDays(data.period);
@@ -1305,16 +1353,36 @@ export async function getExpectedPeriod(
   const days = (await loadCalendarDays(db, tenantId, [calendar.id])).get(calendar.id) ?? [];
   const boundsByDay = new Map(days.map((day) => [day.dayOfWeek, day]));
 
-  const holidayRows = await db
-    .select({ workDate: hrPublicHolidays.workDate, period: hrPublicHolidays.period })
-    .from(hrPublicHolidays)
-    .where(
-      and(
-        eq(hrPublicHolidays.tenantId, tenantId),
-        gte(hrPublicHolidays.workDate, input.from),
-        lte(hrPublicHolidays.workDate, input.to),
+  const [holidayRows, leaveRows] = await Promise.all([
+    db
+      .select({ workDate: hrPublicHolidays.workDate, period: hrPublicHolidays.period })
+      .from(hrPublicHolidays)
+      .where(
+        and(
+          eq(hrPublicHolidays.tenantId, tenantId),
+          gte(hrPublicHolidays.workDate, input.from),
+          lte(hrPublicHolidays.workDate, input.to),
+        ),
       ),
-    );
+    // HR-017 — seul le congé validé retire du travail attendu, au même titre qu'un jour férié.
+    db
+      .select({
+        startDate: hrLeaveRequests.startDate,
+        endDate: hrLeaveRequests.endDate,
+        startHalfDay: hrLeaveRequests.startHalfDay,
+        endHalfDay: hrLeaveRequests.endHalfDay,
+      })
+      .from(hrLeaveRequests)
+      .where(
+        and(
+          eq(hrLeaveRequests.tenantId, tenantId),
+          eq(hrLeaveRequests.employeeId, input.employeeId),
+          eq(hrLeaveRequests.status, "validated"),
+          lte(hrLeaveRequests.startDate, input.to),
+          gte(hrLeaveRequests.endDate, input.from),
+        ),
+      ),
+  ]);
   const holidaysByDate = new Map<string, HrDayPeriod[]>();
   for (const row of holidayRows) {
     const periods = holidaysByDate.get(row.workDate) ?? [];
@@ -1327,7 +1395,17 @@ export async function getExpectedPeriod(
   let workedDays = 0;
   for (let date = input.from; date <= input.to; date = addIsoDays(date, 1)) {
     const bounds = boundsByDay.get(weekDayOf(date)) ?? EMPTY_BOUNDS;
-    const periods = holidaysByDate.get(date) ?? [];
+    const periods = [...(holidaysByDate.get(date) ?? [])];
+    for (const row of leaveRows) {
+      periods.push(
+        ...leaveCoveredPeriods(date, {
+          startDate: row.startDate,
+          endDate: row.endDate,
+          startHalfDay: row.startHalfDay,
+          endHalfDay: row.endHalfDay,
+        }),
+      );
+    }
     const dayHalfDays = availableHalfDays(bounds, periods);
     halfDays += dayHalfDays;
     hours += availableHours(bounds, periods);
@@ -1343,6 +1421,82 @@ export async function getExpectedPeriod(
   };
 }
 
+/**
+ * HR-014 — la capacité jour par jour d'un salarié sur une fenêtre, jours fériés et chômés déduits
+ * mais congés exclus. Sert à chiffrer ce qu'une demande de congé retirerait au calendrier.
+ */
+export async function employeeDayCapacities(
+  db: Database,
+  tenantId: string,
+  employeeId: string,
+  from: string,
+  to: string,
+): Promise<readonly LeaveDayCapacity[]> {
+  const [employee] = await db
+    .select({ workCalendarId: hrEmployees.workCalendarId })
+    .from(hrEmployees)
+    .where(and(eq(hrEmployees.tenantId, tenantId), eq(hrEmployees.id, employeeId)))
+    .limit(1);
+  if (!employee) {
+    rethrow("Salarié introuvable dans cet espace.");
+  }
+
+  const [calendar] = employee.workCalendarId
+    ? await db
+        .select({ id: hrWorkCalendars.id })
+        .from(hrWorkCalendars)
+        .where(
+          and(
+            eq(hrWorkCalendars.tenantId, tenantId),
+            eq(hrWorkCalendars.id, employee.workCalendarId),
+          ),
+        )
+        .limit(1)
+    : await db
+        .select({ id: hrWorkCalendars.id })
+        .from(hrWorkCalendars)
+        .where(and(eq(hrWorkCalendars.tenantId, tenantId), eq(hrWorkCalendars.isDefault, true)))
+        .limit(1);
+
+  const holidayRows = await db
+    .select({ workDate: hrPublicHolidays.workDate, period: hrPublicHolidays.period })
+    .from(hrPublicHolidays)
+    .where(
+      and(
+        eq(hrPublicHolidays.tenantId, tenantId),
+        gte(hrPublicHolidays.workDate, from),
+        lte(hrPublicHolidays.workDate, to),
+      ),
+    );
+  const holidaysByDate = new Map<string, HrDayPeriod[]>();
+  for (const row of holidayRows) {
+    const periods = holidaysByDate.get(row.workDate) ?? [];
+    periods.push(row.period as HrDayPeriod);
+    holidaysByDate.set(row.workDate, periods);
+  }
+
+  const dates: string[] = [];
+  for (let date = from; date <= to; date = addIsoDays(date, 1)) {
+    dates.push(date);
+  }
+
+  if (!calendar) {
+    return dates.map((date) => ({
+      date,
+      bounds: EMPTY_BOUNDS,
+      holidays: holidaysByDate.get(date) ?? [],
+    }));
+  }
+
+  const days = (await loadCalendarDays(db, tenantId, [calendar.id])).get(calendar.id) ?? [];
+  const boundsByDay = new Map(days.map((day) => [day.dayOfWeek, day]));
+  return dates.map((date) => ({
+    date,
+    bounds: boundsOfDay(boundsByDay.get(weekDayOf(date))),
+    holidays: holidaysByDate.get(date) ?? [],
+  }));
+}
+
 /* --------------------------------------------------------- appui de saisie (HR-011) */
 
 export interface PunchCalendarExpectation {
@@ -1356,6 +1510,8 @@ export interface PunchExpectation {
   readonly defaultCalendarId: string | null;
   readonly employeeCalendarIds: Readonly<Record<string, string | null>>;
   readonly holidaysByDate: Readonly<Record<string, readonly HrDayPeriod[]>>;
+  /** HR-017 — congés validés, indexés par salarié et par date sous la clé « salarié|date ». */
+  readonly leaveByEmployeeDate: Readonly<Record<string, readonly HrDayPeriod[]>>;
 }
 
 /**
@@ -1367,7 +1523,7 @@ export async function getPunchExpectation(
   tenantId: string,
   input: { readonly from: string; readonly to: string },
 ): Promise<PunchExpectation> {
-  const [calendars, employees, holidayRows] = await Promise.all([
+  const [calendars, employees, holidayRows, leaveRows] = await Promise.all([
     db
       .select({
         id: hrWorkCalendars.id,
@@ -1390,6 +1546,23 @@ export async function getPunchExpectation(
           lte(hrPublicHolidays.workDate, input.to),
         ),
       ),
+    db
+      .select({
+        employeeId: hrLeaveRequests.employeeId,
+        startDate: hrLeaveRequests.startDate,
+        endDate: hrLeaveRequests.endDate,
+        startHalfDay: hrLeaveRequests.startHalfDay,
+        endHalfDay: hrLeaveRequests.endHalfDay,
+      })
+      .from(hrLeaveRequests)
+      .where(
+        and(
+          eq(hrLeaveRequests.tenantId, tenantId),
+          eq(hrLeaveRequests.status, "validated"),
+          lte(hrLeaveRequests.startDate, input.to),
+          gte(hrLeaveRequests.endDate, input.from),
+        ),
+      ),
   ]);
 
   const ids = calendars.map((calendar) => calendar.id);
@@ -1400,6 +1573,25 @@ export async function getPunchExpectation(
     const periods = holidaysByDate[row.workDate] ?? [];
     periods.push(row.period as HrDayPeriod);
     holidaysByDate[row.workDate] = periods;
+  }
+
+  const leaveByEmployeeDate: Record<string, HrDayPeriod[]> = {};
+  for (const row of leaveRows) {
+    const from = row.startDate > input.from ? row.startDate : input.from;
+    const to = row.endDate < input.to ? row.endDate : input.to;
+    for (let date = from; date <= to; date = addIsoDays(date, 1)) {
+      const covered = leaveCoveredPeriods(date, {
+        startDate: row.startDate,
+        endDate: row.endDate,
+        startHalfDay: row.startHalfDay,
+        endHalfDay: row.endHalfDay,
+      });
+      if (covered.length === 0) {
+        continue;
+      }
+      const key = `${row.employeeId}|${date}`;
+      leaveByEmployeeDate[key] = [...(leaveByEmployeeDate[key] ?? []), ...covered];
+    }
   }
 
   const employeeCalendarIds: Record<string, string | null> = {};
@@ -1416,5 +1608,6 @@ export async function getPunchExpectation(
     defaultCalendarId: calendars.find((calendar) => calendar.isDefault)?.id ?? null,
     employeeCalendarIds,
     holidaysByDate,
+    leaveByEmployeeDate,
   };
 }

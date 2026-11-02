@@ -3,12 +3,12 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 12 livré — ergonomie et vues, avec le registre des tiers.**
-Le Lot 12A pose les primitives d'ergonomie — champs en ligne soulignée, historique de navigation,
-référence créée à la volée — et le Lot 12B refond le registre des tiers : filtres,
-vues liste / Kanban / carte, actions en lot, catégories et coordonnées. Le Lot 11B (temps de
-travail) est livré. Les droits par module, l'équipe et les responsables sont en production depuis le Lot 10. Le lot 11 reste ouvert avec 11C — congés — puis la paie (Lot 13) et le paramétrage
-systématique de chaque module (Lot 14).
+**Statut : Lot 11 livré — RH socle, avec les congés.**
+Le Lot 11A pose l'organisation, le personnel et les contrats, le Lot 11B le temps de travail et
+le Lot 11C les congés (types paramétrables, demande en demi-journées, solde et workflow). Le
+Lot 12 est livré : ergonomie et vues du registre des tiers. Les droits par module, l'équipe et
+les responsables sont en production depuis le Lot 10. La paie (Lot 13) et le paramétrage
+systématique de chaque module (Lot 14) suivent.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -615,6 +615,35 @@ relève de l'écriture.
 - **Le temps de travail ne lit jamais un salaire (`HR-005`).** Listes, fiches, compteurs, imports et
   audits des pointages ignorent la rémunération : la paie reste le Lot 13.
 
+Le Lot 11C complète le module `hr` avec les congés (HR-013 à HR-019) : `/rh/conges` pour les
+demandes, `/rh/conges/types` pour le paramétrage et `/rh/conges/soldes` pour les soldes. Le
+paramétrage des types et la validation relèvent de la gestion, la pose d'une demande relève de
+l'écriture.
+
+- **Types de congé (`HR-013`)** — `/rh/conges/types` liste les types avec leur droit annuel et le
+  nombre de demandes posées. Un type porte un code (2 à 12 caractères, normalisé en majuscules) et
+  un nom, uniques dans l'espace, un droit annuel en jours (0 à 366, au centième) et deux réglages :
+  congé payé et demi-journée autorisée. Un type actif accepte les demandes, un type désactivé n'en
+  accepte plus mais reste sur les demandes déjà posées ; un type qui porte des demandes ne se
+  supprime pas, il se désactive.
+- **Demande de congé (`HR-014`, `HR-015`)** — `/rh/conges/nouvelle` ouvre une demande sur un salarié
+  actif et un type actif, avec un motif facultatif de 200 caractères. La plage est bornée par un jour
+  de début et un jour de fin, chacun avec une demi-journée de départ et d'arrivée, mesurée sur le
+  calendrier du salarié, jours fériés et chômés déduits. Deux demandes d'un même salarié ne peuvent
+  se recouvrir sur une même demi-journée — brouillon comme demande validée — tandis que deux
+  demandes jointives sur des demi-journées distinctes coexistent.
+- **Workflow (`HR-016`, `HR-019`)** — une demande naît en brouillon. La gestion la valide, la refuse
+  avec un motif obligatoire, ou l'annule ; chaque transition laisse une trace avant/après, sans
+  montant. Un brouillon se corrige et se supprime, une demande validée se retire du calendrier en
+  l'annulant. Le compte membre rattaché à la fiche du salarié demandeur ne peut pas valider sa propre
+  demande : la décision revient à un tiers.
+- **Déduction et solde (`HR-017`, `HR-018`)** — un congé validé retire du travail attendu les
+  demi-journées couvertes, comme un jour férié, sans double décompte ; un pointage sur une
+  demi-journée couverte se refuse. `/rh/conges/soldes` chiffre pour chaque salarié et chaque type le
+  droit annuel, les jours acquis, les brouillons en attente et le solde restant, une valeur négative
+  s'affichant en alerte. La liste `/rh/conges` filtre par année, statut, salarié et type et recalcule
+  à la lecture ses compteurs — brouillons, décisions de l'année, absents du jour, types actifs.
+
 ## Scripts
 
 | Commande              | Rôle                                          |
@@ -651,7 +680,9 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `tender_request_lines`, `tender_invitations`, `tender_quotes`, `tender_quote_lines` et
 `tender_awards`, puis `article_supply_policies`, `supply_runs` et `supply_run_lines`, puis
 `module_grants` et `module_responsibles`, puis `hr_departments`, `hr_employees` et
-`hr_contracts`. Les
+`hr_contracts`, puis `hr_work_calendars`, `hr_work_calendar_days`, `hr_public_holidays` et
+`hr_time_entries`, puis `partner_categories` et `partner_category_links`, puis `hr_leave_types`
+et `hr_leave_requests`. Les
 migrations générées sont commitées dans
 `drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
 `0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
@@ -663,7 +694,8 @@ les écritures automatiques, le lettrage et le cut-off, `0016` pour les appels d
 cotation fournisseur, `0017` pour les politiques d'approvisionnement, les calculs de besoins et
 les propositions d'achat, `0018` pour les sources d'écriture de clôture et d'à-nouveaux, `0019`
 pour les droits par module et les responsables, `0020` pour l'organisation, le personnel et les
-contrats de travail. Les
+contrats de travail, `0021` pour les calendriers, jours fériés et pointages, `0022` pour les
+catégories de tiers et les coordonnées, `0023` pour les types de congé et les demandes. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire, d'idempotence des évènements, d'unicité des
 écritures de clôture, d'appartenance à l'espace (clé composite `(tenant_id, user_id)` vers

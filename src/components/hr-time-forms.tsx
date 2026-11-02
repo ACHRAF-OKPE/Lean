@@ -508,15 +508,15 @@ const NO_BOUNDS: CalendarDayBounds = {
 
 function halfLabel(
   bounds: CalendarDayBounds,
-  holidays: readonly HrDayPeriod[],
+  blocked: readonly HrDayPeriod[],
   half: "morning" | "afternoon",
 ) {
   const worked = half === "morning" ? isMorningWorked(bounds) : isAfternoonWorked(bounds);
   if (!worked) {
     return "non travaillée";
   }
-  if (holidays.includes("full") || holidays.includes(half)) {
-    return "retirée par un jour férié ou chômé";
+  if (blocked.includes("full") || blocked.includes(half)) {
+    return "retirée par un jour férié, un jour chômé ou un congé validé";
   }
   const from = half === "morning" ? bounds.morningFrom : bounds.afternoonFrom;
   const to = half === "morning" ? bounds.morningTo : bounds.afternoonTo;
@@ -555,8 +555,10 @@ export function TimeEntryForm({
   const calendar = expectation.calendars.find((item) => item.id === calendarId);
   const bounds = calendar?.days.find((day) => day.dayOfWeek === weekDayOf(workDate)) ?? NO_BOUNDS;
   const holidays = expectation.holidaysByDate[workDate] ?? [];
-  const halfDays = availableHalfDays(bounds, holidays);
-  const hoursCapacity = availableHours(bounds, holidays);
+  const leave = expectation.leaveByEmployeeDate[`${employeeId}|${workDate}`] ?? [];
+  const blocked = [...holidays, ...leave];
+  const halfDays = availableHalfDays(bounds, blocked);
+  const hoursCapacity = availableHours(bounds, blocked);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -615,8 +617,8 @@ export function TimeEntryForm({
               : "aucun calendrier applicable — créez-le en paramétrage"}
           </p>
           <p className="mt-1">
-            Matin {halfLabel(bounds, holidays, "morning")} · après-midi{" "}
-            {halfLabel(bounds, holidays, "afternoon")}.
+            Matin {halfLabel(bounds, blocked, "morning")} · après-midi{" "}
+            {halfLabel(bounds, blocked, "afternoon")}.
           </p>
           <p className="mt-1 tabular-nums">
             Ce jour compte {formatHalfDays(halfDays)} demi-journée(s) et{" "}
@@ -655,7 +657,7 @@ export function TimeEntryForm({
                 const available =
                   key === "hours"
                     ? hoursCapacity > 0
-                    : isPeriodAvailable(bounds, holidays, key as "full" | "morning" | "afternoon");
+                    : isPeriodAvailable(bounds, blocked, key as "full" | "morning" | "afternoon");
                 return (
                   <option key={key} value={key} disabled={!available}>
                     {label}

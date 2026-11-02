@@ -1,7 +1,8 @@
-import type { HrEmployeeStatus, HrTimeEntryStatus } from "@/db/schema";
+import type { HrEmployeeStatus, HrLeaveRequestStatus, HrTimeEntryStatus } from "@/db/schema";
 import {
   HR_CONTRACT_DISPLAY_LABELS,
   HR_EMPLOYEE_STATUS_LABELS,
+  HR_LEAVE_REQUEST_STATUS_LABELS,
   HR_TIME_ENTRY_STATUS_LABELS,
   type HrContractDisplayStatus,
 } from "@/modules/hr/constants";
@@ -46,5 +47,21 @@ const ENTRY_CLASS: Record<HrTimeEntryStatus, string> = {
 export function TimeEntryStatusBadge({ status }: { status: HrTimeEntryStatus }) {
   return (
     <span className={`${BASE} ${ENTRY_CLASS[status]}`}>{HR_TIME_ENTRY_STATUS_LABELS[status]}</span>
+  );
+}
+
+const LEAVE_CLASS: Record<HrLeaveRequestStatus, string> = {
+  draft: "border-line bg-canvas text-muted",
+  validated: "border-brand/20 bg-brand-soft text-brand-strong",
+  refused: "border-copper/20 bg-copper-soft text-copper",
+  cancelled: "border-line bg-canvas text-muted",
+};
+
+/** HR-016 — un congé validé se déduit du calendrier ; un refus ou une annulation n'y touche pas. */
+export function LeaveStatusBadge({ status }: { status: HrLeaveRequestStatus }) {
+  return (
+    <span className={`${BASE} ${LEAVE_CLASS[status]}`}>
+      {HR_LEAVE_REQUEST_STATUS_LABELS[status]}
+    </span>
   );
 }

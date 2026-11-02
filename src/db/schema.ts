@@ -325,6 +325,8 @@ export type HrHolidayKind = "public_holiday" | "unworked";
 export type HrTimeEntryKind = "worked" | "absence";
 export type HrTimeEntryPeriod = "full" | "morning" | "afternoon" | "hours";
 export type HrTimeEntryStatus = "draft" | "validated";
+export type HrLeaveHalfDay = "morning" | "afternoon";
+export type HrLeaveRequestStatus = "draft" | "validated" | "refused" | "cancelled";
 export type CustomsApurementMode = "production" | "export" | "destruction" | "transfer";
 export type FiscalYearStatus = "open" | "closed";
 export type AccountingJournalType = "sale" | "purchase" | "bank" | "cash" | "misc";
@@ -3380,6 +3382,119 @@ export const hrTimeEntries = pgTable(
   ],
 );
 
+export const hrLeaveTypes = pgTable(
+  "hr_leave_types",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    paid: boolean("paid").notNull().default(true),
+    halfDayAllowed: boolean("half_day_allowed").notNull().default(true),
+    annualAllowanceDays: numeric("annual_allowance_days", { precision: 6, scale: 2 })
+      .notNull()
+      .default("0"),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hr_leave_types_tenant_code_idx").on(table.tenantId, table.code),
+    uniqueIndex("hr_leave_types_tenant_name_idx").on(table.tenantId, table.name),
+    uniqueIndex("hr_leave_types_tenant_id_idx").on(table.tenantId, table.id),
+    check("hr_leave_types_code_check", sql`${table.code} ~ '^[A-Z0-9][A-Z0-9._-]{1,11}$'`),
+    check("hr_leave_types_name_check", sql`length(trim(${table.name})) between 1 and 80`),
+    check(
+      "hr_leave_types_allowance_check",
+      sql`${table.annualAllowanceDays} >= 0 and ${table.annualAllowanceDays} <= 366`,
+    ),
+  ],
+);
+
+export const hrLeaveRequests = pgTable(
+  "hr_leave_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id").notNull(),
+    leaveTypeId: uuid("leave_type_id").notNull(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    startHalfDay: text("start_half_day").$type<HrLeaveHalfDay>().notNull(),
+    endHalfDay: text("end_half_day").$type<HrLeaveHalfDay>().notNull(),
+    reason: text("reason"),
+    status: text("status").$type<HrLeaveRequestStatus>().notNull().default("draft"),
+    decidedByUserId: uuid("decided_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: text("decision_note"),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hr_leave_requests_tenant_id_idx").on(table.tenantId, table.id),
+    index("hr_leave_requests_tenant_employee_idx").on(
+      table.tenantId,
+      table.employeeId,
+      table.startDate,
+    ),
+    index("hr_leave_requests_tenant_status_idx").on(table.tenantId, table.status),
+    index("hr_leave_requests_tenant_dates_idx").on(table.tenantId, table.startDate, table.endDate),
+    check(
+      "hr_leave_requests_status_check",
+      sql`${table.status} in ('draft', 'validated', 'refused', 'cancelled')`,
+    ),
+    check(
+      "hr_leave_requests_half_day_check",
+      sql`${table.startHalfDay} in ('morning', 'afternoon') and ${table.endHalfDay} in ('morning', 'afternoon')`,
+    ),
+    check("hr_leave_requests_dates_check", sql`${table.endDate} >= ${table.startDate}`),
+    check(
+      "hr_leave_requests_same_day_check",
+      sql`${table.endDate} > ${table.startDate} or ${table.startHalfDay} = 'morning' or ${table.endHalfDay} = 'afternoon'`,
+    ),
+    check(
+      "hr_leave_requests_reason_check",
+      sql`${table.reason} is null or length(trim(${table.reason})) between 1 and 200`,
+    ),
+    check(
+      "hr_leave_requests_decision_check",
+      sql`(${table.status} = 'draft') = (${table.decidedAt} is null)`,
+    ),
+    check(
+      "hr_leave_requests_decision_note_check",
+      sql`${table.decisionNote} is null or length(trim(${table.decisionNote})) between 1 and 200`,
+    ),
+    foreignKey({
+      name: "hr_leave_requests_tenant_employee_fk",
+      columns: [table.tenantId, table.employeeId],
+      foreignColumns: [hrEmployees.tenantId, hrEmployees.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "hr_leave_requests_tenant_type_fk",
+      columns: [table.tenantId, table.leaveTypeId],
+      foreignColumns: [hrLeaveTypes.tenantId, hrLeaveTypes.id],
+    }).onDelete("restrict"),
+  ],
+);
+
 export type HsCodeRow = typeof hsCodes.$inferSelect;
 export type PartnerRow = typeof partners.$inferSelect;
 export type ArticleRow = typeof articles.$inferSelect;
@@ -3433,3 +3548,5 @@ export type HrWorkCalendarRow = typeof hrWorkCalendars.$inferSelect;
 export type HrWorkCalendarDayRow = typeof hrWorkCalendarDays.$inferSelect;
 export type HrPublicHolidayRow = typeof hrPublicHolidays.$inferSelect;
 export type HrTimeEntryRow = typeof hrTimeEntries.$inferSelect;
+export type HrLeaveTypeRow = typeof hrLeaveTypes.$inferSelect;
+export type HrLeaveRequestRow = typeof hrLeaveRequests.$inferSelect;

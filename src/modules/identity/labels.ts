@@ -135,4 +135,13 @@ export const ACTION_LABELS: Record<string, string> = {
   "hr.time_entry.reopen": "Retour d'un pointage au brouillon",
   "hr.time_entry.delete": "Suppression d'un pointage",
   "hr.time_entry.import": "Import des pointages",
+  "hr.leave_type.create": "Création d'un type de congé",
+  "hr.leave_type.update": "Modification d'un type de congé",
+  "hr.leave_type.delete": "Suppression d'un type de congé",
+  "hr.leave_request.create": "Création d'une demande de congé",
+  "hr.leave_request.update": "Modification d'une demande de congé",
+  "hr.leave_request.validate": "Validation d'une demande de congé",
+  "hr.leave_request.refuse": "Refus d'une demande de congé",
+  "hr.leave_request.cancel": "Annulation d'une demande de congé",
+  "hr.leave_request.delete": "Suppression d'une demande de congé",
 };

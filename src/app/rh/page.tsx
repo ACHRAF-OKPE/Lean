@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import {
   ArrowUpRight,
   Briefcase,
+  CalendarCheck,
   CalendarDays,
   Fingerprint,
   Network,
@@ -34,6 +35,7 @@ const SECTIONS = [
   { href: "/rh/personnel", label: "Personnel", icon: Users },
   { href: "/rh/contrats", label: "Contrats de travail", icon: Briefcase },
   { href: "/rh/temps", label: "Temps de travail", icon: CalendarDays },
+  { href: "/rh/conges", label: "Congés", icon: CalendarCheck },
   { href: "/rh/pointages", label: "Pointages", icon: Fingerprint },
 ] as const;
 

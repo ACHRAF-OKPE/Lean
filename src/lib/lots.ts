@@ -77,8 +77,8 @@ export const LOTS: readonly Lot[] = [
   {
     id: 11,
     title: "RH socle",
-    scope: "Organisation, personnel, contrats et temps de travail livrés (11A, 11B) ; congés (11C)",
-    status: "next",
+    scope: "11A, 11B et 11C livrés : organisation, personnel, contrats, temps de travail et congés",
+    status: "done",
   },
   {
     id: 12,
@@ -91,7 +91,7 @@ export const LOTS: readonly Lot[] = [
     id: 13,
     title: "Paie",
     scope: "Périodes, rubriques et taux paramétrés, bulletins, export et écritures",
-    status: "planned",
+    status: "next",
   },
   {
     id: 14,
