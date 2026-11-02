@@ -31,9 +31,9 @@
     outline-offset: 2px;
   }
 
-  /* GEN-014 — le rail gauche est posé en fixed ; l'écran qui le rend réserve sa gouttière. */
+  /* GEN-014 — le fil d'Ariane vertical est posé en fixed à gauche ; l'écran lui réserve sa gouttière. */
   @media (min-width: 64rem) {
-    body:has([data-nav-rail]) {
+    body:has([data-nav-breadcrumb]) {
       padding-left: 15rem;
     }
   }

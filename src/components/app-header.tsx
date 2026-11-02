@@ -4,7 +4,8 @@ import { getAccessLevels } from "@/lib/auth/session";
 import { logoutAction, switchTenantAction } from "@/lib/auth/actions";
 import { can } from "@/modules/identity/permissions";
 import type { MembershipSummary, SessionContext } from "@/modules/identity/queries";
-import { AppNavRail } from "./app-nav-rail";
+import { NavBreadcrumb } from "./nav-breadcrumb";
+import { NavHistoryTrail } from "./nav-history";
 import { NotificationBell } from "./notification-bell";
 import {
   AUDIT_NAV_ITEM,
@@ -33,13 +34,7 @@ export async function AppHeader({
 
   return (
     <>
-      <AppNavRail
-        tenantName={session.tenantName}
-        items={items}
-        active={active}
-        showTeam={showTeam}
-        showAudit={showAudit}
-      />
+      <NavBreadcrumb />
 
       <header className="border-b border-line">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-6 py-4 md:px-10">
@@ -98,8 +93,8 @@ export async function AppHeader({
           </div>
 
           <nav
-            aria-label="Navigation compacte"
-            className="order-3 flex w-full items-center gap-1.5 border-t border-line pt-3 sm:order-2 sm:w-auto sm:border-0 sm:pt-0 lg:hidden"
+            aria-label="Navigation principale"
+            className="order-3 flex w-full items-center gap-1.5 border-t border-line pt-3 sm:order-2 sm:w-auto sm:border-0 sm:pt-0"
           >
             <Link
               href="/"
@@ -115,6 +110,8 @@ export async function AppHeader({
             {showTeam ? <CompactLink item={TEAM_NAV_ITEM} active={active} /> : null}
             {showAudit ? <CompactLink item={AUDIT_NAV_ITEM} active={active} /> : null}
           </nav>
+
+          <NavHistoryTrail />
         </div>
       </header>
     </>

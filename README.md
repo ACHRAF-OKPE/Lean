@@ -4,10 +4,10 @@ ERP supply chain et douane, construit en lots validés. Interface française, de
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
 **Statut : Lot 12 livré — ergonomie et vues, avec le registre des tiers.**
-Le Lot 12A pose les primitives d'ergonomie — champs en ligne soulignée, rail de navigation à
-gauche, référence créée à la volée — et le Lot 12B refond le registre des tiers : filtres, vues
-liste / Kanban / carte, actions en lot, catégories et coordonnées. Le Lot 11B (temps de travail)
-est livré. Les droits par module, l'équipe et les responsables sont en production depuis le Lot 10. Le lot 11 reste ouvert avec 11C — congés — puis la paie (Lot 13) et le paramétrage
+Le Lot 12A pose les primitives d'ergonomie — champs en ligne soulignée, historique de navigation
+et fil d'Ariane, référence créée à la volée — et le Lot 12B refond le registre des tiers : filtres,
+vues liste / Kanban / carte, actions en lot, catégories et coordonnées. Le Lot 11B (temps de
+travail) est livré. Les droits par module, l'équipe et les responsables sont en production depuis le Lot 10. Le lot 11 reste ouvert avec 11C — congés — puis la paie (Lot 13) et le paramétrage
 systématique de chaque module (Lot 14).
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon

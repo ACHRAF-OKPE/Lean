@@ -110,9 +110,90 @@ export const AUDIT_NAV_ITEM: NavItem = {
   icon: ScrollText,
 };
 
-/** GEN-014 — le rail ne montre que ce que le membre peut lire ; les entrées plateforme restent ouvertes. */
+/** GEN-014 — la barre ne montre que ce que le membre peut lire ; les entrées plateforme restent ouvertes. */
 export function visibleNavItems(levels: AccessLevels): readonly NavItem[] {
   return NAV_ITEMS.filter(
     (item) => item.module === undefined || atLeast(levels[item.module], "read"),
   );
+}
+
+/** GEN-014 — un pas de navigation : le libellé français et l'adresse à rejoindre. */
+export interface TrailEntry {
+  readonly label: string;
+  readonly href: string;
+}
+
+const SEGMENT_LABELS: Readonly<Record<string, string>> = {
+  tiers: "Tiers",
+  articles: "Articles",
+  nomenclature: "Nomenclature douanière",
+  douane: "Douane",
+  achats: "Achats",
+  "appels-offres": "Appels d'offres",
+  besoins: "Besoins",
+  approvisionnement: "Approvisionnement",
+  echanges: "Échanges",
+  ventes: "Ventes",
+  factures: "Factures",
+  stock: "Stock",
+  taches: "Tâches",
+  comptabilite: "Comptabilité",
+  rh: "Ressources humaines",
+  parametres: "Paramètres",
+  equipe: "Équipe et droits",
+  audit: "Journal d'audit",
+  notifications: "Notifications",
+  temps: "Temps de travail",
+  feries: "Jours fériés",
+  calendriers: "Calendriers",
+  pointages: "Pointages",
+  journaux: "Journaux",
+  "grand-livre": "Grand livre",
+  balance: "Balance",
+  lettrage: "Lettrage",
+  rapprochement: "Rapprochement",
+  engagements: "Engagements",
+  exercices: "Exercices",
+  resultat: "Résultat",
+  comptes: "Comptes",
+  categories: "Catégories",
+  contacts: "Contacts",
+  nouveau: "Nouveau",
+  nouvelle: "Nouvelle",
+  modifier: "Modifier",
+  envoyer: "Envoyer",
+};
+
+/**
+ * GEN-014 — le fil d'Ariane se déduit de l'adresse, sans requête : « Accueil », puis chaque
+ * segment nommé. Un segment inconnu garde son libellé brut — le code d'un tiers, par exemple.
+ */
+export function breadcrumbFor(pathname: string): readonly TrailEntry[] {
+  const trail: TrailEntry[] = [{ label: "Accueil", href: "/" }];
+  let href = "";
+
+  for (const segment of pathname.split("/")) {
+    if (segment === "") continue;
+    href += `/${segment}`;
+    trail.push({ label: SEGMENT_LABELS[segment] ?? segment, href });
+  }
+
+  return trail;
+}
+
+/** GEN-014 — l'historique ne retient que les huit dernières pages. */
+export const HISTORY_LIMIT = 8;
+
+/**
+ * GEN-014 — l'historique garde l'ordre du parcours, la plus récente en fin. Une page déjà visitée
+ * remonte en fin plutôt que d'être dupliquée ; revenir sur la page courante ne change rien.
+ */
+export function recordVisit(
+  history: readonly TrailEntry[],
+  entry: TrailEntry,
+  limit: number = HISTORY_LIMIT,
+): readonly TrailEntry[] {
+  if (history.at(-1)?.href === entry.href) return history;
+  const others = history.filter((item) => item.href !== entry.href);
+  return [...others, entry].slice(-limit);
 }

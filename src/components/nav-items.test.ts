@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MODULE_KEYS, type Level, type ModuleKey } from "@/modules/identity/modules";
-import { visibleNavItems } from "./nav-items";
+import { breadcrumbFor, recordVisit, visibleNavItems, type TrailEntry } from "./nav-items";
 
 function levels(overrides: Partial<Record<ModuleKey, Level>> = {}): Record<ModuleKey, Level> {
   const base = Object.fromEntries(MODULE_KEYS.map((key) => [key, "none"])) as Record<
@@ -10,7 +10,7 @@ function levels(overrides: Partial<Record<ModuleKey, Level>> = {}): Record<Modul
   return { ...base, ...overrides };
 }
 
-describe("GEN-014 — le rail de navigation", () => {
+describe("GEN-014 — la barre de navigation", () => {
   it("ne montre que les entrées plateforme quand rien n'est concédé", () => {
     expect(visibleNavItems(levels()).map((item) => item.key)).toEqual(["home", "settings"]);
   });
@@ -30,5 +30,61 @@ describe("GEN-014 — le rail de navigation", () => {
       expect(item.href.startsWith("/")).toBe(true);
       expect(item.label.length).toBeGreaterThan(1);
     }
+  });
+});
+
+describe("GEN-014 — fil d'Ariane", () => {
+  it("réduit le cockpit à l'accueil seul", () => {
+    expect(breadcrumbFor("/")).toEqual([{ label: "Accueil", href: "/" }]);
+  });
+
+  it("empile les segments nommés avec leur adresse", () => {
+    expect(breadcrumbFor("/tiers/categories")).toEqual([
+      { label: "Accueil", href: "/" },
+      { label: "Tiers", href: "/tiers" },
+      { label: "Catégories", href: "/tiers/categories" },
+    ]);
+  });
+
+  it("garde le libellé brut d'un segment inconnu, comme un code de tiers", () => {
+    expect(breadcrumbFor("/tiers/CLI001/modifier").map((entry) => entry.label)).toEqual([
+      "Accueil",
+      "Tiers",
+      "CLI001",
+      "Modifier",
+    ]);
+  });
+
+  it("ignore une barre finale sans dernier niveau vide", () => {
+    expect(breadcrumbFor("/rh/temps/").map((entry) => entry.href)).toEqual([
+      "/",
+      "/rh",
+      "/rh/temps",
+    ]);
+  });
+});
+
+describe("GEN-014 — historique des pages visitées", () => {
+  const page = (href: string): TrailEntry => ({ label: href, href });
+
+  it("ajoute la page en fin de parcours", () => {
+    expect(recordVisit([page("/a")], page("/b"))).toEqual([page("/a"), page("/b")]);
+  });
+
+  it("ne change rien en revenant sur la page courante", () => {
+    const history = [page("/a"), page("/b")];
+    expect(recordVisit(history, page("/b"))).toBe(history);
+  });
+
+  it("fait remonter une page déjà visitée plutôt que de la dupliquer", () => {
+    expect(recordVisit([page("/a"), page("/b")], page("/a"))).toEqual([page("/b"), page("/a")]);
+  });
+
+  it("ne retient que les huit dernières pages", () => {
+    const history = Array.from({ length: 8 }, (_, index) => page(`/${index}`));
+    const next = recordVisit(history, page("/fin"));
+    expect(next).toHaveLength(8);
+    expect(next[0]?.href).toBe("/1");
+    expect(next.at(-1)?.href).toBe("/fin");
   });
 });
