@@ -6,6 +6,15 @@ export const PARTNER_TYPE_LABELS: Record<PartnerType, string> = {
   individual: "Particulier",
 };
 
+/** ART-010 — les deux rôles d'un tiers, tels que les filtre l'utilisateur. */
+export const PARTNER_ROLES = ["client", "fournisseur"] as const;
+export type PartnerRole = (typeof PARTNER_ROLES)[number];
+
+export const PARTNER_ROLE_LABELS: Record<PartnerRole, string> = {
+  client: "Client",
+  fournisseur: "Fournisseur",
+};
+
 export const ARTICLE_TYPE_LABELS: Record<ArticleType, string> = {
   product: "Produit",
   service: "Service",

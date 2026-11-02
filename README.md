@@ -3,10 +3,12 @@
 ERP supply chain et douane, construit en lots validés. Interface française, devise XOF,
 référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 
-**Statut : Lot 11B livré — temps de travail (calendriers, jours fériés, pointages, import).**
-Les droits par module, l'équipe et les responsables sont en production depuis le Lot 10. Le lot 11
-reste ouvert avec 11C — congés — puis la paie (Lot 12) et le paramétrage systématique de chaque
-module (Lot 13).
+**Statut : Lot 12 livré — ergonomie et vues, avec le registre des tiers.**
+Le Lot 12A pose les primitives d'ergonomie — champs en ligne soulignée, rail de navigation à
+gauche, référence créée à la volée — et le Lot 12B refond le registre des tiers : filtres, vues
+liste / Kanban / carte, actions en lot, catégories et coordonnées. Le Lot 11B (temps de travail)
+est livré. Les droits par module, l'équipe et les responsables sont en production depuis le Lot 10. Le lot 11 reste ouvert avec 11C — congés — puis la paie (Lot 13) et le paramétrage
+systématique de chaque module (Lot 14).
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -93,6 +95,23 @@ Les trois référentiels du Lot 2 sont consultables et créables depuis `/tiers`
   Un produit référence un code SH existant ; un service n'en porte pas.
 - **Nomenclature douanière** — codes numériques de 6, 8 ou 10 chiffres, parent préfixe strict
   et déjà présent dans le référentiel ou dans le même fichier.
+
+### Registre des tiers
+
+`/tiers` se filtre — recherche sur la référence et le nom, rôle client ou fournisseur, état actif
+ou inactif, catégorie et pays — et se lit en trois vues partageables par l'adresse : liste dense
+avec sélection multiple, Kanban groupé par catégorie (les tiers sans catégorie forment le groupe
+« Sans catégorie ») et carte, qui place un point par tiers muni de ses coordonnées et rappelle le
+nombre de tiers géolocalisés et de lieux distincts. Selon le niveau de droit, la sélection permet
+de changer le rôle, l'état ou les catégories, d'exporter, de modifier ou de supprimer : une action
+en lot s'applique en une seule transaction et refuse toute la sélection dès qu'une ligne est citée
+par un document.
+
+Chaque espace définit ses **catégories de tiers** depuis `/tiers/categories` — création,
+renommage, désactivation et suppression, interdite tant que la catégorie porte des tiers — et peut
+en créer une à la volée depuis le formulaire d'un tiers. La fiche d'un tiers s'ouvre sur
+`/tiers/[id]`, se modifie sur `/tiers/[id]/modifier` (coordonnées saisies à la main, sans
+géocodeur) et se supprime depuis la fiche.
 
 ### Import XLSX
 
@@ -594,7 +613,7 @@ relève de l'écriture.
   qui reprend un brouillon de la même période est un avertissement : ce brouillon est mis à jour,
   pas dupliqué. Un même fichier ne s'applique qu'une fois et l'application n'écrit aucun montant.
 - **Le temps de travail ne lit jamais un salaire (`HR-005`).** Listes, fiches, compteurs, imports et
-  audits des pointages ignorent la rémunération : la paie reste le Lot 12.
+  audits des pointages ignorent la rémunération : la paie reste le Lot 13.
 
 ## Scripts
 

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Workbook, type Cell, type CellValue, type Worksheet } from "exceljs";
-import type { ImportKind } from "@/db/schema";
+import type { ImportKind, PartnerType } from "@/db/schema";
 import {
   ACCOUNT_HEADERS,
   ARTICLE_HEADERS,
@@ -17,6 +17,7 @@ import {
   MAX_IMPORT_FILE_MB,
   MAX_IMPORT_ROWS,
   PARTNER_HEADERS,
+  PARTNER_TYPE_LABELS,
   PURCHASE_LINE_HEADERS,
   SALES_LINE_HEADERS,
   SHEET_DATA,
@@ -33,6 +34,26 @@ export interface ParsedWorkbook {
   readonly fileHash: string;
   readonly rows: readonly RawImportRow[];
   readonly notes: readonly string[];
+}
+
+/** GEN-017 — la ligne telle que l'écran la lit : les catégories arrivent déjà libellées. */
+export interface PartnerExportRow {
+  readonly code: string;
+  readonly name: string;
+  readonly type: PartnerType;
+  readonly isCustomer: boolean;
+  readonly isSupplier: boolean;
+  readonly email: string | null;
+  readonly phone: string | null;
+  readonly address: string | null;
+  readonly city: string | null;
+  readonly countryCode: string | null;
+  readonly taxNumber: string | null;
+  readonly paymentTermDays: number;
+  readonly active: boolean;
+  readonly categories: readonly string[];
+  readonly latitude: number | null;
+  readonly longitude: number | null;
 }
 
 const ZIP_SIGNATURE = [0x50, 0x4b, 0x03, 0x04] as const;
@@ -1041,5 +1062,99 @@ export async function buildTemplate(kind: ImportKind): Promise<Uint8Array<ArrayB
   const bytes = new Uint8Array(source.byteLength);
   bytes.set(source);
   templateCache.set(kind, bytes);
+  return bytes;
+}
+
+const EXPORT_SHEET = "Tiers";
+
+interface PartnerExportColumn {
+  readonly header: string;
+  readonly width: number;
+  readonly mono?: boolean;
+  readonly number?: boolean;
+}
+
+const PARTNER_EXPORT_COLUMNS: readonly PartnerExportColumn[] = [
+  { header: "Code", width: 16, mono: true },
+  { header: "Nom", width: 34 },
+  { header: "Type", width: 14 },
+  { header: "Client", width: 10 },
+  { header: "Fournisseur", width: 14 },
+  { header: "E-mail", width: 28 },
+  { header: "Téléphone", width: 20 },
+  { header: "Adresse", width: 30 },
+  { header: "Ville", width: 18 },
+  { header: "Pays", width: 8, mono: true },
+  { header: "Numéro fiscal", width: 18, mono: true },
+  { header: "Délai (jours)", width: 14, number: true },
+  { header: "Statut", width: 12 },
+  { header: "Catégories", width: 28 },
+  { header: "Latitude", width: 12, number: true },
+  { header: "Longitude", width: 12, number: true },
+];
+
+export function partnersExportFileName(): string {
+  return "lean-tiers.xlsx";
+}
+
+/** GEN-017 — l'export à plat du jeu filtré ou sélectionné : mêmes colonnes, aucune écriture. */
+export async function buildPartnersExport(
+  rows: readonly PartnerExportRow[],
+): Promise<Uint8Array<ArrayBuffer>> {
+  const workbook = new Workbook();
+  workbook.creator = "Lean";
+  workbook.title = "Export des tiers";
+
+  const sheet = workbook.addWorksheet(EXPORT_SHEET);
+  const headerRow = sheet.getRow(1);
+  headerRow.height = 24;
+
+  PARTNER_EXPORT_COLUMNS.forEach((column, index) => {
+    const cell = headerRow.getCell(index + 1);
+    cell.value = column.header;
+    styleHeaderCell(cell);
+    sheet.getColumn(index + 1).width = column.width;
+  });
+
+  rows.forEach((row, index) => {
+    const sheetRow = sheet.getRow(index + 2);
+    const values: CellValue[] = [
+      row.code,
+      row.name,
+      PARTNER_TYPE_LABELS[row.type],
+      row.isCustomer ? "Oui" : "Non",
+      row.isSupplier ? "Oui" : "Non",
+      row.email ?? "",
+      row.phone ?? "",
+      row.address ?? "",
+      row.city ?? "",
+      row.countryCode ?? "",
+      row.taxNumber ?? "",
+      row.paymentTermDays,
+      row.active ? "Actif" : "Inactif",
+      row.categories.join(" · "),
+      row.latitude ?? "",
+      row.longitude ?? "",
+    ];
+    values.forEach((value, column) => {
+      const cell = sheetRow.getCell(column + 1);
+      cell.value = value;
+      cell.font = { size: 10 };
+      const meta = PARTNER_EXPORT_COLUMNS[column];
+      if (meta?.mono) cell.font = { size: 10, name: "Consolas" };
+      if (meta?.number) cell.numFmt = "#,##0.#####";
+    });
+  });
+
+  sheet.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: 1, column: PARTNER_EXPORT_COLUMNS.length },
+  };
+  sheet.views = [{ state: "frozen", ySplit: 1 }];
+
+  const written = await workbook.xlsx.writeBuffer();
+  const source = new Uint8Array(written as ArrayBuffer);
+  const bytes = new Uint8Array(source.byteLength);
+  bytes.set(source);
   return bytes;
 }

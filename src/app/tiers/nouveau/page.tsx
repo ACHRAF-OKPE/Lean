@@ -6,7 +6,9 @@ import { ArrowLeft } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { getAccessLevels, requireModule } from "@/lib/auth/session";
+import { listPartnerCategories } from "@/modules/catalog/partner-queries";
+import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { PartnerForm } from "./partner-form";
 
@@ -25,7 +27,15 @@ export default function NewPartnerPage() {
 async function NewPartnerContent() {
   await connection();
   const session = await requireModule("partners", "write");
-  const memberships = await listMembershipsForUser(getDb(), session.userId);
+  const db = getDb();
+  const [memberships, categories, levels] = await Promise.all([
+    listMembershipsForUser(db, session.userId),
+    listPartnerCategories(db, session.tenantId),
+    getAccessLevels(session),
+  ]);
+  const categoryOptions = categories
+    .filter((category) => category.active)
+    .map((category) => ({ id: category.id, label: category.title }));
 
   return (
     <div className="min-h-dvh">
@@ -53,7 +63,10 @@ async function NewPartnerContent() {
           pour plusieurs fiches, utilisez l&apos;import XLSX avec rapport de vérification.
         </p>
 
-        <PartnerForm />
+        <PartnerForm
+          categories={categoryOptions}
+          canCreateCategories={atLeast(levels.partners, "manage")}
+        />
       </main>
     </div>
   );

@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { CircleAlert } from "lucide-react";
 
+/** GEN-013 — le champ est une ligne soulignée, pas un cartouche : la ligne se fonce et se rehausse à la saisie. */
 export const INPUT_CLASS =
-  "w-full rounded-md border border-line bg-panel px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted/60 focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/20";
+  "w-full rounded-none border-0 border-b border-line bg-transparent px-1 py-2 text-sm outline-none transition-[border-color,background-color] placeholder:text-muted/60 hover:border-muted/50 focus-visible:border-brand focus-visible:bg-brand-soft/60 focus-visible:hover:border-brand";
 
 export function Field({
   label,
@@ -38,7 +39,7 @@ export function CheckboxField({
   defaultChecked?: boolean;
 }) {
   return (
-    <label className="flex items-start gap-2 rounded-md border border-line bg-panel px-3 py-2">
+    <label className="flex items-start gap-2 border-b border-line px-1 py-2">
       <input
         type="checkbox"
         name={name}

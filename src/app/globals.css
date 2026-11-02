@@ -30,4 +30,11 @@
     outline: 2px solid var(--color-brand);
     outline-offset: 2px;
   }
+
+  /* GEN-014 — le rail gauche est posé en fixed ; l'écran qui le rend réserve sa gouttière. */
+  @media (min-width: 64rem) {
+    body:has([data-nav-rail]) {
+      padding-left: 15rem;
+    }
+  }
 }

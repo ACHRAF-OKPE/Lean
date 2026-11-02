@@ -155,6 +155,13 @@
       "when": 1793550218132,
       "tag": "0021_bright_virginia_dare",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793567351469,
+      "tag": "0022_demonic_fenris",
+      "breakpoints": true
     }
   ]
 }

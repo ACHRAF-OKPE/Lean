@@ -632,7 +632,7 @@ async function Cockpit() {
                 Feuille de route
               </p>
               <h2 id="roadmap-title" className="mt-1 text-sm font-semibold">
-                Treize lots, une barrière identique.
+                {LOTS.length} lots, une barrière identique.
               </h2>
             </div>
             <p className="text-[11px] text-muted">Gate vert, puis push.</p>
@@ -738,8 +738,9 @@ async function Cockpit() {
               <p className="mt-2 text-[11px] leading-5 text-white/70">
                 Socle, référentiels, achats, ventes, entreprise, douane, comptabilité SYSCOHADA,
                 supply chain, états de gestion et clôture, les droits par module et l&apos;équipe,
-                puis le RH socle et son temps de travail. La suite annoncée : les congés, la paie,
-                puis le paramétrage de chaque module.
+                puis le RH socle et son temps de travail. La suite annoncée : l&apos;ergonomie et
+                les vues module par module, les congés, la paie, puis le paramétrage de chaque
+                module.
               </p>
               <div className="mt-auto flex items-center gap-2 pt-5 font-mono text-[10px] text-white/45">
                 <Database className="size-3" aria-hidden="true" />

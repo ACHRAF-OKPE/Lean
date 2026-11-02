@@ -82,12 +82,19 @@ export const LOTS: readonly Lot[] = [
   },
   {
     id: 12,
+    title: "Ergonomie & vues",
+    scope:
+      "12A et 12B livrés : champs soulignés, navigation à gauche, référence créée à la volée, filtres et vues du registre des tiers",
+    status: "done",
+  },
+  {
+    id: 13,
     title: "Paie",
     scope: "Périodes, rubriques et taux paramétrés, bulletins, export et écritures",
     status: "planned",
   },
   {
-    id: 13,
+    id: 14,
     title: "Paramétrage systématique",
     scope: "Réglages de chaque module et masquage des actions hors niveau de droit",
     status: "planned",

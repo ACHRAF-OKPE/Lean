@@ -14,7 +14,8 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import type { ImportKind, ImportRowStatus } from "@/db/schema";
-import { AppHeader, type ActiveSection } from "@/components/app-header";
+import { AppHeader } from "@/components/app-header";
+import type { ActiveSection } from "@/components/nav-items";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
 import { requirePermission } from "@/lib/auth/session";

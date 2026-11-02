@@ -390,6 +390,8 @@ export const partners = pgTable(
     countryCode: text("country_code"),
     taxNumber: text("tax_number"),
     paymentTermDays: integer("payment_term_days").notNull().default(0),
+    latitude: numeric("latitude", { precision: 8, scale: 5 }),
+    longitude: numeric("longitude", { precision: 9, scale: 5 }),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -405,6 +407,14 @@ export const partners = pgTable(
       sql`${table.countryCode} is null or ${table.countryCode} ~ '^[A-Z]{2}$'`,
     ),
     check("partners_payment_term_check", sql`${table.paymentTermDays} between 0 and 365`),
+    check(
+      "partners_latitude_check",
+      sql`${table.latitude} is null or ${table.latitude} between -90 and 90`,
+    ),
+    check(
+      "partners_longitude_check",
+      sql`${table.longitude} is null or ${table.longitude} between -180 and 180`,
+    ),
   ],
 );
 
@@ -449,6 +459,61 @@ export const partnerContacts = pgTable(
       name: "partner_contacts_tenant_partner_fk",
       columns: [table.tenantId, table.partnerId],
       foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+/** ART-008 — catégories définies par l'espace, rattachées aux tiers en plusieurs-à-plusieurs. */
+export const partnerCategories = pgTable(
+  "partner_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("partner_categories_tenant_title_idx").on(
+      table.tenantId,
+      sql`lower(${table.title})`,
+    ),
+    uniqueIndex("partner_categories_tenant_id_idx").on(table.tenantId, table.id),
+    index("partner_categories_tenant_active_idx").on(table.tenantId, table.active),
+    check("partner_categories_title_check", sql`char_length(${table.title}) between 1 and 60`),
+  ],
+);
+
+export const partnerCategoryLinks = pgTable(
+  "partner_category_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    partnerId: uuid("partner_id").notNull(),
+    categoryId: uuid("category_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("partner_category_links_tenant_partner_category_idx").on(
+      table.tenantId,
+      table.partnerId,
+      table.categoryId,
+    ),
+    index("partner_category_links_tenant_category_idx").on(table.tenantId, table.categoryId),
+    foreignKey({
+      name: "partner_category_links_tenant_partner_fk",
+      columns: [table.tenantId, table.partnerId],
+      foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "partner_category_links_tenant_category_fk",
+      columns: [table.tenantId, table.categoryId],
+      foreignColumns: [partnerCategories.tenantId, partnerCategories.id],
     }).onDelete("cascade"),
   ],
 );

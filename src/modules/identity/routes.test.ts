@@ -13,6 +13,7 @@ const MODULE_BY_ROUTE_DIR: readonly [string, ModuleKey][] = [
   ["achats/approvisionnement", "supply"],
   ["achats/besoins", "supply"],
   ["achats", "purchases"],
+  ["api/export/tiers", "partners"],
   ["api/rapports/[kind]", "accounting"],
   ["articles", "articles"],
   ["comptabilite", "accounting"],

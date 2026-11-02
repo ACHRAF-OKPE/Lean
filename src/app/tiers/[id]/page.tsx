@@ -8,11 +8,13 @@ import { AppHeader } from "@/components/app-header";
 import { DiscussionPanel } from "@/components/discussion-panel";
 import { DocumentTasks } from "@/components/document-tasks";
 import { LoadingShell } from "@/components/loading-shell";
+import { PartnerDeleteButton } from "@/components/views/partner-delete-button";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { getAccessLevels, requireModule } from "@/lib/auth/session";
+import { categoriesByPartner } from "@/modules/catalog/partner-queries";
 import { getPartner } from "@/modules/catalog/queries";
 import { PARTNER_TYPE_LABELS } from "@/modules/catalog/constants";
-import { can } from "@/modules/identity/permissions";
+import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { listPartnerContacts } from "@/modules/settings/contacts";
 
@@ -35,6 +37,9 @@ function bannerFor(query: Record<string, string | string[] | undefined>): Banner
   }
   if (query.contact === "maj") {
     return { text: "Contact mis à jour ; le changement est audité." };
+  }
+  if (query.maj === "ok") {
+    return { text: "Fiche mise à jour ; le changement est audité." };
   }
   return null;
 }
@@ -59,10 +64,11 @@ async function PartnerContent({
   }
 
   const db = getDb();
-  const [partner, contacts, memberships, query] = await Promise.all([
+  const [partner, contacts, memberships, levels, query] = await Promise.all([
     getPartner(db, { tenantId: session.tenantId, partnerId }),
     listPartnerContacts(db, { tenantId: session.tenantId, partnerId }),
     listMembershipsForUser(db, session.userId),
+    getAccessLevels(session),
     searchParams,
   ]);
 
@@ -70,9 +76,18 @@ async function PartnerContent({
     notFound();
   }
 
-  const canWrite = can(session.role, "data.write");
+  const categories = (await categoriesByPartner(db, session.tenantId, [partner.id])).get(
+    partner.id,
+  );
+  const level = levels.partners;
+  const canWrite = atLeast(level, "write");
+  const canManage = atLeast(level, "manage");
   const banner = bannerFor(query);
   const location = [partner.city, partner.countryCode].filter(Boolean).join(" · ") || "—";
+  const coordinates =
+    partner.latitude === null || partner.longitude === null
+      ? null
+      : `${partner.latitude.toFixed(5)} / ${partner.longitude.toFixed(5)}`;
 
   return (
     <div className="min-h-dvh">
@@ -100,15 +115,34 @@ async function PartnerContent({
                 .join(" · ")}
             </p>
           </div>
-          <span
-            className={`rounded-full border px-2.5 py-1 text-[10px] ${
-              partner.active
-                ? "border-brand/15 bg-brand-soft text-brand-strong"
-                : "border-copper/15 bg-copper-soft text-copper"
-            }`}
-          >
-            {partner.active ? "Actif" : "Inactif"}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[10px] ${
+                partner.active
+                  ? "border-brand/15 bg-brand-soft text-brand-strong"
+                  : "border-copper/15 bg-copper-soft text-copper"
+              }`}
+            >
+              {partner.active ? "Actif" : "Inactif"}
+            </span>
+            {canWrite ? (
+              <Link
+                href={`/tiers/${partner.id}/modifier`}
+                aria-label="Modifier le tiers"
+                title="Modifier le tiers"
+                className="grid size-8 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
+              >
+                <Pencil className="size-4" aria-hidden="true" />
+              </Link>
+            ) : null}
+            {canManage ? (
+              <PartnerDeleteButton
+                partnerId={partner.id}
+                partnerName={partner.name}
+                retour="/tiers"
+              />
+            ) : null}
+          </div>
         </div>
 
         {banner ? (
@@ -141,6 +175,28 @@ async function PartnerContent({
               Localisation
             </p>
             <p className="mt-1 text-[11px] leading-5">{location}</p>
+            <p className="mt-0.5 font-mono text-[10px] text-muted tabular-nums">
+              {coordinates ?? "Sans coordonnées : absente de la carte."}
+            </p>
+          </div>
+          <div>
+            <p className="font-mono text-[9px] tracking-[0.14em] text-muted uppercase">
+              Catégories
+            </p>
+            {categories && categories.length > 0 ? (
+              <p className="mt-1 flex flex-wrap gap-1">
+                {categories.map((category) => (
+                  <span
+                    key={category.id}
+                    className="rounded-full border border-line bg-canvas px-2 py-0.5 text-[10px] text-muted"
+                  >
+                    {category.title}
+                  </span>
+                ))}
+              </p>
+            ) : (
+              <p className="mt-1 text-[11px] text-muted">—</p>
+            )}
           </div>
           <div>
             <p className="font-mono text-[9px] tracking-[0.14em] text-muted uppercase">

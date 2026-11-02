@@ -4,10 +4,18 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, LoaderCircle } from "lucide-react";
 import { CheckboxField, Field, FormErrors, INPUT_CLASS } from "@/components/form-fields";
+import { PartnerCategoryPicker } from "@/components/views/partner-category-picker";
 import { createPartnerAction } from "@/lib/catalog/actions";
 import { EMPTY_CATALOG_FORM_STATE } from "@/lib/catalog/form-state";
+import type { ReferenceOption } from "@/lib/references";
 
-export function PartnerForm() {
+export function PartnerForm({
+  categories,
+  canCreateCategories,
+}: {
+  categories: readonly ReferenceOption[];
+  canCreateCategories: boolean;
+}) {
   const [state, formAction, pending] = useActionState(
     createPartnerAction,
     EMPTY_CATALOG_FORM_STATE,
@@ -72,7 +80,18 @@ export function PartnerForm() {
         </section>
 
         <section>
-          <h2 className="text-sm font-semibold">Coordonnées</h2>
+          <h2 className="text-sm font-semibold">Classement</h2>
+          <div className="mt-3">
+            <PartnerCategoryPicker
+              options={categories}
+              selected={[]}
+              canCreate={canCreateCategories}
+            />
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-sm font-semibold">Contacts</h2>
           <div className="mt-3 grid gap-4 md:grid-cols-2">
             <Field label="E-mail" htmlFor="email" hint="Facultatif.">
               <input
@@ -124,6 +143,34 @@ export function PartnerForm() {
                 pattern="[A-Za-z]{2}"
                 placeholder="CI"
                 className={`${INPUT_CLASS} font-mono uppercase`}
+              />
+            </Field>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-sm font-semibold">Localisation</h2>
+          <p className="mt-2 text-[10px] leading-4 text-muted">
+            ART-009 — coordonnées saisies à la main, sans service de géocodage. Les deux valeurs
+            vont ensemble : renseignées, le tiers apparaît sur la carte du registre.
+          </p>
+          <div className="mt-3 grid gap-4 md:grid-cols-2">
+            <Field label="Latitude" htmlFor="latitude" hint="Degrés décimaux, de -90 à 90.">
+              <input
+                id="latitude"
+                name="latitude"
+                inputMode="decimal"
+                placeholder="5.33640"
+                className={`${INPUT_CLASS} font-mono`}
+              />
+            </Field>
+            <Field label="Longitude" htmlFor="longitude" hint="Degrés décimaux, de -180 à 180.">
+              <input
+                id="longitude"
+                name="longitude"
+                inputMode="decimal"
+                placeholder="-4.02670"
+                className={`${INPUT_CLASS} font-mono`}
               />
             </Field>
           </div>
