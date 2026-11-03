@@ -8,6 +8,8 @@ import {
   type ArticleType,
   type PartnerType,
 } from "@/db/schema";
+import { EMPTY_ARTICLE_LIST_FILTERS, type ArticleListFilters } from "./article-filters";
+import { articleIdsByCategories } from "./article-queries";
 import { CatalogError } from "./errors";
 import { EMPTY_PARTNER_LIST_FILTERS, type PartnerListFilters } from "./filters";
 import { partnerIdsByCategories, replacePartnerCategories } from "./partner-queries";
@@ -266,10 +268,36 @@ export async function getPartner(
   };
 }
 
+/** ART-013 — la catégorie passe par une lecture séparée, jamais par du SQL concaténé. */
 export async function listArticles(
   db: Database,
   tenantId: string,
+  filters: ArticleListFilters = EMPTY_ARTICLE_LIST_FILTERS,
 ): Promise<CatalogPage<ArticleSummary>> {
+  const conditions: (SQL | undefined)[] = [eq(articles.tenantId, tenantId)];
+
+  if (filters.search !== "") {
+    const like = `%${filters.search}%`;
+    conditions.push(or(ilike(articles.code, like), ilike(articles.name, like)));
+  }
+  if (filters.types.length > 0) {
+    conditions.push(inArray(articles.type, [...filters.types]));
+  }
+  if (filters.state) {
+    conditions.push(eq(articles.active, filters.state === "actif"));
+  }
+  if (filters.ids.length > 0) {
+    conditions.push(inArray(articles.id, [...filters.ids]));
+  }
+  if (filters.categoryIds.length > 0) {
+    const ids = await articleIdsByCategories(db, tenantId, filters.categoryIds);
+    if (ids.length === 0) {
+      return { rows: [], total: 0, limit: LIST_LIMIT };
+    }
+    conditions.push(inArray(articles.id, ids));
+  }
+
+  const where = and(...conditions);
   const [rows, [totalRow]] = await Promise.all([
     db
       .select({
@@ -290,13 +318,54 @@ export async function listArticles(
         hsCodes,
         and(eq(hsCodes.tenantId, articles.tenantId), eq(hsCodes.id, articles.hsCodeId)),
       )
-      .where(eq(articles.tenantId, tenantId))
+      .where(where)
       .orderBy(asc(articles.name), asc(articles.code))
       .limit(LIST_LIMIT),
-    db.select({ value: count() }).from(articles).where(eq(articles.tenantId, tenantId)),
+    db.select({ value: count() }).from(articles).where(where),
   ]);
 
   return { rows, total: totalRow?.value ?? 0, limit: LIST_LIMIT };
+}
+
+/** ART-015 — la fiche article montre tout ce que l'édition peut reprendre. */
+export interface ArticleDetail extends ArticleSummary {
+  readonly description: string | null;
+  readonly countryOfOrigin: string | null;
+}
+
+export async function getArticle(
+  db: Database,
+  input: { tenantId: string; articleId: string },
+): Promise<ArticleDetail | null> {
+  const [row] = await db
+    .select({
+      id: articles.id,
+      code: articles.code,
+      name: articles.name,
+      description: articles.description,
+      type: articles.type,
+      unitCode: articles.unitCode,
+      hsCode: hsCodes.code,
+      salePriceXof: articles.salePriceXof,
+      purchasePriceXof: articles.purchasePriceXof,
+      isSellable: articles.isSellable,
+      isPurchasable: articles.isPurchasable,
+      countryOfOrigin: articles.countryOfOrigin,
+      active: articles.active,
+    })
+    .from(articles)
+    .leftJoin(
+      hsCodes,
+      and(eq(hsCodes.tenantId, articles.tenantId), eq(hsCodes.id, articles.hsCodeId)),
+    )
+    .where(and(eq(articles.tenantId, input.tenantId), eq(articles.id, input.articleId)))
+    .limit(1);
+
+  if (!row) {
+    return null;
+  }
+
+  return row;
 }
 
 export async function listHsCodes(

@@ -113,6 +113,20 @@ en créer une à la volée depuis le formulaire d'un tiers. La fiche d'un tiers 
 `/tiers/[id]`, se modifie sur `/tiers/[id]/modifier` (coordonnées saisies à la main, sans
 géocodeur) et se supprime depuis la fiche.
 
+### Registre des articles
+
+`/articles` se filtre — recherche sur le code et la désignation, type produit ou service, état
+actif ou inactif, catégorie — et se lit en trois vues partageables par l'adresse : liste dense
+avec sélection multiple, Kanban groupé par catégorie d'articles (les articles sans catégorie
+forment la colonne « Sans catégorie ») et grille, une carte par article. Dans le Kanban, une
+carte se glisse d'une colonne à l'autre pour rattacher l'article à la catégorie d'accueil, ou
+sur « Sans catégorie » pour l'en détacher ; le geste est réservé au niveau écriture et tracé.
+
+Chaque espace définit ses **catégories d'articles** depuis `/articles/categories` — création,
+renommage, désactivation et suppression, interdite tant que la catégorie porte des articles — et
+peut en créer une à la volée depuis le formulaire d'un article. La fiche d'un article s'ouvre sur
+`/articles/[id]`, se modifie sur `/articles/[id]/modifier` et se supprime depuis la fiche.
+
 ### Import XLSX
 
 Le parcours suit deux temps, sans écriture métier à l'analyse :
@@ -682,7 +696,7 @@ Le schéma Drizzle vit dans [`src/db/schema.ts`](src/db/schema.ts) : `tenants`, 
 `module_grants` et `module_responsibles`, puis `hr_departments`, `hr_employees` et
 `hr_contracts`, puis `hr_work_calendars`, `hr_work_calendar_days`, `hr_public_holidays` et
 `hr_time_entries`, puis `partner_categories` et `partner_category_links`, puis `hr_leave_types`
-et `hr_leave_requests`. Les
+et `hr_leave_requests`, puis `article_categories` et `article_category_links`. Les
 migrations générées sont commitées dans
 `drizzle/` : `0001` pour l'identité, `0002` pour le catalogue et la traçabilité des imports,
 `0003` pour les notes de lot, `0004` pour les achats et le stock, `0005` pour les ventes et la
@@ -695,7 +709,8 @@ cotation fournisseur, `0017` pour les politiques d'approvisionnement, les calcul
 les propositions d'achat, `0018` pour les sources d'écriture de clôture et d'à-nouveaux, `0019`
 pour les droits par module et les responsables, `0020` pour l'organisation, le personnel et les
 contrats de travail, `0021` pour les calendriers, jours fériés et pointages, `0022` pour les
-catégories de tiers et les coordonnées, `0023` pour les types de congé et les demandes. Les
+catégories de tiers et les coordonnées, `0023` pour les types de congé et les demandes, `0024`
+pour les catégories d'articles. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire, d'idempotence des évènements, d'unicité des
 écritures de clôture, d'appartenance à l'espace (clé composite `(tenant_id, user_id)` vers

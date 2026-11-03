@@ -169,6 +169,13 @@
       "when": 1793618585522,
       "tag": "0023_tired_gamora",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793700514034,
+      "tag": "0024_past_ultimates",
+      "breakpoints": true
     }
   ]
 }

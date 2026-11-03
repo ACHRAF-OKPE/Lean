@@ -1,4 +1,4 @@
-/** ART-011 — la vue Kanban du registre se groupe par catégorie de tiers. */
+/** ART-011 — le nom de la colonne qui recueille les fiches sans catégorie. */
 export const UNGROUPED_COLUMN = "Sans catégorie";
 
 export interface KanbanItem {
@@ -18,15 +18,24 @@ export interface KanbanColumn {
   readonly items: readonly KanbanItem[];
 }
 
-/** Une colonne par catégorie posée sur au moins un tiers ; « Sans catégorie » termine la rangée. */
-export function groupPartnersByCategory(
-  rows: readonly KanbanItem[],
-  categoriesByPartner: ReadonlyMap<string, readonly { id: string; title: string }[]>,
-): readonly KanbanColumn[] {
-  const columns = new Map<string, { categoryId: string | null; items: KanbanItem[] }>();
+export interface GroupColumn<T> {
+  readonly title: string;
+  readonly categoryId: string | null;
+  readonly items: readonly T[];
+}
+
+/**
+ * ART-011 + ART-014 — une colonne par catégorie posée sur au moins une fiche ; une fiche qui porte
+ * plusieurs catégories apparaît dans chacune, et « Sans catégorie » termine la rangée.
+ */
+export function groupByCategory<T extends { id: string }>(
+  rows: readonly T[],
+  categoriesByItem: ReadonlyMap<string, readonly { id: string; title: string }[]>,
+): readonly GroupColumn<T>[] {
+  const columns = new Map<string, { categoryId: string | null; items: T[] }>();
 
   for (const row of rows) {
-    const categories = categoriesByPartner.get(row.id) ?? [];
+    const categories = categoriesByItem.get(row.id) ?? [];
     const buckets =
       categories.length === 0
         ? [{ id: null as string | null, title: UNGROUPED_COLUMN }]
@@ -46,4 +55,12 @@ export function groupPartnersByCategory(
       if (b.title === UNGROUPED_COLUMN) return -1;
       return a.title.localeCompare(b.title, "fr");
     });
+}
+
+/** Une colonne par catégorie de tiers ; les tiers sans catégorie ferment la rangée. */
+export function groupPartnersByCategory(
+  rows: readonly KanbanItem[],
+  categoriesByPartner: ReadonlyMap<string, readonly { id: string; title: string }[]>,
+): readonly KanbanColumn[] {
+  return groupByCategory(rows, categoriesByPartner);
 }

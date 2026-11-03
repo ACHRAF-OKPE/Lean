@@ -201,7 +201,8 @@ export async function deleteCategory(
 
     const plan = planCategoryDelete({
       title: before.title,
-      partnerCount: counted?.value ?? 0,
+      count: counted?.value ?? 0,
+      subject: "tier(s)",
     });
     if (!plan.ok) {
       throw new CatalogError(plan.error);

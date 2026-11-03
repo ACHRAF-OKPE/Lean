@@ -23,15 +23,16 @@ export function sameCategoryTitle(a: string, b: string): boolean {
   return a.toLocaleLowerCase("fr") === b.toLocaleLowerCase("fr");
 }
 
-/** ART-008 — une catégorie portée ne se supprime pas, elle se désactive. */
+/** ART-008 + ART-012 — une catégorie portée ne se supprime pas, elle se désactive. */
 export function planCategoryDelete(input: {
   title: string;
-  partnerCount: number;
+  count: number;
+  subject: string;
 }): { readonly ok: true } | { readonly ok: false; readonly error: string } {
-  if (input.partnerCount > 0) {
+  if (input.count > 0) {
     return {
       ok: false,
-      error: `La catégorie « ${input.title} » porte ${input.partnerCount} tier(s) : désactivez-la au lieu de la supprimer.`,
+      error: `La catégorie « ${input.title} » porte ${input.count} ${input.subject} : désactivez-la au lieu de la supprimer.`,
     };
   }
   return { ok: true };

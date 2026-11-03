@@ -1,10 +1,30 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { getAccessLevels, requireModule, requirePermission } from "@/lib/auth/session";
 import type { CatalogFormState } from "@/lib/catalog/form-state";
 import type { ReferenceCreateResult } from "@/components/reference-field";
+import {
+  ARTICLE_BULK_ACTIONS,
+  ARTICLE_BULK_LEVELS,
+  type ArticleBulkAction,
+} from "@/modules/catalog/article-bulk";
+import { validateArticleEdit } from "@/modules/catalog/article-edit";
+import { articlesHref, parseArticleFilters } from "@/modules/catalog/article-filters";
+import {
+  applyArticleBulk,
+  createArticleCategory,
+  deleteArticle,
+  deleteArticleCategory,
+  deleteArticles,
+  moveArticleToCategory,
+  renameArticleCategory,
+  setArticleCategoryActive,
+  updateArticle,
+  type ArticleBulkPatch,
+} from "@/modules/catalog/article-queries";
 import {
   PARTNER_BULK_ACTIONS,
   PARTNER_BULK_LEVELS,
@@ -491,4 +511,280 @@ export async function applyImportAction(
   }
 
   redirect(`/imports/${batchId}`);
+}
+
+/**
+ * GEN-017 — l'action en lot revient au registre dans l'état où il était. La requête repasse par les
+ * mêmes gardes que l'adresse publique, puis la sélection est abandonnée : elle ne survit pas au lot.
+ */
+function articlesReturn(rawQuery: string, extra: Record<string, string>): string {
+  const source = new URLSearchParams(rawQuery);
+  const raw: Record<string, string | string[]> = {};
+  for (const key of new Set(source.keys())) {
+    const values = source.getAll(key);
+    raw[key] = values.length > 1 ? values : values[0]!;
+  }
+
+  const [, query = ""] = articlesHref(parseArticleFilters(raw)).split("?");
+  const params = new URLSearchParams(query);
+  for (const [key, value] of Object.entries(extra)) {
+    params.set(key, value);
+  }
+  const search = params.toString();
+  return search === "" ? "/articles" : `/articles?${search}`;
+}
+
+/** GEN-015 — la catégorie d'article tapée dans un champ de référence : créer relève du paramétrage. */
+export async function createArticleCategoryAction(title: string): Promise<ReferenceCreateResult> {
+  const session = await requireModule("articles", "manage");
+  const clean = normalizeCategoryTitle(title);
+  const errors = categoryTitleErrors(clean);
+  if (errors.length > 0) {
+    return { ok: false, error: errors[0]! };
+  }
+
+  try {
+    const created = await createArticleCategory(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      title: clean,
+    });
+    return { ok: true, option: { id: created.id, label: created.title } };
+  } catch (error) {
+    if (error instanceof CatalogError) {
+      return { ok: false, error: error.message };
+    }
+    throw error;
+  }
+}
+
+/** ART-012 — création depuis l'écran de paramétrage, sur la même normalisation que la saisie libre. */
+export async function createArticleCategoryFormAction(
+  _state: CatalogFormState,
+  formData: FormData,
+): Promise<CatalogFormState> {
+  const session = await requireModule("articles", "manage");
+  const clean = normalizeCategoryTitle(String(formData.get("titre") ?? ""));
+  const errors = categoryTitleErrors(clean);
+  if (errors.length > 0) {
+    return { errors };
+  }
+
+  try {
+    await createArticleCategory(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      title: clean,
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect("/articles/categories?cree=ok");
+}
+
+/** ART-015 — la fiche se corrige ligne à ligne ; catégories et code SH suivent la même borne. */
+export async function updateArticleAction(
+  _state: CatalogFormState,
+  formData: FormData,
+): Promise<CatalogFormState> {
+  const session = await requireModule("articles", "write");
+  const articleId = String(formData.get("articleId") ?? "");
+  if (!UUID_PATTERN.test(articleId)) {
+    return { errors: ["Article invalide."] };
+  }
+
+  const { data, errors } = validateArticleEdit(Object.fromEntries(formData));
+  if (errors.length > 0) {
+    return { errors };
+  }
+
+  try {
+    await updateArticle(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      articleId,
+      data,
+      categoryIds: categoryIdsFrom(formData),
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect(`/articles/${articleId}?maj=ok`);
+}
+
+/** GEN-017 — une sélection, une transaction : le lot s'applique intégralement ou rien n'est écrit. */
+export async function bulkArticleAction(
+  _state: CatalogFormState,
+  formData: FormData,
+): Promise<CatalogFormState> {
+  const rawAction = String(formData.get("action") ?? "");
+  if (!(ARTICLE_BULK_ACTIONS as readonly string[]).includes(rawAction)) {
+    return { errors: ["Action en lot inconnue."] };
+  }
+  const action = rawAction as ArticleBulkAction;
+  const session = await requireModule("articles", ARTICLE_BULK_LEVELS[action]);
+  const db = getDb();
+  const ids = selectedIdsFrom(formData);
+
+  try {
+    if (action === "supprimer") {
+      const levels = await getAccessLevels(session);
+      await deleteArticles(db, {
+        tenantId: session.tenantId,
+        actorUserId: session.userId,
+        ids,
+        level: levels.articles,
+      });
+    } else if (action === "exporter") {
+      return { errors: ["L'export se télécharge depuis le registre, pas par ce formulaire."] };
+    } else {
+      let patch: ArticleBulkPatch;
+      if (action === "categories") {
+        patch = { categoryIds: categoryIdsFrom(formData) };
+      } else {
+        patch = { active: action === "activer" };
+      }
+      await applyArticleBulk(db, {
+        tenantId: session.tenantId,
+        actorUserId: session.userId,
+        ids,
+        patch,
+      });
+    }
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect(articlesReturn(String(formData.get("retour") ?? ""), { lot: "ok" }));
+}
+
+/** GEN-017 — la suppression d'une fiche passe par le même plan : un article cité ne part pas. */
+export async function deleteArticleAction(
+  _state: CatalogFormState,
+  formData: FormData,
+): Promise<CatalogFormState> {
+  const session = await requireModule("articles", "manage");
+  const articleId = String(formData.get("articleId") ?? "");
+  if (!UUID_PATTERN.test(articleId)) {
+    return { errors: ["Article invalide."] };
+  }
+
+  try {
+    await deleteArticle(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      articleId,
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect(articlesReturn(String(formData.get("retour") ?? ""), { supprime: "ok" }));
+}
+
+/** ART-012 — renommer une catégorie d'article relève du paramétrage ; le libellé reste unique. */
+export async function renameArticleCategoryAction(
+  _state: CatalogFormState,
+  formData: FormData,
+): Promise<CatalogFormState> {
+  const session = await requireModule("articles", "manage");
+  const categoryId = String(formData.get("categoryId") ?? "");
+  if (!UUID_PATTERN.test(categoryId)) {
+    return { errors: ["Catégorie invalide."] };
+  }
+
+  try {
+    await renameArticleCategory(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      categoryId,
+      title: String(formData.get("titre") ?? ""),
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect("/articles/categories?maj=ok");
+}
+
+/** ART-012 — une catégorie se désactive : elle reste sur les articles qui la portent, hors propositions. */
+export async function setArticleCategoryActiveAction(
+  _state: CatalogFormState,
+  formData: FormData,
+): Promise<CatalogFormState> {
+  const session = await requireModule("articles", "manage");
+  const categoryId = String(formData.get("categoryId") ?? "");
+  if (!UUID_PATTERN.test(categoryId)) {
+    return { errors: ["Catégorie invalide."] };
+  }
+
+  try {
+    await setArticleCategoryActive(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      categoryId,
+      active: formData.get("actif") === "oui",
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect("/articles/categories?maj=ok");
+}
+
+/** ART-012 — une catégorie portée par au moins un article ne se supprime pas : le refus est nommé. */
+export async function deleteArticleCategoryAction(
+  _state: CatalogFormState,
+  formData: FormData,
+): Promise<CatalogFormState> {
+  const session = await requireModule("articles", "manage");
+  const categoryId = String(formData.get("categoryId") ?? "");
+  if (!UUID_PATTERN.test(categoryId)) {
+    return { errors: ["Catégorie invalide."] };
+  }
+
+  try {
+    await deleteArticleCategory(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      categoryId,
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect("/articles/categories?supprime=ok");
+}
+
+/** ART-014 — le dépôt d'une carte de Kanban rattache l'article à la catégorie visée. */
+export async function moveArticleCategoryAction(input: {
+  articleId: string;
+  categoryId: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await requireModule("articles", "write");
+  if (!UUID_PATTERN.test(input.articleId)) {
+    return { ok: false, error: "Article invalide." };
+  }
+  if (input.categoryId !== null && !UUID_PATTERN.test(input.categoryId)) {
+    return { ok: false, error: "Catégorie invalide." };
+  }
+
+  try {
+    await moveArticleToCategory(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      articleId: input.articleId,
+      categoryId: input.categoryId,
+    });
+  } catch (error) {
+    if (error instanceof CatalogError) {
+      return { ok: false, error: error.message };
+    }
+    throw error;
+  }
+
+  revalidatePath("/articles");
+  return { ok: true };
 }

@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { Workbook, type Cell, type CellValue, type Worksheet } from "exceljs";
-import type { ImportKind, PartnerType } from "@/db/schema";
+import type { ArticleType, ImportKind, PartnerType } from "@/db/schema";
 import {
   ACCOUNT_HEADERS,
   ARTICLE_HEADERS,
+  ARTICLE_TYPE_LABELS,
   COUNTRY_CODES,
   CUSTOMS_APUREMENT_HEADERS,
   CUSTOMS_LINE_HEADERS,
@@ -1149,6 +1150,101 @@ export async function buildPartnersExport(
   sheet.autoFilter = {
     from: { row: 1, column: 1 },
     to: { row: 1, column: PARTNER_EXPORT_COLUMNS.length },
+  };
+  sheet.views = [{ state: "frozen", ySplit: 1 }];
+
+  const written = await workbook.xlsx.writeBuffer();
+  const source = new Uint8Array(written as ArrayBuffer);
+  const bytes = new Uint8Array(source.byteLength);
+  bytes.set(source);
+  return bytes;
+}
+
+const ARTICLE_EXPORT_SHEET = "Articles";
+
+/** GEN-017 — la ligne d'article telle que l'export la lit : les catégories arrivent déjà libellées. */
+export interface ArticleExportRow {
+  readonly code: string;
+  readonly name: string;
+  readonly type: ArticleType;
+  readonly unitCode: string;
+  readonly hsCode: string | null;
+  readonly salePriceXof: number;
+  readonly purchasePriceXof: number;
+  readonly isSellable: boolean;
+  readonly isPurchasable: boolean;
+  readonly countryOfOrigin: string | null;
+  readonly active: boolean;
+  readonly categories: readonly string[];
+}
+
+const ARTICLE_EXPORT_COLUMNS: readonly PartnerExportColumn[] = [
+  { header: "Code", width: 16, mono: true },
+  { header: "Désignation", width: 34 },
+  { header: "Type", width: 14 },
+  { header: "Unité", width: 12 },
+  { header: "Code SH", width: 16, mono: true },
+  { header: "Prix de vente (XOF)", width: 20, number: true },
+  { header: "Prix d'achat (XOF)", width: 20, number: true },
+  { header: "Vendable", width: 12 },
+  { header: "Achetable", width: 12 },
+  { header: "Pays d'origine", width: 14, mono: true },
+  { header: "Statut", width: 12 },
+  { header: "Catégories", width: 28 },
+];
+
+export function articlesExportFileName(): string {
+  return "lean-articles.xlsx";
+}
+
+/** GEN-017 — l'export à plat du jeu filtré ou sélectionné : mêmes colonnes, aucune écriture. */
+export async function buildArticlesExport(
+  rows: readonly ArticleExportRow[],
+): Promise<Uint8Array<ArrayBuffer>> {
+  const workbook = new Workbook();
+  workbook.creator = "Lean";
+  workbook.title = "Export des articles";
+
+  const sheet = workbook.addWorksheet(ARTICLE_EXPORT_SHEET);
+  const headerRow = sheet.getRow(1);
+  headerRow.height = 24;
+
+  ARTICLE_EXPORT_COLUMNS.forEach((column, index) => {
+    const cell = headerRow.getCell(index + 1);
+    cell.value = column.header;
+    styleHeaderCell(cell);
+    sheet.getColumn(index + 1).width = column.width;
+  });
+
+  rows.forEach((row, index) => {
+    const sheetRow = sheet.getRow(index + 2);
+    const values: CellValue[] = [
+      row.code,
+      row.name,
+      ARTICLE_TYPE_LABELS[row.type],
+      row.unitCode,
+      row.hsCode ?? "",
+      row.salePriceXof,
+      row.purchasePriceXof,
+      row.isSellable ? "Oui" : "Non",
+      row.isPurchasable ? "Oui" : "Non",
+      row.countryOfOrigin ?? "",
+      row.active ? "Actif" : "Inactif",
+      row.categories.join(" · "),
+    ];
+    values.forEach((value, column) => {
+      const cell = sheetRow.getCell(column + 1);
+      cell.value = value;
+      cell.font = { size: 10 };
+      const meta = ARTICLE_EXPORT_COLUMNS[column];
+      if (meta?.mono) cell.font = { size: 10, name: "Consolas" };
+      if (meta?.number) cell.numFmt = "#,##0";
+    });
+  });
+
+  sheet.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: 1, column: ARTICLE_EXPORT_COLUMNS.length },
   };
   sheet.views = [{ state: "frozen", ySplit: 1 }];
 

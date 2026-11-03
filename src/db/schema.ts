@@ -650,6 +650,61 @@ export const articles = pgTable(
   ],
 );
 
+/** ART-012 — catégories définies par l'espace, rattachées aux articles en plusieurs-à-plusieurs. */
+export const articleCategories = pgTable(
+  "article_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("article_categories_tenant_title_idx").on(
+      table.tenantId,
+      sql`lower(${table.title})`,
+    ),
+    uniqueIndex("article_categories_tenant_id_idx").on(table.tenantId, table.id),
+    index("article_categories_tenant_active_idx").on(table.tenantId, table.active),
+    check("article_categories_title_check", sql`char_length(${table.title}) between 1 and 60`),
+  ],
+);
+
+export const articleCategoryLinks = pgTable(
+  "article_category_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    articleId: uuid("article_id").notNull(),
+    categoryId: uuid("category_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("article_category_links_tenant_article_category_idx").on(
+      table.tenantId,
+      table.articleId,
+      table.categoryId,
+    ),
+    index("article_category_links_tenant_category_idx").on(table.tenantId, table.categoryId),
+    foreignKey({
+      name: "article_category_links_tenant_article_fk",
+      columns: [table.tenantId, table.articleId],
+      foreignColumns: [articles.tenantId, articles.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "article_category_links_tenant_category_fk",
+      columns: [table.tenantId, table.categoryId],
+      foreignColumns: [articleCategories.tenantId, articleCategories.id],
+    }).onDelete("cascade"),
+  ],
+);
+
 export const importBatches = pgTable(
   "import_batches",
   {
