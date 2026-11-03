@@ -5,10 +5,12 @@ import Link from "next/link";
 import { ArrowLeft, Check, LoaderCircle } from "lucide-react";
 import { CheckboxField, Field, FormErrors, INPUT_CLASS } from "@/components/form-fields";
 import { ArticleCategoryPicker } from "@/components/views/article-category-picker";
+import { HsCodeField } from "@/components/views/hs-code-field";
 import { updateArticleAction } from "@/lib/catalog/actions";
 import { EMPTY_CATALOG_FORM_STATE } from "@/lib/catalog/form-state";
 import type { ReferenceOption } from "@/lib/references";
 import { MAX_XOF_AMOUNT, UNITS } from "@/modules/catalog/constants";
+import type { HsCodeOption } from "@/modules/catalog/hs-codes";
 
 export interface ArticleEditDefaults {
   readonly id: string;
@@ -32,11 +34,15 @@ export function ArticleEditForm({
   categories,
   selected,
   canCreateCategories,
+  hsCodes,
+  canCreateHsCode,
 }: {
   article: ArticleEditDefaults;
   categories: readonly ReferenceOption[];
   selected: readonly string[];
   canCreateCategories: boolean;
+  hsCodes: readonly HsCodeOption[];
+  canCreateHsCode: boolean;
 }) {
   const [state, formAction, pending] = useActionState(
     updateArticleAction,
@@ -117,26 +123,21 @@ export function ArticleEditForm({
                 </option>
                 {UNITS.map((unit) => (
                   <option key={unit.code} value={unit.code}>
-                    {unit.code} — {unit.label}
+                    {unit.code} · {unit.label}
                   </option>
                 ))}
               </select>
             </Field>
-            <Field
+            <HsCodeField
               label="Code SH"
-              htmlFor="code_sh"
-              hint="6, 8 ou 10 chiffres ; obligatoire pour un produit et déjà présent dans la nomenclature."
-            >
-              <input
-                id="code_sh"
-                name="code_sh"
-                inputMode="numeric"
-                maxLength={10}
-                pattern="\d{6}(\d{2}(\d{2})?)?"
-                defaultValue={article.hsCode ?? ""}
-                className={`${INPUT_CLASS} font-mono`}
-              />
-            </Field>
+              name="code_sh"
+              options={hsCodes}
+              canCreate={canCreateHsCode}
+              defaultValue={article.hsCode ?? ""}
+              wordingFromId="designation"
+              hint="6, 8 ou 10 chiffres ; obligatoire pour un produit. Cherchez par code ou par libellé, ou créez-le à la volée."
+              placeholder="0901110000"
+            />
             <Field
               label="Pays d'origine"
               htmlFor="pays_origine"

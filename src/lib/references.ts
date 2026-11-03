@@ -1,6 +1,14 @@
-/** GEN-015 — deux libellés identiques à la casse ou aux espaces près désignent la même référence. */
+/**
+ * GEN-015 — deux libellés identiques à la casse, aux accents ou aux espaces près désignent la même
+ * référence : « Cafe », « Café » et « CAFÉ » se rejoignent.
+ */
 export function normalizeReferenceLabel(value: string): string {
-  return value.trim().toLocaleLowerCase("fr").replace(/\s+/g, " ");
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLocaleLowerCase("fr")
+    .replace(/\s+/g, " ");
 }
 
 export interface ReferenceOption {

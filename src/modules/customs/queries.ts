@@ -505,7 +505,12 @@ export interface CustomsDeclarationOptions {
     requiresApurement: boolean;
   }[];
   readonly partners: readonly { id: string; code: string; name: string }[];
-  readonly hsCodes: readonly { code: string; wording: string; tecRate: number | null }[];
+  readonly hsCodes: readonly {
+    id: string;
+    code: string;
+    wording: string;
+    tecRate: number | null;
+  }[];
 }
 
 export async function getDeclarationOptions(
@@ -536,7 +541,12 @@ export async function getDeclarationOptions(
       .orderBy(asc(partners.name))
       .limit(500),
     db
-      .select({ code: hsCodes.code, wording: hsCodes.wording, tecRate: hsCodes.tecRate })
+      .select({
+        id: hsCodes.id,
+        code: hsCodes.code,
+        wording: hsCodes.wording,
+        tecRate: hsCodes.tecRate,
+      })
       .from(hsCodes)
       .where(eq(hsCodes.tenantId, tenantId))
       .orderBy(asc(hsCodes.code))
@@ -1228,7 +1238,7 @@ export async function addDeclarationLine(
       .limit(1);
     if (!hsCode) {
       throw new CustomsError(
-        `Code SH ${data.hsCode} introuvable dans la nomenclature : importez-le ou créez-le d'abord.`,
+        `Code SH ${data.hsCode} introuvable dans cet espace : créez-le depuis la nomenclature.`,
       );
     }
     const [last] = await tx

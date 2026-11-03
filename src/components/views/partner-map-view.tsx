@@ -103,7 +103,7 @@ export function PartnerMapView({
               >
                 <p className="text-[11px] font-medium">{place.place}</p>
                 <p className="font-mono text-[10px] text-muted">
-                  {place.countryCode ?? "—"} · {place.latitude.toFixed(3)} /{" "}
+                  {place.countryCode ?? "Non renseigné"} · {place.latitude.toFixed(3)} /{" "}
                   {place.longitude.toFixed(3)}
                 </p>
                 <span className="rounded-full border border-line bg-canvas px-2 py-0.5 font-mono text-[10px] text-muted tabular-nums">

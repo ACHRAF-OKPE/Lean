@@ -6,7 +6,9 @@ import { ArrowLeft } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { getAccessLevels, requireModule } from "@/lib/auth/session";
+import { listHsCodeOptions } from "@/modules/catalog/queries";
+import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { ArticleForm } from "./article-form";
 
@@ -25,7 +27,12 @@ export default function NewArticlePage() {
 async function NewArticleContent() {
   await connection();
   const session = await requireModule("articles", "write");
-  const memberships = await listMembershipsForUser(getDb(), session.userId);
+  const db = getDb();
+  const [memberships, hsCodes, levels] = await Promise.all([
+    listMembershipsForUser(db, session.userId),
+    listHsCodeOptions(db, session.tenantId),
+    getAccessLevels(session),
+  ]);
 
   return (
     <div className="min-h-dvh">
@@ -49,11 +56,12 @@ async function NewArticleContent() {
           </div>
         </div>
         <p className="mt-3 text-[11px] leading-5 text-muted">
-          Créez un produit ou un service. Un produit exige un code SH déjà présent dans la
-          nomenclature ; un service ne porte jamais de code SH.
+          Créez un produit ou un service. Un produit porte un code SH, cherché par code ou par
+          libellé dans la nomenclature et créé à la volée au besoin ; un service ne porte jamais de
+          code SH.
         </p>
 
-        <ArticleForm />
+        <ArticleForm hsCodes={hsCodes} canCreateHsCode={atLeast(levels.nomenclature, "write")} />
       </main>
     </div>
   );

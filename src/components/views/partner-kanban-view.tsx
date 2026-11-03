@@ -156,7 +156,8 @@ export function PartnerKanbanView({
                         {item.isSupplier ? <span>Fournisseur</span> : null}
                         <span aria-hidden="true">·</span>
                         <span>
-                          {[item.city, item.countryCode].filter(Boolean).join(" · ") || "—"}
+                          {[item.city, item.countryCode].filter(Boolean).join(" · ") ||
+                            "Non renseigné"}
                         </span>
                         {item.active ? null : <span className="text-copper">inactif</span>}
                       </p>

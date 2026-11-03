@@ -28,6 +28,8 @@ export const ACTION_LABELS: Record<string, string> = {
   "catalog.article_category.update": "Mise à jour d'une catégorie d'articles",
   "catalog.article_category.delete": "Suppression d'une catégorie d'articles",
   "catalog.hs_code.create": "Création d'un code SH",
+  "catalog.hs_code.update": "Mise à jour d'un code SH",
+  "catalog.hs_code.delete": "Suppression d'un code SH",
   "catalog.import.apply": "Import appliqué",
   "purchase.order.create": "Création d'une commande fournisseur",
   "purchase.reception.create": "Réception de commande",

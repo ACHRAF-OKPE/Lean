@@ -115,7 +115,7 @@ export function validateCustomsLineImportRows(
       hsCode = hsCodes.get(line.data.hsCode);
       if (!hsCode) {
         errors.push(
-          `Code SH ${line.data.hsCode} inconnu : importez d'abord la nomenclature douanière.`,
+          `Code SH ${line.data.hsCode} inconnu : créez-le depuis la nomenclature douanière.`,
         );
       } else if (hsCode.tecRate === null) {
         warnings.push(

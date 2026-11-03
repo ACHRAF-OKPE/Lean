@@ -45,6 +45,7 @@ import { validatePurchaseLines } from "@/modules/purchases/import-validation";
 import { validateSalesLines } from "@/modules/sales/import-validation";
 import { validateTaskImportRows } from "@/modules/tasks/import-validation";
 import { isCountryCode, isUnitCode, MAX_PAYMENT_TERM_DAYS, MAX_XOF_AMOUNT } from "./constants";
+import { deriveParentCode } from "./hs-codes";
 
 export interface RawImportRow {
   readonly rowNumber: number;
@@ -541,8 +542,17 @@ function validateHsCodeRow(row: RawImportRow, context: ValidationContext): Valid
     warnings.push(...field.warnings);
   }
 
-  if (code.value && parentCode.value) {
-    if (parentCode.value.length >= code.value.length || !code.value.startsWith(parentCode.value)) {
+  // ART-018 — le parent se déduit du préfixe quand la colonne est vide, plutôt que d'imposer sa saisie.
+  let parentValue = parentCode.value;
+  if (!parentValue && code.value && code.value.length > 6) {
+    parentValue = deriveParentCode(code.value);
+    if (parentValue) {
+      warnings.push(`Code parent déduit du préfixe : ${parentValue}.`);
+    }
+  }
+
+  if (code.value && parentValue) {
+    if (parentValue.length >= code.value.length || !code.value.startsWith(parentValue)) {
       errors.push("Code parent : doit être un préfixe strict du code SH.");
     }
   }
@@ -562,7 +572,7 @@ function validateHsCodeRow(row: RawImportRow, context: ValidationContext): Valid
     data: {
       code: code.value ?? "",
       wording: wording.value ?? "",
-      parentCode: parentCode.value,
+      parentCode: parentValue,
       supplementaryUnit: supplementaryUnit.value,
       tecRate: tecRate.value,
     } satisfies HsImportData,
@@ -626,7 +636,7 @@ function validateArticleRow(row: RawImportRow, context: ValidationContext): Vali
     !errors.some((message) => message.startsWith("Code SH :")) &&
     !context.existingHsCodes.has(hsCode.value)
   ) {
-    errors.push(`Code SH ${hsCode.value} inconnu : importez d'abord la nomenclature douanière.`);
+    errors.push(`Code SH ${hsCode.value} inconnu : créez-le depuis la nomenclature douanière.`);
   }
   if (!sellable.value && !purchasable.value) {
     errors.push("Usages : l'article doit être au moins vendable ou achetable.");
@@ -744,8 +754,8 @@ export function validateImportRows(
         !fileCodes.has(parentCode) &&
         !context.existingHsCodes.has(parentCode)
       ) {
-        row.errors.push(
-          `Code parent ${parentCode} introuvable dans la nomenclature ni dans ce fichier.`,
+        row.warnings.push(
+          `Code parent ${parentCode} absent de la nomenclature : il sera créé automatiquement à l'application.`,
         );
       }
     }

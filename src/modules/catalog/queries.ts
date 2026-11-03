@@ -1,8 +1,9 @@
-import { and, asc, count, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
   articles,
   auditEvents,
+  customsDeclarationLines,
   hsCodes,
   partners,
   type ArticleType,
@@ -12,6 +13,8 @@ import { EMPTY_ARTICLE_LIST_FILTERS, type ArticleListFilters } from "./article-f
 import { articleIdsByCategories } from "./article-queries";
 import { CatalogError } from "./errors";
 import { EMPTY_PARTNER_LIST_FILTERS, type PartnerListFilters } from "./filters";
+import { EMPTY_HS_CODE_FILTERS, type HsCodeFilters } from "./hs-code-filters";
+import { hsCodeUsageCounts, type HsCodeUsage } from "./hs-code-queries";
 import { partnerIdsByCategories, replacePartnerCategories } from "./partner-queries";
 import type {
   ArticleImportData,
@@ -368,10 +371,42 @@ export async function getArticle(
   return row;
 }
 
+export interface HsCodeListRow extends HsCodeSummary {
+  readonly usage: HsCodeUsage;
+}
+
+const ZERO_USAGE: HsCodeUsage = { articles: 0, declarationLines: 0, children: 0 };
+
+/**
+ * ART-019 — le registre de la nomenclature se filtre dans l'espace : texte sur le code et le libellé,
+ * niveau du code, taux TEC présent ou absent, et usage par au moins un document. Les filtres se
+ * combinent et ne sortent jamais de l'espace, dans la limite de 200 lignes.
+ */
 export async function listHsCodes(
   db: Database,
   tenantId: string,
-): Promise<CatalogPage<HsCodeSummary>> {
+  filters: HsCodeFilters = EMPTY_HS_CODE_FILTERS,
+): Promise<CatalogPage<HsCodeListRow>> {
+  const conditions: (SQL | undefined)[] = [eq(hsCodes.tenantId, tenantId)];
+
+  if (filters.search !== "") {
+    const like = `%${filters.search}%`;
+    conditions.push(or(ilike(hsCodes.code, like), ilike(hsCodes.wording, like)));
+  }
+  if (filters.level !== null) {
+    conditions.push(sql`char_length(${hsCodes.code}) = ${filters.level}`);
+  }
+  if (filters.tec === "present") {
+    conditions.push(sql`${hsCodes.tecRate} is not null`);
+  } else if (filters.tec === "absent") {
+    conditions.push(sql`${hsCodes.tecRate} is null`);
+  }
+  if (filters.usage !== null) {
+    const used = sql`(exists (select 1 from ${articles} a where a.tenant_id = ${tenantId} and a.hs_code_id = ${hsCodes.id}) or exists (select 1 from ${customsDeclarationLines} l where l.tenant_id = ${tenantId} and l.hs_code_id = ${hsCodes.id}))`;
+    conditions.push(filters.usage === "utilise" ? used : sql`not ${used}`);
+  }
+
+  const where = and(...conditions);
   const [rows, [totalRow]] = await Promise.all([
     db
       .select({
@@ -383,13 +418,41 @@ export async function listHsCodes(
         tecRate: hsCodes.tecRate,
       })
       .from(hsCodes)
-      .where(eq(hsCodes.tenantId, tenantId))
+      .where(where)
       .orderBy(asc(hsCodes.code))
       .limit(LIST_LIMIT),
-    db.select({ value: count() }).from(hsCodes).where(eq(hsCodes.tenantId, tenantId)),
+    db.select({ value: count() }).from(hsCodes).where(where),
   ]);
 
-  return { rows, total: totalRow?.value ?? 0, limit: LIST_LIMIT };
+  const usage = await hsCodeUsageCounts(
+    db,
+    tenantId,
+    rows.map((row) => row.id),
+  );
+
+  return {
+    rows: rows.map((row) => ({ ...row, usage: usage.get(row.id) ?? ZERO_USAGE })),
+    total: totalRow?.value ?? 0,
+    limit: LIST_LIMIT,
+  };
+}
+
+/** ART-017 — les codes proposés à la saisie guidée : le code, son libellé et son taux, dans la limite de 500. */
+export async function listHsCodeOptions(
+  db: Database,
+  tenantId: string,
+): Promise<readonly { id: string; code: string; wording: string; tecRate: number | null }[]> {
+  return db
+    .select({
+      id: hsCodes.id,
+      code: hsCodes.code,
+      wording: hsCodes.wording,
+      tecRate: hsCodes.tecRate,
+    })
+    .from(hsCodes)
+    .where(eq(hsCodes.tenantId, tenantId))
+    .orderBy(asc(hsCodes.code))
+    .limit(500);
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -494,7 +557,7 @@ export async function createArticle(
           .limit(1);
         if (!hsCode) {
           throw new CatalogError(
-            `Le code SH ${data.hsCode} n'existe pas dans cet espace : importez la nomenclature d'abord.`,
+            `Le code SH ${data.hsCode} n'existe pas dans cet espace : créez-le depuis la nomenclature.`,
           );
         }
         hsCodeId = hsCode.id;

@@ -16,9 +16,10 @@ import {
 import { BondStatusBadge, DeclarationStatusBadge } from "@/components/customs-badges";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { getAccessLevels, requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
+import { atLeast } from "@/modules/identity/modules";
 import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import {
@@ -90,7 +91,10 @@ async function DeclarationContent({
 
   const canWrite = can(session.role, "data.write");
   const isDraft = declaration.status === "draft";
-  const options = canWrite && isDraft ? await getDeclarationOptions(db, session.tenantId) : null;
+  const [options, levels] =
+    canWrite && isDraft
+      ? await Promise.all([getDeclarationOptions(db, session.tenantId), getAccessLevels(session)])
+      : [null, null];
   const banner = bannerFor(query);
   const balance = declaration.grandTotal - declaration.paidTotal;
   const today = todayIsoDate();
@@ -353,7 +357,11 @@ async function DeclarationContent({
         </section>
 
         {options ? (
-          <DeclarationLineForm declarationId={declaration.id} hsCodes={options.hsCodes} />
+          <DeclarationLineForm
+            declarationId={declaration.id}
+            hsCodes={options.hsCodes}
+            canCreateHsCode={levels !== null && atLeast(levels.nomenclature, "write")}
+          />
         ) : null}
 
         {declaration.requiresApurement ? (

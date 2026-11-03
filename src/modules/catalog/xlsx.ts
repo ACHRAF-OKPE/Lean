@@ -739,7 +739,7 @@ const KIND_RULES: Record<ImportKind, readonly string[]> = {
   ],
   articles: [
     "Le code est unique dans l'espace de travail : une ligne existante est mise à jour, pas dupliquée.",
-    "Un produit exige un code SH à 6, 8 ou 10 chiffres, déjà présent dans la nomenclature douanière.",
+    "Un produit exige un code SH à 6, 8 ou 10 chiffres, présent dans la nomenclature ou créé à la volée depuis le formulaire.",
     "Un service ne porte jamais de code SH.",
     "L'unité provient de la liste du modèle ; les prix sont des montants XOF entiers.",
     "Un article doit être au moins vendable ou achetable.",
@@ -747,7 +747,7 @@ const KIND_RULES: Record<ImportKind, readonly string[]> = {
   hs_codes: [
     "Le code contient 6, 8 ou 10 chiffres ; les codes à 8 et 10 chiffres peuvent avoir un parent.",
     "Le code parent, s'il est renseigné, est un préfixe strict du code.",
-    "Importez les parents avant les enfants, ou placez les deux dans le même fichier.",
+    "Un fichier ne contenant que des enfants ne bloque pas : les parents manquants sont créés automatiquement à l'application.",
     "Un code existant est mis à jour, pas dupliqué.",
   ],
   purchase_lines: [

@@ -34,6 +34,7 @@ import { applyHrEmployeeImport, loadHrImportContext } from "@/modules/hr/imports
 import { applyHrTimeEntryImport, loadHrTimeImportContext } from "@/modules/hr/time-imports";
 import { CatalogError } from "./errors";
 import { MODULE_BY_IMPORT_KIND } from "./constants";
+import { ensureHsCodeParents } from "./hs-code-queries";
 import type { ModuleKey } from "@/modules/identity/modules";
 import { loadValidationContext } from "./queries";
 import {
@@ -82,6 +83,7 @@ export interface ImportRowDetail {
   readonly rowNumber: number;
   readonly status: ImportRowStatus;
   readonly code: string | null;
+  readonly entityId: string | null;
   readonly errors: readonly string[];
   readonly warnings: readonly string[];
 }
@@ -238,6 +240,7 @@ export async function getImportBatch(
       rowNumber: importRows.rowNumber,
       status: importRows.status,
       code: importRows.code,
+      entityId: importRows.entityId,
       errors: importRows.errors,
       warnings: importRows.warnings,
     })
@@ -406,11 +409,16 @@ async function upsertArticles(
     });
 }
 
+/**
+ * ART-018 — l'import écrit les lignes du fichier, puis complète la chaîne des parents manquants : un
+ * fichier qui ne contient que des enfants ne bloque plus, les parents absents sont créés à la volée.
+ */
 async function upsertHsCodes(
   tx: Transaction,
   tenantId: string,
+  actorUserId: string,
   rows: readonly StoredImportRow[],
-): Promise<void> {
+): Promise<readonly string[]> {
   await tx
     .insert(hsCodes)
     .values(
@@ -436,6 +444,16 @@ async function upsertHsCodes(
         updatedAt: sql`now()`,
       },
     });
+
+  const created: string[] = [];
+  for (const row of rows) {
+    const data = row.data as unknown as HsImportData;
+    if (!data.code) {
+      continue;
+    }
+    created.push(...(await ensureHsCodeParents(tx, { tenantId, actorUserId, code: data.code })));
+  }
+  return created;
 }
 
 export async function applyImportBatch(
@@ -586,7 +604,8 @@ export async function applyImportBatch(
     } else if (batch.kind === "articles") {
       await upsertArticles(tx, input.tenantId, rows);
     } else if (batch.kind === "hs_codes") {
-      await upsertHsCodes(tx, input.tenantId, rows);
+      const created = await upsertHsCodes(tx, input.tenantId, input.actorUserId, rows);
+      written = rows.length + created.length;
     } else if (batch.kind === "customs_lines") {
       await applyCustomsLineImport(tx, {
         tenantId: input.tenantId,

@@ -9,7 +9,7 @@ import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
 import { getAccessLevels, requireModule } from "@/lib/auth/session";
 import { categoriesByArticle, listArticleCategories } from "@/modules/catalog/article-queries";
-import { getArticle } from "@/modules/catalog/queries";
+import { getArticle, listHsCodeOptions } from "@/modules/catalog/queries";
 import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { ArticleEditForm } from "./article-edit-form";
@@ -39,12 +39,13 @@ async function ArticleEditContent({
   }
 
   const db = getDb();
-  const [article, categories, titles, memberships, levels] = await Promise.all([
+  const [article, categories, titles, memberships, levels, hsCodes] = await Promise.all([
     getArticle(db, { tenantId: session.tenantId, articleId }),
     listArticleCategories(db, session.tenantId),
     categoriesByArticle(db, session.tenantId, [articleId]),
     listMembershipsForUser(db, session.userId),
     getAccessLevels(session),
+    listHsCodeOptions(db, session.tenantId),
   ]);
 
   if (!article) {
@@ -101,6 +102,8 @@ async function ArticleEditContent({
           categories={options}
           selected={selected}
           canCreateCategories={atLeast(levels.articles, "manage")}
+          hsCodes={hsCodes}
+          canCreateHsCode={atLeast(levels.nomenclature, "write")}
         />
       </main>
     </div>

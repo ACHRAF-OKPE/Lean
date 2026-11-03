@@ -304,7 +304,7 @@ export function PartnerListView({
                   </td>
                   <td className={TD}>
                     {titles.length === 0 ? (
-                      <span className="text-muted">—</span>
+                      <span className="text-muted">Sans catégorie</span>
                     ) : (
                       <span className="flex flex-wrap gap-1">
                         {titles.map((category) => (
@@ -319,7 +319,7 @@ export function PartnerListView({
                     )}
                   </td>
                   <td className={`${TD} whitespace-nowrap text-muted`}>
-                    {[row.city, row.countryCode].filter(Boolean).join(" · ") || "—"}
+                    {[row.city, row.countryCode].filter(Boolean).join(" · ") || "Non renseigné"}
                   </td>
                   <td className={`${TD} whitespace-nowrap text-muted tabular-nums`}>
                     {row.paymentTermDays} j

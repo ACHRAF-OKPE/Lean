@@ -84,7 +84,7 @@ export const LOTS: readonly Lot[] = [
     id: 12,
     title: "Ergonomie & vues",
     scope:
-      "12A, 12B, 12C et 12D livrés : champs soulignés, historique de navigation, référence créée à la volée, filtres et vues des registres des tiers et des articles (catégories, Kanban, glisser-déposer)",
+      "12A, 12B, 12C, 12D et 12E livrés : champs soulignés, historique de navigation, référence créée à la volée, filtres et vues des registres des tiers et des articles (catégories, Kanban, glisser-déposer), puis ergonomie de la nomenclature douanière (champ guidé, chaîne des parents, filtres et arbre, fiche, import indulgent)",
     status: "done",
   },
   {

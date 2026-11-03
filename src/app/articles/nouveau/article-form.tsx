@@ -4,11 +4,19 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, LoaderCircle } from "lucide-react";
 import { CheckboxField, Field, FormErrors, INPUT_CLASS } from "@/components/form-fields";
+import { HsCodeField } from "@/components/views/hs-code-field";
 import { createArticleAction } from "@/lib/catalog/actions";
 import { EMPTY_CATALOG_FORM_STATE } from "@/lib/catalog/form-state";
 import { MAX_XOF_AMOUNT, UNITS } from "@/modules/catalog/constants";
+import type { HsCodeOption } from "@/modules/catalog/hs-codes";
 
-export function ArticleForm() {
+export function ArticleForm({
+  hsCodes,
+  canCreateHsCode,
+}: {
+  hsCodes: readonly HsCodeOption[];
+  canCreateHsCode: boolean;
+}) {
   const [state, formAction, pending] = useActionState(
     createArticleAction,
     EMPTY_CATALOG_FORM_STATE,
@@ -82,26 +90,20 @@ export function ArticleForm() {
                 </option>
                 {UNITS.map((unit) => (
                   <option key={unit.code} value={unit.code}>
-                    {unit.code} — {unit.label}
+                    {unit.code} · {unit.label}
                   </option>
                 ))}
               </select>
             </Field>
-            <Field
+            <HsCodeField
               label="Code SH"
-              htmlFor="code_sh"
-              hint="6, 8 ou 10 chiffres ; obligatoire pour un produit et déjà présent dans la nomenclature."
-            >
-              <input
-                id="code_sh"
-                name="code_sh"
-                inputMode="numeric"
-                maxLength={10}
-                pattern="\d{6}(\d{2}(\d{2})?)?"
-                placeholder="0901110000"
-                className={`${INPUT_CLASS} font-mono`}
-              />
-            </Field>
+              name="code_sh"
+              options={hsCodes}
+              canCreate={canCreateHsCode}
+              wordingFromId="designation"
+              hint="6, 8 ou 10 chiffres ; obligatoire pour un produit. Cherchez par code ou par libellé, ou créez-le à la volée."
+              placeholder="0901110000"
+            />
             <Field
               label="Pays d'origine"
               htmlFor="pays_origine"

@@ -67,6 +67,13 @@ const ROW_STATUS_META: Record<
   },
 };
 
+/** ART-018 — le rapport renvoie vers la fiche créée ou mise à jour pour les référentiels. */
+const FICHE_PATH_BY_KIND: Partial<Record<ImportKind, (id: string) => string>> = {
+  partners: (id) => `/tiers/${id}`,
+  articles: (id) => `/articles/${id}`,
+  hs_codes: (id) => `/nomenclature/${id}`,
+};
+
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
   dateStyle: "long",
   timeStyle: "short",
@@ -134,7 +141,7 @@ async function ImportReportContent({
             <p className="font-mono text-[10px] tracking-[0.18em] text-brand uppercase">
               Rapport d&apos;analyse
             </p>
-            <h1 className="text-2xl font-medium tracking-tight">Import — {kindLabel}</h1>
+            <h1 className="text-2xl font-medium tracking-tight">Import : {kindLabel}</h1>
           </div>
           <span
             className={`ml-auto rounded-full border px-2.5 py-1 text-[10px] font-medium ${
@@ -272,13 +279,31 @@ async function ImportReportContent({
                 {visibleRows.map((row) => {
                   const meta = ROW_STATUS_META[row.status];
                   const Icon = meta.icon;
+                  const fichePath =
+                    row.entityId && row.status !== "error"
+                      ? FICHE_PATH_BY_KIND[batch.kind]?.(row.entityId)
+                      : undefined;
                   return (
                     <tr key={row.id} className="border-b border-line last:border-b-0">
                       <td className="px-4 py-2.5 font-mono text-[10px] whitespace-nowrap text-muted tabular-nums">
                         {row.rowNumber}
                       </td>
                       <td className="px-4 py-2.5 font-mono text-[10px] whitespace-nowrap">
-                        {row.code ?? "—"}
+                        {row.code ? (
+                          fichePath ? (
+                            <Link
+                              href={fichePath}
+                              title="Ouvrir la fiche"
+                              className="text-brand-strong transition-colors hover:underline"
+                            >
+                              {row.code}
+                            </Link>
+                          ) : (
+                            row.code
+                          )
+                        ) : (
+                          <span className="text-muted">Non renseigné</span>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 align-top">
                         <span
@@ -290,7 +315,7 @@ async function ImportReportContent({
                       </td>
                       <td className="px-4 py-2.5 align-top">
                         {row.errors.length === 0 && row.warnings.length === 0 ? (
-                          <span className="text-muted">—</span>
+                          <span className="text-muted">Aucun message</span>
                         ) : (
                           <div className="max-w-3xl space-y-1">
                             {row.errors.map((message) => (

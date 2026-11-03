@@ -531,7 +531,7 @@ async function resolveHsCodeId(
     .limit(1);
   if (!hsCode) {
     throw new CatalogError(
-      `Le code SH ${data.hsCode} n'existe pas dans cet espace : importez la nomenclature d'abord.`,
+      `Le code SH ${data.hsCode} n'existe pas dans cet espace : créez-le depuis la nomenclature.`,
     );
   }
   return hsCode.id;

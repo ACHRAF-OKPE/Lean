@@ -268,13 +268,14 @@ describe("ART-003 — nomenclature douanière", () => {
     expect(result.errorCount).toBe(0);
   });
 
-  it("refuse un parent introuvable dans le fichier et dans le référentiel", () => {
+  it("accepte un parent introuvable et le signale comme créé automatiquement", () => {
     const result = validateImportRows("hs_codes", [
       row(2, { code: "09011100", libelle: "Café non torréfié", code_parent: "090111" }),
     ]);
 
-    expect(result.rows[0]?.errors).toContain(
-      "Code parent 090111 introuvable dans la nomenclature ni dans ce fichier.",
+    expect(result.errorCount).toBe(0);
+    expect(result.rows[0]?.warnings).toContain(
+      "Code parent 090111 absent de la nomenclature : il sera créé automatiquement à l'application.",
     );
   });
 
@@ -359,7 +360,7 @@ describe("ART-004 — lien entre article et nomenclature", () => {
     );
 
     expect(result.rows[0]?.errors).toContain(
-      "Code SH 9999990000 inconnu : importez d'abord la nomenclature douanière.",
+      "Code SH 9999990000 inconnu : créez-le depuis la nomenclature douanière.",
     );
   });
 

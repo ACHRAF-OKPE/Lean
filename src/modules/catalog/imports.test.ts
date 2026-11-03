@@ -345,7 +345,7 @@ describe("ART-003 / ART-004 — nomenclature puis articles", () => {
       batchId: tooEarly.batchId,
     });
     expect(tooEarlyDetail?.rows[0]?.errors.join(" ")).toContain(
-      "inconnu : importez d'abord la nomenclature douanière",
+      "inconnu : créez-le depuis la nomenclature douanière",
     );
 
     const nomenclature = await analyze(tenantId, "hs_codes", [
@@ -387,6 +387,33 @@ describe("ART-003 / ART-004 — nomenclature puis articles", () => {
     const catalog = await listArticles(db, tenantId);
     expect(catalog.rows.find((row) => row.code === "ART001")?.hsCode).toBe("09011100");
     expect(catalog.rows.find((row) => row.code === "SRV001")?.hsCode).toBeNull();
+  });
+});
+
+describe("ART-018 — un import d'enfants seuls ne bloque plus", () => {
+  it("crée les parents manquants à l'application et lie les fiches", async () => {
+    const tenantId = await makeTenant("hs-parents-auto");
+
+    const analysis = await analyze(tenantId, "hs_codes", [
+      hsRow(2, "0901110000", "Café vert non torréfié", "09011100"),
+    ]);
+    expect(analysis.errorCount).toBe(0);
+    expect(analysis.warningCount).toBe(1);
+
+    const applied = await applyImportBatch(db, {
+      tenantId,
+      batchId: analysis.batchId,
+      actorUserId: actorId,
+    });
+    expect(applied).toEqual({ kind: "hs_codes", written: 3 });
+
+    const catalog = await listHsCodes(db, tenantId);
+    expect(catalog.rows.map((row) => row.code)).toEqual(["090111", "09011100", "0901110000"]);
+    const parent = catalog.rows.find((row) => row.code === "090111");
+    expect(parent?.wording).toBe("À compléter");
+
+    const detail = await getImportBatch(db, { tenantId, batchId: analysis.batchId });
+    expect(detail?.rows[0]?.entityId).toBeTruthy();
   });
 });
 

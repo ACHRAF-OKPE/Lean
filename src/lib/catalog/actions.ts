@@ -35,6 +35,23 @@ import { HEADERS_BY_KIND } from "@/modules/catalog/constants";
 import { parseCoordinates } from "@/modules/catalog/coordinates";
 import { CatalogError } from "@/modules/catalog/errors";
 import { parsePartnerFilters, partnersHref } from "@/modules/catalog/filters";
+import {
+  HS_MAX_WORDING,
+  validateHsCodeEdit,
+  type HsCodeEditData,
+} from "@/modules/catalog/hs-code-edit";
+import {
+  createHsCodeWithParents,
+  deleteHsCode,
+  listHsParentFacts,
+  updateHsCode,
+} from "@/modules/catalog/hs-code-queries";
+import {
+  HS_CODE_PATTERN,
+  HS_WORDING_TO_COMPLETE,
+  inheritanceFor,
+  type HsCodeCreateResult,
+} from "@/modules/catalog/hs-codes";
 import { applyImportBatch, getImportBatchModule } from "@/modules/catalog/imports";
 import { validatePartnerEdit } from "@/modules/catalog/partner-edit";
 import {
@@ -49,16 +66,10 @@ import {
   updatePartner,
   type PartnerBulkPatch,
 } from "@/modules/catalog/partner-queries";
-import {
-  createArticle,
-  createHsCode,
-  createPartner,
-  loadValidationContext,
-} from "@/modules/catalog/queries";
+import { createArticle, createPartner, loadValidationContext } from "@/modules/catalog/queries";
 import {
   validateImportRows,
   type ArticleImportData,
-  type HsImportData,
   type PartnerImportData,
 } from "@/modules/catalog/validation";
 import { PurchaseError } from "@/modules/purchases/errors";
@@ -170,40 +181,147 @@ export async function createArticleAction(
   redirect(`/articles?cree=${encodeURIComponent(row.code ?? "")}`);
 }
 
+/**
+ * ART-018 — la chaîne de parents et l'héritage : un champ parent, unité ou taux laissé vide est
+ * comblé par le parent le plus proche déjà présent, ou par la chaîne créée à la volée.
+ */
+async function createWithInheritance(
+  db: ReturnType<typeof getDb>,
+  input: { tenantId: string; actorUserId: string; code: string; data: HsCodeEditData },
+): Promise<{ id: string; code: string; created: readonly string[]; data: HsCodeEditData }> {
+  const parents = await listHsParentFacts(db, input.tenantId);
+  const inherited = inheritanceFor(input.code, parents);
+  const data: HsCodeEditData = {
+    ...input.data,
+    parentCode: input.data.parentCode ?? inherited.parentCode,
+    supplementaryUnit: input.data.supplementaryUnit ?? inherited.supplementaryUnit,
+    tecRate: input.data.tecRate ?? inherited.tecRate,
+  };
+
+  const created = await createHsCodeWithParents(db, { ...input, data });
+  return { ...created, data };
+}
+
+/** ART-018 — le code est créé avec sa chaîne de parents, le parent, l'unité et le taux vides hérités. */
 export async function createHsCodeAction(
   _state: CatalogFormState,
   formData: FormData,
 ): Promise<CatalogFormState> {
   const session = await requireModule("nomenclature", "write");
-  const db = getDb();
-  const context = await loadValidationContext(db, session.tenantId);
-  const [row] = validateImportRows(
-    "hs_codes",
-    [{ rowNumber: 2, values: formValues("hs_codes", formData) }],
-    context,
-  ).rows;
-
-  if (!row) {
-    return { errors: ["Formulaire vide."] };
+  const code = String(formData.get("code") ?? "").trim();
+  if (!HS_CODE_PATTERN.test(code)) {
+    return { errors: ["Le code SH compte 6, 8 ou 10 chiffres."] };
   }
 
-  const duplicate = uniqueCodeError(row.code, context.existingHsCodes);
-  const errors = duplicate ? [...row.errors, duplicate] : row.errors;
+  const { data, errors } = validateHsCodeEdit(code, Object.fromEntries(formData));
   if (errors.length > 0) {
     return { errors };
   }
 
   try {
-    await createHsCode(db, {
+    await createWithInheritance(getDb(), {
       tenantId: session.tenantId,
       actorUserId: session.userId,
-      data: row.data as unknown as HsImportData,
+      code,
+      data,
     });
   } catch (error) {
     return failure(error);
   }
 
-  redirect(`/nomenclature?cree=${encodeURIComponent(row.code ?? "")}`);
+  redirect(`/nomenclature?cree=${encodeURIComponent(code)}`);
+}
+
+/**
+ * GEN-015 / ART-018 — la création à la volée depuis un champ guidé : le code, ses parents et
+ * l'héritage du parent le plus proche sont posés en une transaction, puis le code est rendu au champ.
+ */
+export async function createHsCodeOptionAction(input: {
+  code: string;
+  wording?: string;
+}): Promise<HsCodeCreateResult> {
+  const session = await requireModule("nomenclature", "write");
+  const code = input.code.trim();
+  if (!HS_CODE_PATTERN.test(code)) {
+    return { ok: false, error: "Le code SH compte 6, 8 ou 10 chiffres." };
+  }
+
+  const wording = (input.wording ?? "").trim().slice(0, HS_MAX_WORDING) || HS_WORDING_TO_COMPLETE;
+
+  try {
+    const created = await createWithInheritance(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      code,
+      data: { wording, parentCode: null, supplementaryUnit: null, tecRate: null },
+    });
+    revalidatePath("/nomenclature");
+    return {
+      ok: true,
+      option: { id: created.id, code: created.code, wording, tecRate: created.data.tecRate },
+      created: created.created,
+    };
+  } catch (error) {
+    if (error instanceof CatalogError) {
+      return { ok: false, error: error.message };
+    }
+    throw error;
+  }
+}
+
+/** ART-022 — la fiche d'un code SH se corrige ligne à ligne ; le code reste figé et l'audit garde l'avant/après. */
+export async function updateHsCodeAction(
+  _state: CatalogFormState,
+  formData: FormData,
+): Promise<CatalogFormState> {
+  const session = await requireModule("nomenclature", "write");
+  const hsCodeId = String(formData.get("hsCodeId") ?? "");
+  if (!UUID_PATTERN.test(hsCodeId)) {
+    return { errors: ["Code SH invalide."] };
+  }
+
+  const code = String(formData.get("code") ?? "").trim();
+  const { data, errors } = validateHsCodeEdit(code, Object.fromEntries(formData));
+  if (errors.length > 0) {
+    return { errors };
+  }
+
+  try {
+    await updateHsCode(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      hsCodeId,
+      data,
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect(`/nomenclature/${hsCodeId}?maj=ok`);
+}
+
+/** ART-023 — un code cité par un article, une ligne de déclaration ou portant des enfants ne se supprime pas. */
+export async function deleteHsCodeAction(
+  _state: CatalogFormState,
+  formData: FormData,
+): Promise<CatalogFormState> {
+  const session = await requireModule("nomenclature", "manage");
+  const hsCodeId = String(formData.get("hsCodeId") ?? "");
+  if (!UUID_PATTERN.test(hsCodeId)) {
+    return { errors: ["Code SH invalide."] };
+  }
+
+  try {
+    await deleteHsCode(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      hsCodeId,
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect("/nomenclature?supprime=ok");
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

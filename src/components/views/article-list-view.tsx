@@ -270,7 +270,7 @@ export function ArticleListView({
                     {unitLabel(row.unitCode)}
                   </td>
                   <td className={`${TD} font-mono text-[10px] whitespace-nowrap`}>
-                    {row.hsCode ?? "—"}
+                    {row.hsCode ?? "Non renseigné"}
                   </td>
                   <td className={`${TD} text-right whitespace-nowrap tabular-nums`}>
                     {formatXof(row.salePriceXof)}
@@ -280,7 +280,7 @@ export function ArticleListView({
                   </td>
                   <td className={TD}>
                     {titles.length === 0 ? (
-                      <span className="text-muted">—</span>
+                      <span className="text-muted">Sans catégorie</span>
                     ) : (
                       <span className="flex flex-wrap gap-1">
                         {titles.map((category) => (

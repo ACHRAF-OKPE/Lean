@@ -4,8 +4,17 @@ import { connection } from "next/server";
 import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
+import { HsCodeFilterBar } from "@/components/views/hs-code-filter-bar";
+import { HsCodeListView } from "@/components/views/hs-code-list-view";
+import { HsCodeTreeView } from "@/components/views/hs-code-tree-view";
+import { HsCodeViewSwitcher } from "@/components/views/hs-code-view-switcher";
 import { getDb } from "@/db/client";
 import { requireModule } from "@/lib/auth/session";
+import {
+  hasActiveHsCodeFilters,
+  parseHsCodeFilters,
+  type HsCodeFilters,
+} from "@/modules/catalog/hs-code-filters";
 import { listHsCodes } from "@/modules/catalog/queries";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 
@@ -13,7 +22,16 @@ export const metadata: Metadata = {
   title: "Nomenclature douanière",
 };
 
-const TH = "px-4 py-2.5 font-normal";
+function bannerLines(query: Record<string, string | string[] | undefined>): readonly string[] {
+  const lines: string[] = [];
+  if (typeof query.cree === "string") {
+    lines.push(`Code SH ${query.cree} créé.`);
+  }
+  if (query.supprime === "ok") {
+    lines.push("Code SH supprimé de l'espace.");
+  }
+  return lines;
+}
 
 export default function HsCodesPage({ searchParams }: PageProps<"/nomenclature">) {
   return (
@@ -26,13 +44,17 @@ export default function HsCodesPage({ searchParams }: PageProps<"/nomenclature">
 async function HsCodesContent({ searchParams }: Pick<PageProps<"/nomenclature">, "searchParams">) {
   await connection();
   const session = await requireModule("nomenclature", "read");
+  const query = await searchParams;
+  const filters: HsCodeFilters = parseHsCodeFilters(query);
+
   const db = getDb();
-  const [page, memberships, params] = await Promise.all([
-    listHsCodes(db, session.tenantId),
+  const [page, memberships] = await Promise.all([
+    listHsCodes(db, session.tenantId, filters),
     listMembershipsForUser(db, session.userId),
-    searchParams,
   ]);
-  const created = typeof params.cree === "string" ? params.cree : null;
+
+  const lines = bannerLines(query);
+  const filtered = hasActiveHsCodeFilters(filters);
 
   return (
     <div className="min-h-dvh">
@@ -46,77 +68,48 @@ async function HsCodesContent({ searchParams }: Pick<PageProps<"/nomenclature">,
             </p>
             <h1 className="mt-2 text-2xl font-medium tracking-tight">Nomenclature douanière</h1>
             <p className="mt-1 max-w-xl text-[11px] leading-5 text-muted">
-              Codes SH à 6, 8 ou 10 chiffres, propres à l&apos;espace actif. Importez les parents
-              avant les enfants, ou les deux dans le même fichier.
+              Codes SH à 6, 8 ou 10 chiffres, propres à l&apos;espace actif. Un code se crée à la
+              volée depuis les articles et les déclarations : les parents manquants suivent
+              automatiquement.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="rounded-full border border-line bg-panel px-2.5 py-1 font-mono text-[10px] text-muted">
-              {page.total} au total
+              {page.total} {filtered ? "filtrés" : "au total"}
             </span>
+            <HsCodeViewSwitcher filters={filters} />
             <CatalogActions kind="hs_codes" />
           </div>
         </div>
 
-        {created ? (
-          <p
-            role="status"
-            className="mt-5 rounded-md border border-brand/20 bg-brand-soft px-3 py-2 text-[11px] text-brand-strong"
-          >
-            Code SH <span className="font-mono">{created}</span> créé.
-          </p>
+        {lines.length > 0 ? (
+          <div className="mt-5 space-y-2">
+            {lines.map((line) => (
+              <p
+                key={line}
+                role="status"
+                className="rounded-md border border-brand/20 bg-brand-soft px-3 py-2 text-[11px] text-brand-strong"
+              >
+                {line}
+              </p>
+            ))}
+          </div>
         ) : null}
+
+        <div className="mt-5">
+          <HsCodeFilterBar filters={filters} />
+        </div>
 
         <section className="mt-5 overflow-hidden rounded-xl border border-line bg-panel">
           {page.rows.length === 0 ? (
             <p className="px-5 py-10 text-center text-[11px] leading-5 text-muted">
-              Aucun code SH dans cet espace. Importez votre nomenclature avec le modèle
-              téléchargeable, ou créez un code manuellement.
+              Aucun code SH {filtered ? "ne correspond aux filtres" : "dans cet espace"}. Importez
+              votre nomenclature avec le modèle téléchargeable, ou créez un code manuellement.
             </p>
+          ) : filters.view === "arbre" ? (
+            <HsCodeTreeView rows={page.rows} />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-[11px]">
-                <caption className="sr-only">Nomenclature douanière de l&apos;espace actif</caption>
-                <thead>
-                  <tr className="border-b border-line font-mono text-[10px] tracking-[0.12em] text-muted uppercase">
-                    <th scope="col" className={TH}>
-                      Code SH
-                    </th>
-                    <th scope="col" className={TH}>
-                      Libellé
-                    </th>
-                    <th scope="col" className={TH}>
-                      Parent
-                    </th>
-                    <th scope="col" className={TH}>
-                      Unité complémentaire
-                    </th>
-                    <th scope="col" className={TH}>
-                      TEC
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {page.rows.map((row) => (
-                    <tr key={row.id} className="border-b border-line last:border-b-0">
-                      <td className="px-4 py-2.5 font-mono text-[10px] whitespace-nowrap">
-                        {row.code}
-                      </td>
-                      <td className="px-4 py-2.5 font-medium">{row.wording}</td>
-                      <td className="px-4 py-2.5 font-mono text-[10px] whitespace-nowrap text-muted">
-                        {row.parentCode ?? "—"}
-                      </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap text-muted">
-                        {row.supplementaryUnit ?? "—"}
-                      </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap text-muted tabular-nums">
-                        {row.tecRate === null ? "—" : `${row.tecRate} %`}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <HsCodeListView rows={page.rows} />
           )}
         </section>
 

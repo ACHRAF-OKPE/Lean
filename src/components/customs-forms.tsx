@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Field, FormErrors, INPUT_CLASS } from "@/components/form-fields";
+import { HsCodeField } from "@/components/views/hs-code-field";
 import { EMPTY_CUSTOMS_FORM_STATE } from "@/lib/customs/form-state";
 import {
   addDeclarationLineAction,
@@ -143,7 +144,7 @@ export function DeclarationHeaderForm({
                 </option>
               ))}
               {isEdit ? null : (
-                <option value={NEW_CUSTOMS_REGIME_OPTION}>Autre régime — le créer…</option>
+                <option value={NEW_CUSTOMS_REGIME_OPTION}>Autre régime, le créer…</option>
               )}
             </select>
           </Field>
@@ -273,7 +274,7 @@ export function DeclarationHeaderForm({
                   name="newRegimeLabel"
                   required
                   maxLength={120}
-                  placeholder="Zone franche — apurement progressif"
+                  placeholder="Zone franche · apurement progressif"
                   className={INPUT_CLASS}
                 />
               </Field>
@@ -350,9 +351,11 @@ export function DeclarationHeaderForm({
 export function DeclarationLineForm({
   declarationId,
   hsCodes,
+  canCreateHsCode,
 }: {
   declarationId: string;
   hsCodes: CustomsDeclarationOptions["hsCodes"];
+  canCreateHsCode: boolean;
 }) {
   const [state, formAction, pending] = useActionState(
     addDeclarationLineAction,
@@ -375,24 +378,16 @@ export function DeclarationLineForm({
         <legend className="sr-only">Nouvelle ligne de déclaration</legend>
 
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <Field label="Code SH" htmlFor="hsCode" hint="6, 8 ou 10 chiffres.">
-            <input
-              id="hsCode"
-              name="hsCode"
-              required
-              list="douane-hs-codes"
-              placeholder="090111"
-              className={`${INPUT_CLASS} font-mono`}
-            />
-            <datalist id="douane-hs-codes">
-              {hsCodes.map((hsCode) => (
-                <option key={hsCode.code} value={hsCode.code}>
-                  {hsCode.wording}
-                  {hsCode.tecRate === null ? " · TEC manquant" : ` · TEC ${hsCode.tecRate} %`}
-                </option>
-              ))}
-            </datalist>
-          </Field>
+          <HsCodeField
+            label="Code SH"
+            name="hsCode"
+            options={hsCodes}
+            canCreate={canCreateHsCode}
+            required
+            wordingFromId="designation"
+            hint="6, 8 ou 10 chiffres ; cherchez par code ou par libellé, ou créez-le à la volée."
+            placeholder="090111"
+          />
           <Field label="Désignation" htmlFor="designation" hint="160 caractères maximum.">
             <input
               id="designation"
