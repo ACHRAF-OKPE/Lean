@@ -107,7 +107,7 @@ async function levelOf(ids: PurchasingTenant, articleId: string): Promise<string
 }
 
 describe("STK-001 — emplacements par défaut et niveaux internes", () => {
-  it("crée MAG, FOURN et CLIENT une seule fois, par tenant", async () => {
+  it("crée MAG, FOURN, CLIENT et INVENT une seule fois, par tenant", async () => {
     const ids = await seedPurchasingTenant(db, "stk001-locations");
 
     const first = await db.transaction((tx) => ensureDefaultLocations(tx, ids.tenantId));
@@ -126,6 +126,7 @@ describe("STK-001 — emplacements par défaut et niveaux internes", () => {
     expect(locations).toEqual([
       { code: "CLIENT", type: "customer", active: true },
       { code: "FOURN", type: "supplier", active: true },
+      { code: "INVENT", type: "inventory", active: true },
       { code: "MAG", type: "internal", active: true },
     ]);
 

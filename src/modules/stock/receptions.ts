@@ -403,7 +403,7 @@ export async function cancelReception(
       receptionId: reception.id,
       cancelsMoveId: original.id,
       realDate: todayIsoDate(),
-      notes: notes ? `Annulation ${reception.number} — ${notes}` : `Annulation ${reception.number}`,
+      notes: notes ? `Annulation ${reception.number} · ${notes}` : `Annulation ${reception.number}`,
       lines: originalLines.map((line) => ({
         articleId: line.articleId,
         purchaseOrderLineId: line.purchaseOrderLineId,

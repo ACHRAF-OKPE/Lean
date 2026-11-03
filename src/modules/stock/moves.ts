@@ -192,35 +192,35 @@ export async function insertStockMove(
     })),
   );
 
-  const affectedLocation =
-    input.type === "incoming"
-      ? locationsById.get(input.toLocationId)
-      : locationsById.get(input.fromLocationId);
+  // STK-007 — un transfert entre deux magasins touche les deux côtés : la sortie baisse
+  // l'origine, l'entrée hausse la destination. Un emplacement virtuel ne porte pas de niveau.
+  const fromLocation = locationsById.get(input.fromLocationId);
+  const toLocation = locationsById.get(input.toLocationId);
 
-  if (affectedLocation?.type === "internal") {
-    for (const [articleId, micros] of quantityByArticle) {
-      const article = articlesById.get(articleId);
-      if (!article) {
-        continue;
-      }
-      const quantity = microsToQuantity(micros);
-      if (input.type === "incoming") {
-        await increaseLevel(tx, {
-          tenantId: input.tenantId,
-          locationId: affectedLocation.id,
-          articleId,
-          quantity,
-        });
-      } else {
-        await decreaseLevel(tx, {
-          tenantId: input.tenantId,
-          locationId: affectedLocation.id,
-          articleId,
-          quantity,
-          articleCode: article.code,
-          locationCode: affectedLocation.code,
-        });
-      }
+  for (const [articleId, micros] of quantityByArticle) {
+    const article = articlesById.get(articleId);
+    if (!article) {
+      continue;
+    }
+    const quantity = microsToQuantity(micros);
+
+    if (fromLocation?.type === "internal") {
+      await decreaseLevel(tx, {
+        tenantId: input.tenantId,
+        locationId: fromLocation.id,
+        articleId,
+        quantity,
+        articleCode: article.code,
+        locationCode: fromLocation.code,
+      });
+    }
+    if (toLocation?.type === "internal") {
+      await increaseLevel(tx, {
+        tenantId: input.tenantId,
+        locationId: toLocation.id,
+        articleId,
+        quantity,
+      });
     }
   }
 

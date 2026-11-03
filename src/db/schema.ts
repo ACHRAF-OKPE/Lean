@@ -294,8 +294,8 @@ export type InvoicingState = "not_invoiced" | "partially_invoiced" | "invoiced";
 export type DeliveryStatus = "validated" | "cancelled";
 export type InvoiceStatus = "draft" | "validated" | "cancelled";
 export type PaymentMethod = "transfer" | "cash" | "cheque" | "mobile_money";
-export type StockLocationType = "internal" | "supplier" | "customer";
-export type StockMoveType = "incoming" | "outgoing";
+export type StockLocationType = "internal" | "supplier" | "customer" | "inventory";
+export type StockMoveType = "incoming" | "outgoing" | "transfer";
 export type DocumentScope =
   | "purchase_order"
   | "tender"
@@ -789,7 +789,10 @@ export const stockLocations = pgTable(
     index("stock_locations_tenant_type_idx").on(table.tenantId, table.type),
     check("stock_locations_code_format_check", sql`${table.code} ~ '^[A-Z0-9][A-Z0-9-]{1,11}$'`),
     check("stock_locations_name_check", sql`char_length(${table.name}) between 1 and 80`),
-    check("stock_locations_type_check", sql`${table.type} in ('internal', 'supplier', 'customer')`),
+    check(
+      "stock_locations_type_check",
+      sql`${table.type} in ('internal', 'supplier', 'customer', 'inventory')`,
+    ),
   ],
 );
 
@@ -1969,7 +1972,7 @@ export const stockMoves = pgTable(
     index("stock_moves_tenant_order_idx").on(table.tenantId, table.purchaseOrderId),
     index("stock_moves_tenant_sales_order_idx").on(table.tenantId, table.salesOrderId),
     index("stock_moves_tenant_delivery_idx").on(table.tenantId, table.deliveryId),
-    check("stock_moves_type_check", sql`${table.type} in ('incoming', 'outgoing')`),
+    check("stock_moves_type_check", sql`${table.type} in ('incoming', 'outgoing', 'transfer')`),
     check(
       "stock_moves_source_check",
       sql`${table.purchaseOrderId} is null or ${table.salesOrderId} is null`,
@@ -2103,6 +2106,35 @@ export const stockLevels = pgTable(
       name: "stock_levels_tenant_article_fk",
       columns: [table.tenantId, table.articleId],
       foreignColumns: [articles.tenantId, articles.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const stockSettings = pgTable(
+  "stock_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    defaultInternalLocationId: uuid("default_internal_location_id"),
+    defaultMinStockQty: numeric("default_min_stock_qty", { precision: 18, scale: 6 })
+      .notNull()
+      .default("0"),
+    adjustmentReasonRequired: boolean("adjustment_reason_required").notNull().default(true),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("stock_settings_tenant_idx").on(table.tenantId),
+    check("stock_settings_min_stock_check", sql`${table.defaultMinStockQty} >= 0`),
+    foreignKey({
+      name: "stock_settings_tenant_default_location_fk",
+      columns: [table.tenantId, table.defaultInternalLocationId],
+      foreignColumns: [stockLocations.tenantId, stockLocations.id],
     }).onDelete("restrict"),
   ],
 );
@@ -3575,6 +3607,7 @@ export type InvoicePaymentRow = typeof invoicePayments.$inferSelect;
 export type StockMoveRow = typeof stockMoves.$inferSelect;
 export type StockMoveLineRow = typeof stockMoveLines.$inferSelect;
 export type StockLevelRow = typeof stockLevels.$inferSelect;
+export type StockSettingsRow = typeof stockSettings.$inferSelect;
 export type DocumentSequenceRow = typeof documentSequences.$inferSelect;
 export type DiscussionMessageRow = typeof discussionMessages.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
