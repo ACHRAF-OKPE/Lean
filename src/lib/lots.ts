@@ -84,7 +84,7 @@ export const LOTS: readonly Lot[] = [
     id: 12,
     title: "Ergonomie & vues",
     scope:
-      "12A, 12B et 12C livrés : champs soulignés, historique de navigation, référence créée à la volée, filtres et vues des registres des tiers et des articles (catégories, Kanban, glisser-déposer)",
+      "12A, 12B, 12C et 12D livrés : champs soulignés, historique de navigation, référence créée à la volée, filtres et vues des registres des tiers et des articles (catégories, Kanban, glisser-déposer)",
     status: "done",
   },
   {

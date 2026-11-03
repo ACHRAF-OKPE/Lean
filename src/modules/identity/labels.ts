@@ -15,6 +15,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "catalog.partner.update": "Mise à jour d'un tiers",
   "catalog.partner.delete": "Suppression d'un tiers",
   "catalog.partner.bulk": "Action en lot sur un tiers",
+  "catalog.partner.category": "Rattachement d'un tiers à une catégorie",
   "catalog.category.create": "Création d'une catégorie de tiers",
   "catalog.category.update": "Mise à jour d'une catégorie de tiers",
   "catalog.category.delete": "Suppression d'une catégorie de tiers",

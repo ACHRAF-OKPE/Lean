@@ -1,13 +1,14 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/db/client";
-import { auditEvents, partnerCategories, tenants, users } from "@/db/schema";
+import { auditEvents, partnerCategories, partnerCategoryLinks, tenants, users } from "@/db/schema";
 import { createTestDatabase, type TestDatabase } from "@/test/pglite";
 import { EMPTY_PARTNER_LIST_FILTERS } from "./filters";
 import {
   createCategory,
   deleteCategory,
   deletePartners,
+  movePartnerToCategory,
   replacePartnerCategories,
   setCategoryActive,
 } from "./partner-queries";
@@ -209,5 +210,74 @@ describe("GEN-017 — suppression en lot", () => {
       }),
     ).rejects.toThrow(/niveau de droit plus élevé/);
     expect((await listPartners(db, tenantId)).total).toBe(1);
+  });
+});
+
+describe("ART-016 — glisser-déposer d'une carte de tiers", () => {
+  it("rattache le tiers à la catégorie d'accueil, remplace la précédente, puis détache sur « Sans catégorie »", async () => {
+    const tenantId = await makeTenant("dnd-a");
+    const first = await createCategory(db, {
+      tenantId,
+      actorUserId: actorId,
+      title: "Grossistes",
+    });
+    const second = await createCategory(db, {
+      tenantId,
+      actorUserId: actorId,
+      title: "Détaillants",
+    });
+    const partner = await createPartner(db, {
+      tenantId,
+      actorUserId: actorId,
+      data: data({ code: "CLI040" }),
+      categoryIds: [first.id],
+    });
+
+    await movePartnerToCategory(db, {
+      tenantId,
+      actorUserId: actorId,
+      partnerId: partner.id,
+      categoryId: second.id,
+    });
+    let links = await db
+      .select({ categoryId: partnerCategoryLinks.categoryId })
+      .from(partnerCategoryLinks)
+      .where(eq(partnerCategoryLinks.partnerId, partner.id));
+    expect(links.map((row) => row.categoryId)).toEqual([second.id]);
+
+    await movePartnerToCategory(db, {
+      tenantId,
+      actorUserId: actorId,
+      partnerId: partner.id,
+      categoryId: null,
+    });
+    links = await db
+      .select({ categoryId: partnerCategoryLinks.categoryId })
+      .from(partnerCategoryLinks)
+      .where(eq(partnerCategoryLinks.partnerId, partner.id));
+    expect(links).toEqual([]);
+
+    const events = await db
+      .select({ action: auditEvents.action })
+      .from(auditEvents)
+      .where(eq(auditEvents.tenantId, tenantId));
+    expect(events.filter((event) => event.action === "catalog.partner.category")).toHaveLength(2);
+  });
+
+  it("refuse une catégorie inconnue de l'espace", async () => {
+    const tenantId = await makeTenant("dnd-b");
+    const partner = await createPartner(db, {
+      tenantId,
+      actorUserId: actorId,
+      data: data({ code: "CLI041" }),
+    });
+    await expect(
+      movePartnerToCategory(db, {
+        tenantId,
+        actorUserId: actorId,
+        partnerId: partner.id,
+        categoryId: "00000000-0000-4000-8000-000000000000",
+      }),
+    ).rejects.toThrow(/inconnue/);
   });
 });

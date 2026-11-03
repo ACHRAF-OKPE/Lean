@@ -43,6 +43,7 @@ import {
   deleteCategory,
   deletePartner,
   deletePartners,
+  movePartnerToCategory,
   renameCategory,
   setCategoryActive,
   updatePartner,
@@ -786,5 +787,36 @@ export async function moveArticleCategoryAction(input: {
   }
 
   revalidatePath("/articles");
+  return { ok: true };
+}
+
+/** ART-016 — le dépôt d'une carte de Kanban rattache le tiers à la catégorie visée. */
+export async function movePartnerCategoryAction(input: {
+  partnerId: string;
+  categoryId: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await requireModule("partners", "write");
+  if (!UUID_PATTERN.test(input.partnerId)) {
+    return { ok: false, error: "Tiers invalide." };
+  }
+  if (input.categoryId !== null && !UUID_PATTERN.test(input.categoryId)) {
+    return { ok: false, error: "Catégorie invalide." };
+  }
+
+  try {
+    await movePartnerToCategory(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      partnerId: input.partnerId,
+      categoryId: input.categoryId,
+    });
+  } catch (error) {
+    if (error instanceof CatalogError) {
+      return { ok: false, error: error.message };
+    }
+    throw error;
+  }
+
+  revalidatePath("/tiers");
   return { ok: true };
 }

@@ -786,3 +786,49 @@ async function lockPartner(
   }
   return row;
 }
+
+/**
+ * ART-016 — le glisser-déposer d'une carte de Kanban rattache le tiers à une catégorie ; déposée sur
+ * « Sans catégorie », la carte détache le tiers de toutes ses catégories.
+ */
+export async function movePartnerToCategory(
+  db: Database,
+  input: {
+    tenantId: string;
+    actorUserId: string;
+    partnerId: string;
+    categoryId: string | null;
+  },
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const before = await lockPartner(tx, input.tenantId, input.partnerId);
+    const previous = await tx
+      .select({ categoryId: partnerCategoryLinks.categoryId })
+      .from(partnerCategoryLinks)
+      .where(
+        and(
+          eq(partnerCategoryLinks.tenantId, input.tenantId),
+          eq(partnerCategoryLinks.partnerId, before.id),
+        ),
+      );
+
+    await replacePartnerCategories(tx, {
+      tenantId: input.tenantId,
+      partnerId: before.id,
+      categoryIds: input.categoryId ? [input.categoryId] : [],
+    });
+
+    await tx.insert(auditEvents).values({
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      action: "catalog.partner.category",
+      entityType: "partner",
+      entityId: before.id,
+      details: {
+        code: before.code,
+        before: { categories: previous.map((row) => row.categoryId) },
+        after: { categories: input.categoryId ? [input.categoryId] : [] },
+      },
+    });
+  });
+}

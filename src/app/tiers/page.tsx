@@ -139,7 +139,17 @@ async function PartnersContent({ searchParams }: Pick<PageProps<"/tiers">, "sear
                 : "Aucun tiers dans cet espace. Créez une fiche ou importez votre fichier XLSX avec le modèle téléchargeable."}
             </div>
           ) : filters.view === "kanban" ? (
-            <PartnerKanbanView rows={page.rows} categoriesByPartner={categoryTitles} />
+            <PartnerKanbanView
+              rows={page.rows}
+              categories={categories}
+              categoryIdsByPartner={Object.fromEntries(
+                page.rows.map((row) => [
+                  row.id,
+                  (categoryTitles.get(row.id) ?? []).map((category) => category.id),
+                ]),
+              )}
+              canWrite={atLeast(level, "write")}
+            />
           ) : filters.view === "carte" ? (
             <PartnerMapView rows={page.rows} />
           ) : (

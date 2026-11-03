@@ -102,7 +102,9 @@ Les trois référentiels du Lot 2 sont consultables et créables depuis `/tiers`
 ou inactif, catégorie et pays — et se lit en trois vues partageables par l'adresse : liste dense
 avec sélection multiple, Kanban groupé par catégorie (les tiers sans catégorie forment le groupe
 « Sans catégorie ») et carte, qui place un point par tiers muni de ses coordonnées et rappelle le
-nombre de tiers géolocalisés et de lieux distincts. Selon le niveau de droit, la sélection permet
+nombre de tiers géolocalisés et de lieux distincts. Dans le Kanban, une carte se glisse d'une
+colonne à l'autre pour rattacher le tiers à la catégorie d'accueil, ou sur « Sans catégorie » pour
+l'en détacher ; le geste est réservé au niveau écriture et tracé. Selon le niveau de droit, la sélection permet
 de changer le rôle, l'état ou les catégories, d'exporter, de modifier ou de supprimer : une action
 en lot s'applique en une seule transaction et refuse toute la sélection dès qu'une ligne est citée
 par un document.
