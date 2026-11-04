@@ -327,6 +327,8 @@ export type HrTimeEntryPeriod = "full" | "morning" | "afternoon" | "hours";
 export type HrTimeEntryStatus = "draft" | "validated";
 export type HrLeaveHalfDay = "morning" | "afternoon";
 export type HrLeaveRequestStatus = "draft" | "validated" | "refused" | "cancelled";
+export type PayrollComponentKind = "earning" | "deduction";
+export type PayrollComponentMode = "fixed" | "percent";
 export type CustomsApurementMode = "production" | "export" | "destruction" | "transfer";
 export type FiscalYearStatus = "open" | "closed";
 export type AccountingJournalType = "sale" | "purchase" | "bank" | "cash" | "misc";
@@ -3582,6 +3584,78 @@ export const hrLeaveRequests = pgTable(
   ],
 );
 
+export const payrollComponents = pgTable(
+  "payroll_components",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    kind: text("kind").$type<PayrollComponentKind>().notNull(),
+    mode: text("mode").$type<PayrollComponentMode>().notNull(),
+    amountXof: integer("amount_xof").notNull().default(0),
+    ratePercent: numeric("rate_percent", { precision: 18, scale: 6 }).notNull().default("0"),
+    taxable: boolean("taxable").notNull().default(true),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payroll_components_tenant_code_idx").on(table.tenantId, table.code),
+    uniqueIndex("payroll_components_tenant_id_idx").on(table.tenantId, table.id),
+    index("payroll_components_tenant_active_idx").on(table.tenantId, table.active),
+    index("payroll_components_tenant_kind_idx").on(table.tenantId, table.kind),
+    check("payroll_components_code_format_check", sql`${table.code} ~ '^[A-Z0-9][A-Z0-9_]{1,15}$'`),
+    check("payroll_components_label_check", sql`char_length(${table.label}) between 1 and 80`),
+    check("payroll_components_kind_check", sql`${table.kind} in ('earning', 'deduction')`),
+    check("payroll_components_mode_check", sql`${table.mode} in ('fixed', 'percent')`),
+    check("payroll_components_amount_check", sql`${table.amountXof} between 0 and 2000000000`),
+    check("payroll_components_rate_check", sql`${table.ratePercent} between 0 and 100`),
+  ],
+);
+
+export const payrollSettings = pgTable(
+  "payroll_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    paymentDayOfMonth: integer("payment_day_of_month").notNull().default(28),
+    socialEmployeeRate: numeric("social_employee_rate", { precision: 18, scale: 6 })
+      .notNull()
+      .default("0"),
+    socialEmployerRate: numeric("social_employer_rate", { precision: 18, scale: 6 })
+      .notNull()
+      .default("0"),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payroll_settings_tenant_idx").on(table.tenantId),
+    check("payroll_settings_payment_day_check", sql`${table.paymentDayOfMonth} between 1 and 31`),
+    check(
+      "payroll_settings_social_employee_check",
+      sql`${table.socialEmployeeRate} between 0 and 100`,
+    ),
+    check(
+      "payroll_settings_social_employer_check",
+      sql`${table.socialEmployerRate} between 0 and 100`,
+    ),
+  ],
+);
+
 export type HsCodeRow = typeof hsCodes.$inferSelect;
 export type PartnerRow = typeof partners.$inferSelect;
 export type ArticleRow = typeof articles.$inferSelect;
@@ -3638,3 +3712,5 @@ export type HrPublicHolidayRow = typeof hrPublicHolidays.$inferSelect;
 export type HrTimeEntryRow = typeof hrTimeEntries.$inferSelect;
 export type HrLeaveTypeRow = typeof hrLeaveTypes.$inferSelect;
 export type HrLeaveRequestRow = typeof hrLeaveRequests.$inferSelect;
+export type PayrollComponentRow = typeof payrollComponents.$inferSelect;
+export type PayrollSettingsRow = typeof payrollSettings.$inferSelect;

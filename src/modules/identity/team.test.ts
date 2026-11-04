@@ -215,12 +215,13 @@ describe("TEN-009 — concession explicite, défaut du rôle et propriétaire", 
         tenantId,
         actorUserId: ownerId,
         targetUserId: userId,
-        module: "payroll" as ModuleKey,
+        module: "inconnu" as ModuleKey,
         level: "manage",
       }),
     ).rejects.toThrow();
-    expect(() => parseModule("payroll")).toThrow("Module inconnu.");
+    expect(() => parseModule("inconnu")).toThrow("Module inconnu.");
     expect(() => parseLevel("rw")).toThrow("Niveau de droit inconnu.");
+    expect(parseModule("payroll")).toBe("payroll");
     expect(parseModule("sales")).toBe("sales");
     expect(parseLevel("write")).toBe("write");
   });

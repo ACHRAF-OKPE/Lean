@@ -162,4 +162,9 @@ export const ACTION_LABELS: Record<string, string> = {
   "hr.leave_request.refuse": "Refus d'une demande de congé",
   "hr.leave_request.cancel": "Annulation d'une demande de congé",
   "hr.leave_request.delete": "Suppression d'une demande de congé",
+  "payroll.component.create": "Création d'une rubrique de paie",
+  "payroll.component.update": "Mise à jour d'une rubrique de paie",
+  "payroll.component.activate": "Réactivation d'une rubrique de paie",
+  "payroll.component.deactivate": "Désactivation d'une rubrique de paie",
+  "payroll.settings.update": "Mise à jour du paramétrage Paie",
 };

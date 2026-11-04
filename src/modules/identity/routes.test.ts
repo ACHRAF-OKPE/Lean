@@ -22,6 +22,7 @@ const MODULE_BY_ROUTE_DIR: readonly [string, ModuleKey][] = [
   ["echanges", "exchanges"],
   ["factures", "invoices"],
   ["nomenclature", "nomenclature"],
+  ["paie", "payroll"],
   ["rh", "hr"],
   ["stock", "stock"],
   ["taches", "tasks"],
@@ -124,7 +125,7 @@ describe("TEN-013 — toute route d'affaires est gardée par son module", () => 
     expect(orphan).toEqual([]);
   });
 
-  it("couvre les quatorze modules du catalogue par au moins une route", () => {
+  it("couvre les quinze modules du catalogue par au moins une route", () => {
     const covered = new Set<ModuleKey>();
     for (const route of ROUTES) {
       for (const match of route.source.matchAll(/requireModule\(\s*"([a-z_]+)"/g)) {

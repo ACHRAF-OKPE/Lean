@@ -26,15 +26,16 @@ describe("TEN-008 — niveaux d'accès par module", () => {
     }
   });
 
-  it("scelle la comptabilité, la douane et les RH pour un membre sans concession", () => {
+  it("scelle la comptabilité, la douane, les RH et la paie pour un membre sans concession", () => {
     expect(defaultLevel("member", "accounting")).toBe("none");
     expect(defaultLevel("member", "customs")).toBe("none");
     expect(defaultLevel("member", "hr")).toBe("none");
+    expect(defaultLevel("member", "payroll")).toBe("none");
   });
 
   it("donne au membre la lecture des autres modules", () => {
     for (const key of MODULE_KEYS) {
-      if (key === "accounting" || key === "customs" || key === "hr") {
+      if (key === "accounting" || key === "customs" || key === "hr" || key === "payroll") {
         continue;
       }
       expect(defaultLevel("member", key)).toBe("read");
@@ -78,9 +79,10 @@ describe("TEN-008 — niveaux d'accès par module", () => {
   });
 
   it("ne reconnaît ni module ni niveau inconnu", () => {
-    expect(MODULE_KEYS).not.toContain("payroll");
+    expect(MODULE_KEYS).toContain("payroll");
     expect(isModuleKey("sales")).toBe(true);
-    expect(isModuleKey("payroll")).toBe(false);
+    expect(isModuleKey("payroll")).toBe(true);
+    expect(isModuleKey("inexistant")).toBe(false);
     expect(isModuleKey(undefined)).toBe(false);
     expect(isLevel("read")).toBe(true);
     expect(isLevel("rw")).toBe(false);
@@ -88,12 +90,30 @@ describe("TEN-008 — niveaux d'accès par module", () => {
   });
 });
 
+describe("PAY-002 — le module Paie rejoint le catalogue des droits", () => {
+  it("compte quinze modules dont la paie", () => {
+    expect(MODULE_KEYS).toHaveLength(15);
+    expect(isModuleKey("payroll")).toBe(true);
+    expect(moduleLabel("payroll")).toBe("Paie");
+    expect(MODULE_KEYS).toContain("hr");
+  });
+
+  it("ouvre le module Paie par concession et le referme par le sceau", () => {
+    expect(effectiveLevel("member", "payroll", null)).toBe("none");
+    expect(effectiveLevel("member", "payroll", "read")).toBe("read");
+    expect(effectiveLevel("member", "payroll", "write")).toBe("write");
+    expect(effectiveLevel("member", "payroll", "manage")).toBe("manage");
+    expect(effectiveLevel("member", "payroll", "none")).toBe("none");
+    expect(effectiveLevel("owner", "payroll", "none")).toBe("manage");
+    expect(atLeast(defaultLevel("admin", "payroll"), "manage")).toBe(true);
+  });
+});
+
 describe("HR-001 — le module RH rejoint le catalogue des droits", () => {
-  it("compte quatorze modules dont les ressources humaines", () => {
-    expect(MODULE_KEYS).toHaveLength(14);
+  it("garde les ressources humaines dans le catalogue", () => {
     expect(isModuleKey("hr")).toBe(true);
     expect(moduleLabel("hr")).toBe("Ressources humaines");
-    expect(MODULE_KEYS).not.toContain("payroll");
+    expect(MODULE_KEYS).toContain("payroll");
   });
 
   it("ouvre le module RH par concession et le referme par le sceau", () => {

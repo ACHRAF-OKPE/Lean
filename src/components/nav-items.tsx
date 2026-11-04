@@ -1,4 +1,5 @@
 import {
+  Banknote,
   Barcode,
   BookOpen,
   FileSignature,
@@ -39,6 +40,7 @@ export type ActiveSection =
   | "tasks"
   | "accounting"
   | "hr"
+  | "payroll"
   | "team"
   | "settings"
   | "notifications"
@@ -93,6 +95,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     module: "accounting",
   },
   { key: "hr", href: "/rh", label: "Ressources humaines", icon: UserCog, module: "hr" },
+  { key: "payroll", href: "/paie", label: "Paie", icon: Banknote, module: "payroll" },
   { key: "settings", href: "/parametres", label: "Paramètres", icon: Settings },
 ];
 
@@ -143,6 +146,8 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   taches: "Tâches",
   comptabilite: "Comptabilité",
   rh: "Ressources humaines",
+  paie: "Paie",
+  rubriques: "Rubriques",
   parametres: "Paramètres",
   equipe: "Équipe et droits",
   audit: "Journal d'audit",
