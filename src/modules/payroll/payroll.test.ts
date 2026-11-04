@@ -11,6 +11,7 @@ import {
   setPayrollComponentActive,
   updatePayrollComponent,
 } from "./components";
+import { MAX_PAYSLIP_AMOUNT_XOF } from "./constants";
 import { PayrollError } from "./errors";
 import {
   createPayrollPeriod,
@@ -18,6 +19,14 @@ import {
   payrollPaymentDate,
   validatePayrollPeriod,
 } from "./periods";
+import {
+  computePayslip,
+  deletePayrollPayslip,
+  generatePayrollPayslips,
+  getPayrollPayslip,
+  listPayrollPayslips,
+  validatePayrollPayslip,
+} from "./payslips";
 import { getPayrollOverview } from "./queries";
 import { getPayrollSettingsView, loadPayrollSettings, savePayrollSettings } from "./settings";
 
@@ -470,5 +479,280 @@ describe("PAY-005 — périodes de paie", () => {
     expect(payrollPaymentDate(2024, 2, 31)).toBe("2024-02-29");
     expect(payrollPaymentDate(2026, 4, 31)).toBe("2026-04-30");
     expect(payrollPaymentDate(2026, 3, 28)).toBe("2026-03-28");
+  });
+});
+
+async function addRunningEmployee(code: string, salaryXof: string): Promise<string> {
+  const employee = await createEmployee(db, {
+    tenantId: tenant.tenantId,
+    actorUserId: tenant.userId,
+    raw: { code, lastName: "Diop", firstName: "Moussa", hireDate: "2024-01-01" },
+  });
+  const contract = await createContract(db, {
+    tenantId: tenant.tenantId,
+    actorUserId: tenant.userId,
+    raw: { employeeId: employee.id, kind: "cdi", startDate: "2024-01-01", salaryXof },
+  });
+  await startContract(db, {
+    tenantId: tenant.tenantId,
+    actorUserId: tenant.userId,
+    contractId: contract.id,
+  });
+  return employee.id;
+}
+
+/* ------------------------------------------------------------------------- PAY-006 */
+
+describe("PAY-006 — bulletins de paie", () => {
+  it("calcule le brut, les cotisations et le net d'un bulletin", () => {
+    const result = computePayslip({
+      baseSalaryXof: 300000,
+      components: [
+        {
+          id: "11111111-1111-1111-1111-111111111111",
+          code: "PRIME",
+          label: "Prime",
+          kind: "earning",
+          mode: "fixed",
+          amountXof: 50000,
+          ratePercent: "0",
+          taxable: true,
+        },
+        {
+          id: "22222222-2222-2222-2222-222222222222",
+          code: "AVANCE",
+          label: "Avance",
+          kind: "deduction",
+          mode: "percent",
+          amountXof: 0,
+          ratePercent: "10",
+          taxable: false,
+        },
+      ],
+      socialEmployeeRate: "5.5",
+      socialEmployerRate: "16",
+    });
+
+    expect(result.baseSalaryXof).toBe(300000);
+    expect(result.lines.map((line) => line.amountXof)).toEqual([50000, 30000]);
+    expect(result.grossXof).toBe(350000);
+    expect(result.socialEmployeeXof).toBe(19250);
+    expect(result.socialEmployerXof).toBe(56000);
+    expect(result.deductionsXof).toBe(30000);
+    expect(result.netXof).toBe(300750);
+  });
+
+  it("refuse un brut au-delà du plafond et un net négatif", () => {
+    expect(() =>
+      computePayslip({
+        baseSalaryXof: MAX_PAYSLIP_AMOUNT_XOF + 1,
+        components: [],
+        socialEmployeeRate: "0",
+        socialEmployerRate: "0",
+      }),
+    ).toThrow(PayrollError);
+
+    expect(() =>
+      computePayslip({
+        baseSalaryXof: 100000,
+        components: [
+          {
+            id: "33333333-3333-3333-3333-333333333333",
+            code: "RETENUE",
+            label: "Retenue",
+            kind: "deduction",
+            mode: "fixed",
+            amountXof: 200000,
+            ratePercent: "0",
+            taxable: false,
+          },
+        ],
+        socialEmployeeRate: "0",
+        socialEmployerRate: "0",
+      }),
+    ).toThrow(PayrollError);
+  });
+
+  it("génère un bulletin par contrat en cours, une seule fois, avec le détail des rubriques", async () => {
+    const employeeId = await addRunningEmployee("SAL100", "200000");
+    const period = await createPayrollPeriod(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      raw: { year: "2026", month: "4" },
+    });
+
+    const running = (await getPayrollOverview(db, tenant.tenantId)).runningContracts;
+    const first = await generatePayrollPayslips(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      periodId: period.id,
+    });
+    expect(first.created).toBe(running);
+    expect(first.skipped).toBe(0);
+
+    const payslips = await listPayrollPayslips(db, tenant.tenantId, { periodId: period.id });
+    expect(payslips).toHaveLength(running);
+    const mine = payslips.find((payslip) => payslip.employeeId === employeeId);
+    expect(mine).toMatchObject({
+      employeeCode: "SAL100",
+      status: "draft",
+      periodLabel: "Avril 2026",
+    });
+
+    const detail = await getPayrollPayslip(db, tenant.tenantId, mine!.id);
+    expect(detail?.baseSalaryXof).toBe(200000);
+    expect(detail?.grossXof).toBeGreaterThan(200000);
+    expect(detail?.lines.some((line) => line.code === "PRIME_ANC")).toBe(true);
+    await expect(auditActions(mine!.id)).resolves.toContain("payroll.payslip.generate");
+
+    const second = await generatePayrollPayslips(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      periodId: period.id,
+    });
+    expect(second.created).toBe(0);
+    expect(second.skipped).toBe(running);
+  });
+
+  it("refuse de générer sur une période déjà validée", async () => {
+    const [february] = (await listPayrollPeriods(db, tenant.tenantId)).filter(
+      (item) => item.month === 2 && item.year === 2026,
+    );
+    await expect(
+      generatePayrollPayslips(db, {
+        tenantId: tenant.tenantId,
+        actorUserId: tenant.userId,
+        periodId: february!.id,
+      }),
+    ).rejects.toBeInstanceOf(PayrollError);
+  });
+
+  it("isole les bulletins d'un espace de ceux du voisin", async () => {
+    expect(await listPayrollPayslips(db, otherTenantId)).toHaveLength(0);
+  });
+});
+
+/* ------------------------------------------------------------------------- PAY-007 */
+
+describe("PAY-007 — cycle de vie d'un bulletin", () => {
+  it("valide un bulletin une seule fois et trace l'audit", async () => {
+    const period = await createPayrollPeriod(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      raw: { year: "2026", month: "5" },
+    });
+    await generatePayrollPayslips(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      periodId: period.id,
+    });
+    const [payslip] = await listPayrollPayslips(db, tenant.tenantId, { periodId: period.id });
+    expect(payslip).toBeDefined();
+
+    const first = await validatePayrollPayslip(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      payslipId: payslip!.id,
+    });
+    expect(first.changed).toBe(true);
+    const detail = await getPayrollPayslip(db, tenant.tenantId, payslip!.id);
+    expect(detail?.status).toBe("validated");
+    expect(detail?.validatedAt).not.toBeNull();
+
+    const second = await validatePayrollPayslip(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      payslipId: payslip!.id,
+    });
+    expect(second.changed).toBe(false);
+    const validations = (await auditActions(payslip!.id)).filter(
+      (action) => action === "payroll.payslip.validate",
+    );
+    expect(validations).toHaveLength(1);
+  });
+
+  it("refuse de figer une période tant qu'un bulletin reste en brouillon", async () => {
+    const period = await createPayrollPeriod(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      raw: { year: "2026", month: "6" },
+    });
+    await generatePayrollPayslips(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      periodId: period.id,
+    });
+
+    await expect(
+      validatePayrollPeriod(db, {
+        tenantId: tenant.tenantId,
+        actorUserId: tenant.userId,
+        periodId: period.id,
+      }),
+    ).rejects.toBeInstanceOf(PayrollError);
+
+    for (const payslip of await listPayrollPayslips(db, tenant.tenantId, {
+      periodId: period.id,
+    })) {
+      await validatePayrollPayslip(db, {
+        tenantId: tenant.tenantId,
+        actorUserId: tenant.userId,
+        payslipId: payslip.id,
+      });
+    }
+
+    const validated = await validatePayrollPeriod(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      periodId: period.id,
+    });
+    expect(validated.changed).toBe(true);
+  });
+
+  it("supprime un bulletin en brouillon mais refuse un bulletin validé", async () => {
+    const period = await createPayrollPeriod(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      raw: { year: "2026", month: "7" },
+    });
+    await generatePayrollPayslips(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      periodId: period.id,
+    });
+    const payslips = await listPayrollPayslips(db, tenant.tenantId, { periodId: period.id });
+    expect(payslips.length).toBeGreaterThanOrEqual(2);
+
+    await deletePayrollPayslip(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      payslipId: payslips[0]!.id,
+    });
+    await expect(auditActions(payslips[0]!.id)).resolves.toContain("payroll.payslip.delete");
+    expect(await getPayrollPayslip(db, tenant.tenantId, payslips[0]!.id)).toBeNull();
+
+    await validatePayrollPayslip(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      payslipId: payslips[1]!.id,
+    });
+    await expect(
+      deletePayrollPayslip(db, {
+        tenantId: tenant.tenantId,
+        actorUserId: tenant.userId,
+        payslipId: payslips[1]!.id,
+      }),
+    ).rejects.toBeInstanceOf(PayrollError);
+  });
+
+  it("refuse un bulletin hors espace", async () => {
+    const [payslip] = await listPayrollPayslips(db, tenant.tenantId);
+    await expect(
+      validatePayrollPayslip(db, {
+        tenantId: otherTenantId,
+        actorUserId: tenant.otherTenantUserId,
+        payslipId: payslip!.id,
+      }),
+    ).rejects.toBeInstanceOf(PayrollError);
   });
 });

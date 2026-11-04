@@ -9,6 +9,11 @@ import {
   updatePayrollComponent,
 } from "@/modules/payroll/components";
 import { PayrollError } from "@/modules/payroll/errors";
+import {
+  deletePayrollPayslip,
+  generatePayrollPayslips,
+  validatePayrollPayslip,
+} from "@/modules/payroll/payslips";
 import { createPayrollPeriod, validatePayrollPeriod } from "@/modules/payroll/periods";
 import { savePayrollSettings } from "@/modules/payroll/settings";
 import type { PayrollFormState } from "./form-state";
@@ -148,6 +153,71 @@ export async function validatePayrollPeriodAction(
     return failure(error);
   }
   redirect("/paie/periodes?valide=1");
+}
+
+/* ------------------------------------------------------------------ bulletins */
+
+export async function generatePayrollPayslipsAction(
+  _state: PayrollFormState,
+  formData: FormData,
+): Promise<PayrollFormState> {
+  const session = await requireModule("payroll", "write");
+  const periodId = text(formData, "periodId");
+  if (!UUID_PATTERN.test(periodId)) {
+    return invalid("Période");
+  }
+  try {
+    await generatePayrollPayslips(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      periodId,
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  redirect(`/paie/bulletins?periode=${periodId}&genere=1`);
+}
+
+export async function validatePayrollPayslipAction(
+  _state: PayrollFormState,
+  formData: FormData,
+): Promise<PayrollFormState> {
+  const session = await requireModule("payroll", "manage");
+  const payslipId = text(formData, "payslipId");
+  if (!UUID_PATTERN.test(payslipId)) {
+    return invalid("Bulletin");
+  }
+  try {
+    await validatePayrollPayslip(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      payslipId,
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  redirect("/paie/bulletins?valide=1");
+}
+
+export async function deletePayrollPayslipAction(
+  _state: PayrollFormState,
+  formData: FormData,
+): Promise<PayrollFormState> {
+  const session = await requireModule("payroll", "manage");
+  const payslipId = text(formData, "payslipId");
+  if (!UUID_PATTERN.test(payslipId)) {
+    return invalid("Bulletin");
+  }
+  try {
+    await deletePayrollPayslip(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      payslipId,
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  redirect("/paie/bulletins?supprime=1");
 }
 
 /* ------------------------------------------------------------------ paramétrage */

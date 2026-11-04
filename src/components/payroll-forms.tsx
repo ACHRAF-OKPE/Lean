@@ -3,11 +3,13 @@
 import { useActionState, useState } from "react";
 import {
   BadgeCheck,
+  Calculator,
   CalendarPlus,
   LoaderCircle,
   Plus,
   Power,
   Save,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import { CheckboxField, Field, FormErrors, INPUT_CLASS } from "@/components/form-fields";
@@ -15,9 +17,12 @@ import { EMPTY_PAYROLL_FORM_STATE } from "@/lib/payroll/form-state";
 import {
   createPayrollComponentAction,
   createPayrollPeriodAction,
+  deletePayrollPayslipAction,
+  generatePayrollPayslipsAction,
   savePayrollSettingsAction,
   setPayrollComponentActiveAction,
   updatePayrollComponentAction,
+  validatePayrollPayslipAction,
   validatePayrollPeriodAction,
 } from "@/lib/payroll/actions";
 import {
@@ -373,6 +378,114 @@ export function PayrollPeriodValidateButton({
           <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
         ) : (
           <BadgeCheck className="size-3.5" aria-hidden="true" />
+        )}
+      </button>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ bulletins */
+
+export function PayrollPayslipGenerateForm({
+  periods,
+}: {
+  periods: readonly { readonly id: string; readonly label: string }[];
+}) {
+  const [state, formAction, pending] = useActionState(
+    generatePayrollPayslipsAction,
+    EMPTY_PAYROLL_FORM_STATE,
+  );
+
+  return (
+    <form action={formAction} className="mt-4 space-y-4">
+      <FormErrors errors={state.errors} />
+      <fieldset disabled={pending} className="space-y-4">
+        <legend className="sr-only">Générer les bulletins d&apos;une période</legend>
+        <Field label="Période" htmlFor="payslip-period" hint="Une période en brouillon.">
+          <select id="payslip-period" name="periodId" required className={INPUT_CLASS}>
+            {periods.map((period) => (
+              <option key={period.id} value={period.id}>
+                {period.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={pending}
+            aria-label="Générer les bulletins de la période"
+            title="Générer les bulletins"
+            className={SUBMIT}
+          >
+            <SubmitIcon pending={pending} icon={Calculator} />
+          </button>
+        </div>
+      </fieldset>
+    </form>
+  );
+}
+
+export function PayrollPayslipValidateButton({
+  payslipId,
+  label,
+}: {
+  payslipId: string;
+  label: string;
+}) {
+  const [state, formAction, pending] = useActionState(
+    validatePayrollPayslipAction,
+    EMPTY_PAYROLL_FORM_STATE,
+  );
+
+  return (
+    <form action={formAction} className="flex items-center justify-end gap-1.5">
+      <input type="hidden" name="payslipId" value={payslipId} />
+      {state.errors.length > 0 ? <FormErrors errors={state.errors} /> : null}
+      <button
+        type="submit"
+        disabled={pending}
+        aria-label={`Valider le bulletin de ${label}`}
+        title="Valider le bulletin"
+        className={`${SECONDARY} disabled:opacity-50`}
+      >
+        {pending ? (
+          <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+        ) : (
+          <BadgeCheck className="size-3.5" aria-hidden="true" />
+        )}
+      </button>
+    </form>
+  );
+}
+
+export function PayrollPayslipDeleteButton({
+  payslipId,
+  label,
+}: {
+  payslipId: string;
+  label: string;
+}) {
+  const [state, formAction, pending] = useActionState(
+    deletePayrollPayslipAction,
+    EMPTY_PAYROLL_FORM_STATE,
+  );
+
+  return (
+    <form action={formAction} className="flex items-center justify-end gap-1.5">
+      <input type="hidden" name="payslipId" value={payslipId} />
+      {state.errors.length > 0 ? <FormErrors errors={state.errors} /> : null}
+      <button
+        type="submit"
+        disabled={pending}
+        aria-label={`Supprimer le bulletin de ${label}`}
+        title="Supprimer le bulletin"
+        className={`${SECONDARY} disabled:opacity-50`}
+      >
+        {pending ? (
+          <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+        ) : (
+          <Trash2 className="size-3.5" aria-hidden="true" />
         )}
       </button>
     </form>

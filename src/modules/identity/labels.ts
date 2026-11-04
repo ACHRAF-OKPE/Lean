@@ -169,4 +169,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "payroll.settings.update": "Mise à jour du paramétrage Paie",
   "payroll.period.create": "Ouverture d'une période de paie",
   "payroll.period.validate": "Validation d'une période de paie",
+  "payroll.payslip.generate": "Génération d'un bulletin de paie",
+  "payroll.payslip.validate": "Validation d'un bulletin de paie",
+  "payroll.payslip.delete": "Suppression d'un bulletin de paie",
 };

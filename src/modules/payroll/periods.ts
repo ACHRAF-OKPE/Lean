@@ -3,6 +3,7 @@ import type { Database } from "@/db/client";
 import { auditEvents, payrollPeriods, type PayrollPeriodStatus } from "@/db/schema";
 import { MAX_PAYROLL_YEAR, MIN_PAYROLL_YEAR, payrollPeriodLabel } from "./constants";
 import { PayrollError } from "./errors";
+import { countDraftPayslips } from "./payslips";
 
 export interface PayrollPeriodSummary {
   readonly id: string;
@@ -192,7 +193,8 @@ export interface ValidatePayrollPeriodInput {
 
 /**
  * PAY-005 — la validation fige la période une fois pour toutes : elle trace l'acteur et
- * l'horodatage, et une période déjà validée ne réécrit rien.
+ * l'horodatage, et une période déjà validée ne réécrit rien. PAY-007 — elle refuse tant qu'un
+ * bulletin de la période reste en brouillon.
  */
 export async function validatePayrollPeriod(
   db: Database,
@@ -217,6 +219,13 @@ export async function validatePayrollPeriod(
     }
     if (period.status === "validated") {
       return { changed: false };
+    }
+
+    const drafts = await countDraftPayslips(tx, input.tenantId, input.periodId);
+    if (drafts > 0) {
+      throw new PayrollError(
+        `La période compte encore ${drafts} bulletin${drafts > 1 ? "s" : ""} en brouillon : validez-les ou supprimez-les avant de figer la période.`,
+      );
     }
 
     const now = new Date();

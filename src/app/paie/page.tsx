@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { Banknote, CalendarClock, ListChecks, Settings2, UserCog } from "lucide-react";
+import { Banknote, CalendarClock, ListChecks, Receipt, Settings2, UserCog } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
@@ -47,11 +47,20 @@ async function PayrollContent() {
             <h1 className="mt-2 text-2xl font-medium tracking-tight">Paie</h1>
             <p className="mt-1 max-w-xl text-[11px] leading-5 text-muted">
               Les rubriques de paie décrivent chaque gain et chaque retenue d&apos;un bulletin. Les
-              périodes ouvrent un mois civil et le figent à la validation. Le paramétrage fixe le
-              jour de paiement et les taux de cotisation. Les bulletins restent à venir.
+              périodes ouvrent un mois civil et le figent à la validation. La génération remplit une
+              période en brouillon, un bulletin par contrat en cours. Le paramétrage fixe le jour de
+              paiement et les taux de cotisation.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
+            <Link
+              href="/paie/bulletins"
+              aria-label="Bulletins de paie"
+              title="Bulletins de paie"
+              className={ACTION_LINK}
+            >
+              <Receipt className="size-4" aria-hidden="true" />
+            </Link>
             <Link
               href="/paie/periodes"
               aria-label="Périodes de paie"
@@ -100,7 +109,19 @@ async function PayrollContent() {
           </div>
         </dl>
 
-        <section className="mt-6 grid gap-3 sm:grid-cols-3">
+        <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Link
+            href="/paie/bulletins"
+            className="group rounded-xl border border-line bg-panel p-5 transition-colors hover:border-brand/30"
+          >
+            <div className="flex items-center gap-2">
+              <Receipt className="size-4 text-brand" aria-hidden="true" />
+              <h2 className="text-sm font-semibold">Bulletins de paie</h2>
+            </div>
+            <p className="mt-1 text-[10px] leading-4 text-muted">
+              Générer les bulletins d&apos;une période, les contrôler, les valider ou les supprimer.
+            </p>
+          </Link>
           <Link
             href="/paie/periodes"
             className="group rounded-xl border border-line bg-panel p-5 transition-colors hover:border-brand/30"

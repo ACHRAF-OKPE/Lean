@@ -1,4 +1,9 @@
-import type { PayrollComponentKind, PayrollComponentMode, PayrollPeriodStatus } from "@/db/schema";
+import type {
+  PayrollComponentKind,
+  PayrollComponentMode,
+  PayrollPeriodStatus,
+  PayrollPayslipStatus,
+} from "@/db/schema";
 
 export const PAYROLL_COMPONENT_KINDS = ["earning", "deduction"] as const;
 
@@ -60,3 +65,13 @@ export function payrollPeriodLabel(year: number, month: number): string {
   const monthLabel = PAYROLL_MONTH_LABELS[month - 1] ?? `Mois ${month}`;
   return `${monthLabel} ${year}`;
 }
+
+/* ------------------------------------------------------------- bulletins de paie */
+
+export const PAYROLL_PAYSLIP_STATUS_LABELS: Record<PayrollPayslipStatus, string> = {
+  draft: "Brouillon",
+  validated: "Validé",
+};
+
+/** PAY-006 — un bulletin reste un entier de francs, borné comme le salaire du contrat. */
+export const MAX_PAYSLIP_AMOUNT_XOF = 2_000_000_000;

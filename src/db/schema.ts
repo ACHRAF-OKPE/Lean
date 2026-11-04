@@ -330,6 +330,7 @@ export type HrLeaveRequestStatus = "draft" | "validated" | "refused" | "cancelle
 export type PayrollComponentKind = "earning" | "deduction";
 export type PayrollComponentMode = "fixed" | "percent";
 export type PayrollPeriodStatus = "draft" | "validated";
+export type PayrollPayslipStatus = "draft" | "validated";
 export type CustomsApurementMode = "production" | "export" | "destruction" | "transfer";
 export type FiscalYearStatus = "open" | "closed";
 export type AccountingJournalType = "sale" | "purchase" | "bank" | "cash" | "misc";
@@ -3695,6 +3696,110 @@ export const payrollPeriods = pgTable(
   ],
 );
 
+export const payrollPayslips = pgTable(
+  "payroll_payslips",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    periodId: uuid("period_id").notNull(),
+    employeeId: uuid("employee_id").notNull(),
+    contractId: uuid("contract_id").notNull(),
+    baseSalaryXof: integer("base_salary_xof").notNull().default(0),
+    grossXof: integer("gross_xof").notNull().default(0),
+    socialEmployeeXof: integer("social_employee_xof").notNull().default(0),
+    socialEmployerXof: integer("social_employer_xof").notNull().default(0),
+    deductionsXof: integer("deductions_xof").notNull().default(0),
+    netXof: integer("net_xof").notNull().default(0),
+    status: text("status").$type<PayrollPayslipStatus>().notNull().default("draft"),
+    validatedAt: timestamp("validated_at", { withTimezone: true }),
+    validatedByUserId: uuid("validated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payroll_payslips_tenant_id_idx").on(table.tenantId, table.id),
+    uniqueIndex("payroll_payslips_tenant_period_employee_idx").on(
+      table.tenantId,
+      table.periodId,
+      table.employeeId,
+    ),
+    index("payroll_payslips_tenant_period_idx").on(table.tenantId, table.periodId),
+    index("payroll_payslips_tenant_employee_idx").on(table.tenantId, table.employeeId),
+    index("payroll_payslips_tenant_status_idx").on(table.tenantId, table.status),
+    check("payroll_payslips_status_check", sql`${table.status} in ('draft', 'validated')`),
+    check(
+      "payroll_payslips_validation_check",
+      sql`(${table.status} = 'validated') = (${table.validatedAt} is not null) and (${table.validatedAt} is null) = (${table.validatedByUserId} is null)`,
+    ),
+    check(
+      "payroll_payslips_amounts_check",
+      sql`${table.baseSalaryXof} between 0 and 2000000000 and ${table.grossXof} between 0 and 2000000000 and ${table.socialEmployeeXof} between 0 and 2000000000 and ${table.socialEmployerXof} between 0 and 2000000000 and ${table.deductionsXof} between 0 and 2000000000 and ${table.netXof} between 0 and 2000000000`,
+    ),
+    check(
+      "payroll_payslips_net_check",
+      sql`${table.netXof} = ${table.grossXof} - ${table.socialEmployeeXof} - ${table.deductionsXof}`,
+    ),
+    foreignKey({
+      name: "payroll_payslips_tenant_period_fk",
+      columns: [table.tenantId, table.periodId],
+      foreignColumns: [payrollPeriods.tenantId, payrollPeriods.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "payroll_payslips_tenant_employee_fk",
+      columns: [table.tenantId, table.employeeId],
+      foreignColumns: [hrEmployees.tenantId, hrEmployees.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "payroll_payslips_tenant_contract_fk",
+      columns: [table.tenantId, table.contractId],
+      foreignColumns: [hrContracts.tenantId, hrContracts.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const payrollPayslipLines = pgTable(
+  "payroll_payslip_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    payslipId: uuid("payslip_id").notNull(),
+    componentId: uuid("component_id").references(() => payrollComponents.id, {
+      onDelete: "set null",
+    }),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    kind: text("kind").$type<PayrollComponentKind>().notNull(),
+    mode: text("mode").$type<PayrollComponentMode>().notNull(),
+    ratePercent: numeric("rate_percent", { precision: 18, scale: 6 }).notNull().default("0"),
+    amountXof: integer("amount_xof").notNull().default(0),
+    taxable: boolean("taxable").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payroll_payslip_lines_tenant_id_idx").on(table.tenantId, table.id),
+    index("payroll_payslip_lines_tenant_payslip_idx").on(table.tenantId, table.payslipId),
+    check("payroll_payslip_lines_kind_check", sql`${table.kind} in ('earning', 'deduction')`),
+    check("payroll_payslip_lines_mode_check", sql`${table.mode} in ('fixed', 'percent')`),
+    check("payroll_payslip_lines_amount_check", sql`${table.amountXof} between 0 and 2000000000`),
+    check("payroll_payslip_lines_rate_check", sql`${table.ratePercent} between 0 and 100`),
+    foreignKey({
+      name: "payroll_payslip_lines_tenant_payslip_fk",
+      columns: [table.tenantId, table.payslipId],
+      foreignColumns: [payrollPayslips.tenantId, payrollPayslips.id],
+    }).onDelete("cascade"),
+  ],
+);
+
 export type HsCodeRow = typeof hsCodes.$inferSelect;
 export type PartnerRow = typeof partners.$inferSelect;
 export type ArticleRow = typeof articles.$inferSelect;
@@ -3754,3 +3859,5 @@ export type HrLeaveRequestRow = typeof hrLeaveRequests.$inferSelect;
 export type PayrollComponentRow = typeof payrollComponents.$inferSelect;
 export type PayrollSettingsRow = typeof payrollSettings.$inferSelect;
 export type PayrollPeriodRow = typeof payrollPeriods.$inferSelect;
+export type PayrollPayslipRow = typeof payrollPayslips.$inferSelect;
+export type PayrollPayslipLineRow = typeof payrollPayslipLines.$inferSelect;
