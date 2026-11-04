@@ -1,4 +1,4 @@
-import type { PayrollComponentKind, PayrollComponentMode } from "@/db/schema";
+import type { PayrollComponentKind, PayrollComponentMode, PayrollPeriodStatus } from "@/db/schema";
 
 export const PAYROLL_COMPONENT_KINDS = ["earning", "deduction"] as const;
 
@@ -27,4 +27,36 @@ export function isPayrollComponentKind(value: string): value is PayrollComponent
 
 export function isPayrollComponentMode(value: string): value is PayrollComponentMode {
   return (PAYROLL_COMPONENT_MODES as readonly string[]).includes(value);
+}
+
+/* ------------------------------------------------------------- périodes de paie */
+
+export const PAYROLL_PERIOD_STATUS_LABELS: Record<PayrollPeriodStatus, string> = {
+  draft: "Brouillon",
+  validated: "Validée",
+};
+
+/** PAY-005 — les douze mois en toutes lettres, indexés de janvier (1) à décembre (12). */
+export const PAYROLL_MONTH_LABELS = [
+  "Janvier",
+  "Février",
+  "Mars",
+  "Avril",
+  "Mai",
+  "Juin",
+  "Juillet",
+  "Août",
+  "Septembre",
+  "Octobre",
+  "Novembre",
+  "Décembre",
+] as const;
+
+export const MIN_PAYROLL_YEAR = 2000;
+export const MAX_PAYROLL_YEAR = 2100;
+
+/** PAY-005 — le libellé d'une période se compose du mois en toutes lettres et de l'année. */
+export function payrollPeriodLabel(year: number, month: number): string {
+  const monthLabel = PAYROLL_MONTH_LABELS[month - 1] ?? `Mois ${month}`;
+  return `${monthLabel} ${year}`;
 }

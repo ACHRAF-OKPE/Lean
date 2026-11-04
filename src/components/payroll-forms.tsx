@@ -1,20 +1,33 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { LoaderCircle, Plus, Power, Save, type LucideIcon } from "lucide-react";
+import {
+  BadgeCheck,
+  CalendarPlus,
+  LoaderCircle,
+  Plus,
+  Power,
+  Save,
+  type LucideIcon,
+} from "lucide-react";
 import { CheckboxField, Field, FormErrors, INPUT_CLASS } from "@/components/form-fields";
 import { EMPTY_PAYROLL_FORM_STATE } from "@/lib/payroll/form-state";
 import {
   createPayrollComponentAction,
+  createPayrollPeriodAction,
   savePayrollSettingsAction,
   setPayrollComponentActiveAction,
   updatePayrollComponentAction,
+  validatePayrollPeriodAction,
 } from "@/lib/payroll/actions";
 import {
+  MAX_PAYROLL_YEAR,
+  MIN_PAYROLL_YEAR,
   PAYROLL_COMPONENT_KIND_LABELS,
   PAYROLL_COMPONENT_KINDS,
   PAYROLL_COMPONENT_MODE_LABELS,
   PAYROLL_COMPONENT_MODES,
+  PAYROLL_MONTH_LABELS,
 } from "@/modules/payroll/constants";
 
 const SUBMIT =
@@ -274,6 +287,92 @@ export function PayrollComponentToggleButton({
           <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
         ) : (
           <Power className="size-3.5" aria-hidden="true" />
+        )}
+      </button>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ périodes */
+
+export function PayrollPeriodForm() {
+  const [state, formAction, pending] = useActionState(
+    createPayrollPeriodAction,
+    EMPTY_PAYROLL_FORM_STATE,
+  );
+
+  return (
+    <form action={formAction} className="mt-4 space-y-4">
+      <FormErrors errors={state.errors} />
+      <fieldset disabled={pending} className="space-y-4">
+        <legend className="sr-only">Ouvrir une période de paie</legend>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Année" htmlFor="period-year" hint="Année civile de la période.">
+            <input
+              id="period-year"
+              name="year"
+              required
+              inputMode="numeric"
+              pattern="\d{4}"
+              min={MIN_PAYROLL_YEAR}
+              max={MAX_PAYROLL_YEAR}
+              placeholder="2026"
+              className={`${INPUT_CLASS} tabular-nums`}
+            />
+          </Field>
+          <Field label="Mois" htmlFor="period-month" hint="Mois civil de la période.">
+            <select id="period-month" name="month" required className={INPUT_CLASS}>
+              {PAYROLL_MONTH_LABELS.map((label, index) => (
+                <option key={label} value={index + 1}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={pending}
+            aria-label="Ouvrir la période de paie"
+            title="Ouvrir la période"
+            className={SUBMIT}
+          >
+            <SubmitIcon pending={pending} icon={CalendarPlus} />
+          </button>
+        </div>
+      </fieldset>
+    </form>
+  );
+}
+
+export function PayrollPeriodValidateButton({
+  periodId,
+  label,
+}: {
+  periodId: string;
+  label: string;
+}) {
+  const [state, formAction, pending] = useActionState(
+    validatePayrollPeriodAction,
+    EMPTY_PAYROLL_FORM_STATE,
+  );
+
+  return (
+    <form action={formAction} className="flex items-center justify-end gap-1.5">
+      <input type="hidden" name="periodId" value={periodId} />
+      {state.errors.length > 0 ? <FormErrors errors={state.errors} /> : null}
+      <button
+        type="submit"
+        disabled={pending}
+        aria-label={`Valider la période ${label}`}
+        title="Valider la période"
+        className={`${SECONDARY} disabled:opacity-50`}
+      >
+        {pending ? (
+          <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+        ) : (
+          <BadgeCheck className="size-3.5" aria-hidden="true" />
         )}
       </button>
     </form>

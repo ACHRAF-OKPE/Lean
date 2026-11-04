@@ -12,6 +12,12 @@ import {
   updatePayrollComponent,
 } from "./components";
 import { PayrollError } from "./errors";
+import {
+  createPayrollPeriod,
+  listPayrollPeriods,
+  payrollPaymentDate,
+  validatePayrollPeriod,
+} from "./periods";
 import { getPayrollOverview } from "./queries";
 import { getPayrollSettingsView, loadPayrollSettings, savePayrollSettings } from "./settings";
 
@@ -347,10 +353,122 @@ describe("PAY-002 — hub de la paie", () => {
     });
 
     const overview = await getPayrollOverview(db, tenant.tenantId);
-    expect(overview).toEqual({ runningContracts: 1, activeComponents: 1 });
+    expect(overview).toEqual({ runningContracts: 1, activeComponents: 1, draftPeriods: 0 });
     expect(await getPayrollOverview(db, otherTenantId)).toEqual({
       runningContracts: 0,
       activeComponents: 0,
+      draftPeriods: 0,
     });
+  });
+});
+
+/* ------------------------------------------------------------------------- PAY-005 */
+
+describe("PAY-005 — périodes de paie", () => {
+  it("refuse une année hors bornes et un mois hors 1 à 12", async () => {
+    await expect(
+      createPayrollPeriod(db, {
+        tenantId: tenant.tenantId,
+        actorUserId: tenant.userId,
+        raw: { year: "1999", month: "1" },
+      }),
+    ).rejects.toBeInstanceOf(PayrollError);
+    await expect(
+      createPayrollPeriod(db, {
+        tenantId: tenant.tenantId,
+        actorUserId: tenant.userId,
+        raw: { year: "2026", month: "13" },
+      }),
+    ).rejects.toBeInstanceOf(PayrollError);
+    await expect(
+      createPayrollPeriod(db, {
+        tenantId: tenant.tenantId,
+        actorUserId: tenant.userId,
+        raw: { year: "vingt", month: "1" },
+      }),
+    ).rejects.toBeInstanceOf(PayrollError);
+  });
+
+  it("ouvre un mois, le libelle et ordonne le registre du plus récent au plus ancien", async () => {
+    await createPayrollPeriod(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      raw: { year: "2026", month: "1" },
+    });
+    await createPayrollPeriod(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      raw: { year: "2026", month: "2" },
+    });
+
+    const periods = await listPayrollPeriods(db, tenant.tenantId);
+    expect(periods.map((period) => period.label)).toEqual(["Février 2026", "Janvier 2026"]);
+    expect(periods.every((period) => period.status === "draft")).toBe(true);
+    expect((await getPayrollOverview(db, tenant.tenantId)).draftPeriods).toBe(2);
+  });
+
+  it("refuse d'ouvrir deux fois le même mois", async () => {
+    await expect(
+      createPayrollPeriod(db, {
+        tenantId: tenant.tenantId,
+        actorUserId: tenant.userId,
+        raw: { year: "2026", month: "1" },
+      }),
+    ).rejects.toBeInstanceOf(PayrollError);
+  });
+
+  it("valide une période une seule fois, trace l'audit et sort du compteur de brouillons", async () => {
+    const [february] = (await listPayrollPeriods(db, tenant.tenantId)).filter(
+      (period) => period.month === 2,
+    );
+    expect(february).toBeDefined();
+
+    const first = await validatePayrollPeriod(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      periodId: february!.id,
+    });
+    expect(first.changed).toBe(true);
+
+    const [validated] = (await listPayrollPeriods(db, tenant.tenantId)).filter(
+      (period) => period.id === february!.id,
+    );
+    expect(validated?.status).toBe("validated");
+    expect(validated?.validatedAt).not.toBeNull();
+    expect((await getPayrollOverview(db, tenant.tenantId)).draftPeriods).toBe(1);
+    await expect(auditActions(february!.id)).resolves.toContain("payroll.period.validate");
+
+    const second = await validatePayrollPeriod(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      periodId: february!.id,
+    });
+    expect(second.changed).toBe(false);
+    const validations = (await auditActions(february!.id)).filter(
+      (action) => action === "payroll.period.validate",
+    );
+    expect(validations).toHaveLength(1);
+  });
+
+  it("refuse une période hors espace", async () => {
+    await expect(
+      validatePayrollPeriod(db, {
+        tenantId: otherTenantId,
+        actorUserId: tenant.otherTenantUserId,
+        periodId: "00000000-0000-0000-0000-000000000000",
+      }),
+    ).rejects.toBeInstanceOf(PayrollError);
+  });
+
+  it("isole les périodes d'un espace de celles du voisin", async () => {
+    expect(await listPayrollPeriods(db, otherTenantId)).toHaveLength(0);
+  });
+
+  it("ramène la date de paiement au dernier jour du mois quand il est plus court", () => {
+    expect(payrollPaymentDate(2026, 1, 31)).toBe("2026-01-31");
+    expect(payrollPaymentDate(2026, 2, 31)).toBe("2026-02-28");
+    expect(payrollPaymentDate(2024, 2, 31)).toBe("2024-02-29");
+    expect(payrollPaymentDate(2026, 4, 31)).toBe("2026-04-30");
+    expect(payrollPaymentDate(2026, 3, 28)).toBe("2026-03-28");
   });
 });

@@ -190,6 +190,13 @@
       "when": 1793779922256,
       "tag": "0026_unique_stardust",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793796097308,
+      "tag": "0027_previous_corsair",
+      "breakpoints": true
     }
   ]
 }

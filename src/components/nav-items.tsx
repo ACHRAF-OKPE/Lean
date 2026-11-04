@@ -148,6 +148,7 @@ const SEGMENT_LABELS: Readonly<Record<string, string>> = {
   rh: "Ressources humaines",
   paie: "Paie",
   rubriques: "Rubriques",
+  periodes: "Périodes",
   parametres: "Paramètres",
   equipe: "Équipe et droits",
   audit: "Journal d'audit",

@@ -9,6 +9,7 @@ import {
   updatePayrollComponent,
 } from "@/modules/payroll/components";
 import { PayrollError } from "@/modules/payroll/errors";
+import { createPayrollPeriod, validatePayrollPeriod } from "@/modules/payroll/periods";
 import { savePayrollSettings } from "@/modules/payroll/settings";
 import type { PayrollFormState } from "./form-state";
 
@@ -104,6 +105,49 @@ export async function setPayrollComponentActiveAction(
     return failure(error);
   }
   redirect("/paie/rubriques?maj=1");
+}
+
+/* ------------------------------------------------------------------ périodes */
+
+export async function createPayrollPeriodAction(
+  _state: PayrollFormState,
+  formData: FormData,
+): Promise<PayrollFormState> {
+  const session = await requireModule("payroll", "write");
+  try {
+    await createPayrollPeriod(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      raw: {
+        year: text(formData, "year"),
+        month: text(formData, "month"),
+      },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  redirect("/paie/periodes?cree=1");
+}
+
+export async function validatePayrollPeriodAction(
+  _state: PayrollFormState,
+  formData: FormData,
+): Promise<PayrollFormState> {
+  const session = await requireModule("payroll", "manage");
+  const periodId = text(formData, "periodId");
+  if (!UUID_PATTERN.test(periodId)) {
+    return invalid("Période");
+  }
+  try {
+    await validatePayrollPeriod(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      periodId,
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  redirect("/paie/periodes?valide=1");
 }
 
 /* ------------------------------------------------------------------ paramétrage */

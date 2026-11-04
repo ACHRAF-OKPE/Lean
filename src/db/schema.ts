@@ -329,6 +329,7 @@ export type HrLeaveHalfDay = "morning" | "afternoon";
 export type HrLeaveRequestStatus = "draft" | "validated" | "refused" | "cancelled";
 export type PayrollComponentKind = "earning" | "deduction";
 export type PayrollComponentMode = "fixed" | "percent";
+export type PayrollPeriodStatus = "draft" | "validated";
 export type CustomsApurementMode = "production" | "export" | "destruction" | "transfer";
 export type FiscalYearStatus = "open" | "closed";
 export type AccountingJournalType = "sale" | "purchase" | "bank" | "cash" | "misc";
@@ -3656,6 +3657,44 @@ export const payrollSettings = pgTable(
   ],
 );
 
+export const payrollPeriods = pgTable(
+  "payroll_periods",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    year: integer("year").notNull(),
+    month: integer("month").notNull(),
+    status: text("status").$type<PayrollPeriodStatus>().notNull().default("draft"),
+    validatedAt: timestamp("validated_at", { withTimezone: true }),
+    validatedByUserId: uuid("validated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payroll_periods_tenant_year_month_idx").on(
+      table.tenantId,
+      table.year,
+      table.month,
+    ),
+    uniqueIndex("payroll_periods_tenant_id_idx").on(table.tenantId, table.id),
+    index("payroll_periods_tenant_status_idx").on(table.tenantId, table.status),
+    check("payroll_periods_year_check", sql`${table.year} between 2000 and 2100`),
+    check("payroll_periods_month_check", sql`${table.month} between 1 and 12`),
+    check("payroll_periods_status_check", sql`${table.status} in ('draft', 'validated')`),
+    check(
+      "payroll_periods_validation_check",
+      sql`(${table.status} = 'validated') = (${table.validatedAt} is not null) and (${table.validatedAt} is null) = (${table.validatedByUserId} is null)`,
+    ),
+  ],
+);
+
 export type HsCodeRow = typeof hsCodes.$inferSelect;
 export type PartnerRow = typeof partners.$inferSelect;
 export type ArticleRow = typeof articles.$inferSelect;
@@ -3714,3 +3753,4 @@ export type HrLeaveTypeRow = typeof hrLeaveTypes.$inferSelect;
 export type HrLeaveRequestRow = typeof hrLeaveRequests.$inferSelect;
 export type PayrollComponentRow = typeof payrollComponents.$inferSelect;
 export type PayrollSettingsRow = typeof payrollSettings.$inferSelect;
+export type PayrollPeriodRow = typeof payrollPeriods.$inferSelect;

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { Banknote, ListChecks, Settings2, UserCog } from "lucide-react";
+import { Banknote, CalendarClock, ListChecks, Settings2, UserCog } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
@@ -44,14 +44,22 @@ async function PayrollContent() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] tracking-[0.18em] text-brand uppercase">Paie</p>
-            <h1 className="mt-2 text-2xl font-medium tracking-tight">Paramétrage de la paie</h1>
+            <h1 className="mt-2 text-2xl font-medium tracking-tight">Paie</h1>
             <p className="mt-1 max-w-xl text-[11px] leading-5 text-muted">
-              Les rubriques de paie décrivent chaque gain et chaque retenue d&apos;un bulletin. Le
-              paramétrage fixe le jour de paiement et les taux de cotisation. Les bulletins et les
-              périodes restent à venir.
+              Les rubriques de paie décrivent chaque gain et chaque retenue d&apos;un bulletin. Les
+              périodes ouvrent un mois civil et le figent à la validation. Le paramétrage fixe le
+              jour de paiement et les taux de cotisation. Les bulletins restent à venir.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
+            <Link
+              href="/paie/periodes"
+              aria-label="Périodes de paie"
+              title="Périodes de paie"
+              className={ACTION_LINK}
+            >
+              <CalendarClock className="size-4" aria-hidden="true" />
+            </Link>
             <Link
               href="/paie/rubriques"
               aria-label="Rubriques de paie"
@@ -71,7 +79,7 @@ async function PayrollContent() {
           </div>
         </div>
 
-        <dl className="mt-5 grid gap-2 sm:grid-cols-3">
+        <dl className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-line bg-panel px-4 py-3">
             <dt className="text-[10px] text-muted">Contrats en cours</dt>
             <dd className="mt-1 font-mono text-2xl tabular-nums">{overview.runningContracts}</dd>
@@ -81,6 +89,10 @@ async function PayrollContent() {
             <dd className="mt-1 font-mono text-2xl tabular-nums">{overview.activeComponents}</dd>
           </div>
           <div className="rounded-lg border border-line bg-panel px-4 py-3">
+            <dt className="text-[10px] text-muted">Périodes en brouillon</dt>
+            <dd className="mt-1 font-mono text-2xl tabular-nums">{overview.draftPeriods}</dd>
+          </div>
+          <div className="rounded-lg border border-line bg-panel px-4 py-3">
             <dt className="text-[10px] text-muted">Jour de paiement</dt>
             <dd className="mt-1 font-mono text-2xl tabular-nums">
               {settings ? settings.paymentDayOfMonth : 28}
@@ -88,7 +100,19 @@ async function PayrollContent() {
           </div>
         </dl>
 
-        <section className="mt-6 grid gap-3 sm:grid-cols-2">
+        <section className="mt-6 grid gap-3 sm:grid-cols-3">
+          <Link
+            href="/paie/periodes"
+            className="group rounded-xl border border-line bg-panel p-5 transition-colors hover:border-brand/30"
+          >
+            <div className="flex items-center gap-2">
+              <CalendarClock className="size-4 text-brand" aria-hidden="true" />
+              <h2 className="text-sm font-semibold">Périodes de paie</h2>
+            </div>
+            <p className="mt-1 text-[10px] leading-4 text-muted">
+              Ouvrir un mois civil, y préparer les bulletins, puis le valider pour le figer.
+            </p>
+          </Link>
           <Link
             href="/paie/rubriques"
             className="group rounded-xl border border-line bg-panel p-5 transition-colors hover:border-brand/30"

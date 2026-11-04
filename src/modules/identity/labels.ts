@@ -167,4 +167,6 @@ export const ACTION_LABELS: Record<string, string> = {
   "payroll.component.activate": "Réactivation d'une rubrique de paie",
   "payroll.component.deactivate": "Désactivation d'une rubrique de paie",
   "payroll.settings.update": "Mise à jour du paramétrage Paie",
+  "payroll.period.create": "Ouverture d'une période de paie",
+  "payroll.period.validate": "Validation d'une période de paie",
 };
