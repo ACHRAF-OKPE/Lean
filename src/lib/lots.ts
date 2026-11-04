@@ -91,7 +91,7 @@ export const LOTS: readonly Lot[] = [
     id: 13,
     title: "Paie",
     scope: "Périodes, rubriques et taux paramétrés, bulletins, export et écritures",
-    status: "planned",
+    status: "next",
   },
   {
     id: 14,
@@ -103,7 +103,7 @@ export const LOTS: readonly Lot[] = [
     id: 15,
     title: "Stock",
     scope:
-      "15A gestion des magasins, 15B transferts et ajustements d'inventaire, 15C registre enrichi (filtres et vues), 15D fiche de magasin et valorisation, 15E paramétrage Stock avec son bouton",
-    status: "next",
+      "15A, 15B, 15C, 15D et 15E livrés : gestion des magasins, transferts et ajustements d'inventaire, registre enrichi (filtres et vues), fiche de magasin et valorisation, paramétrage Stock avec son bouton",
+    status: "done",
   },
 ];
