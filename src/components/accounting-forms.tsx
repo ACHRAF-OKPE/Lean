@@ -690,6 +690,12 @@ export interface SettingsValues {
   readonly salesAccountId: string | null;
   readonly purchaseAccountId: string | null;
   readonly bankAccountId: string | null;
+  readonly payrollJournalId?: string | null;
+  readonly payrollExpenseAccountId?: string | null;
+  readonly payrollEmployerChargeAccountId?: string | null;
+  readonly payrollSocialAccountId?: string | null;
+  readonly payrollDeductionAccountId?: string | null;
+  readonly payrollPayableAccountId?: string | null;
 }
 
 export function AccountingSettingsForm({
@@ -769,6 +775,51 @@ export function AccountingSettingsForm({
     },
   ] as const;
 
+  const payrollSelects = [
+    {
+      name: "payrollJournalId",
+      label: "Journal de paie",
+      hint: "Type divers, actif.",
+      options: journalsOfType("misc"),
+      current: values?.payrollJournalId ?? null,
+    },
+    {
+      name: "payrollExpenseAccountId",
+      label: "Charges de personnel",
+      hint: "Classe 6, actif : le salaire brut.",
+      options: accountsOfClass(6),
+      current: values?.payrollExpenseAccountId ?? null,
+    },
+    {
+      name: "payrollEmployerChargeAccountId",
+      label: "Charges sociales patronales",
+      hint: "Classe 6, actif : la part patronale.",
+      options: accountsOfClass(6),
+      current: values?.payrollEmployerChargeAccountId ?? null,
+    },
+    {
+      name: "payrollSocialAccountId",
+      label: "Organismes sociaux",
+      hint: "Classe 4, actif : les cotisations salariale et patronale.",
+      options: accountsOfClass(4),
+      current: values?.payrollSocialAccountId ?? null,
+    },
+    {
+      name: "payrollDeductionAccountId",
+      label: "Retenues diverses",
+      hint: "Classe 4, actif : les retenues du bulletin.",
+      options: accountsOfClass(4),
+      current: values?.payrollDeductionAccountId ?? null,
+    },
+    {
+      name: "payrollPayableAccountId",
+      label: "Rémunérations dues",
+      hint: "Classe 4, actif : le net à payer au personnel.",
+      options: accountsOfClass(4),
+      current: values?.payrollPayableAccountId ?? null,
+    },
+  ] as const;
+
   return (
     <form action={formAction} className="mt-4 space-y-4">
       <FormErrors errors={state.errors} />
@@ -800,6 +851,37 @@ export function AccountingSettingsForm({
               </select>
             </Field>
           ))}
+        </div>
+        <div className="rounded-lg border border-line bg-canvas p-4">
+          <h3 className="text-xs font-semibold">Comptabilisation de la paie</h3>
+          <p className="mt-1 text-[10px] leading-4 text-muted">
+            Facultatif : renseignez le journal et les cinq comptes pour comptabiliser chaque
+            bulletin validé, ou laissez tout vide pour la désactiver.
+          </p>
+          <div className="mt-3 grid gap-4 md:grid-cols-3">
+            {payrollSelects.map((select) => (
+              <Field
+                key={select.name}
+                label={select.label}
+                htmlFor={`settings-${select.name}`}
+                hint={select.hint}
+              >
+                <select
+                  id={`settings-${select.name}`}
+                  name={select.name}
+                  defaultValue={select.current ?? ""}
+                  className={INPUT_CLASS}
+                >
+                  <option value="">Aucun</option>
+                  {select.options.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.code} · {option.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ))}
+          </div>
         </div>
         <div className="flex justify-end">
           <button

@@ -18,6 +18,12 @@ export interface AccountingSettingsRecord {
   readonly salesAccountId: string;
   readonly purchaseAccountId: string;
   readonly bankAccountId: string;
+  readonly payrollJournalId: string | null;
+  readonly payrollExpenseAccountId: string | null;
+  readonly payrollEmployerChargeAccountId: string | null;
+  readonly payrollSocialAccountId: string | null;
+  readonly payrollDeductionAccountId: string | null;
+  readonly payrollPayableAccountId: string | null;
 }
 
 export interface AccountingSettingsView extends AccountingSettingsRecord {
@@ -29,6 +35,12 @@ export interface AccountingSettingsView extends AccountingSettingsRecord {
   readonly salesAccountCode: string;
   readonly purchaseAccountCode: string;
   readonly bankAccountCode: string;
+  readonly payrollJournalCode: string | null;
+  readonly payrollExpenseAccountCode: string | null;
+  readonly payrollEmployerChargeAccountCode: string | null;
+  readonly payrollSocialAccountCode: string | null;
+  readonly payrollDeductionAccountCode: string | null;
+  readonly payrollPayableAccountCode: string | null;
   readonly updatedAt: Date;
 }
 
@@ -47,6 +59,12 @@ export async function loadAccountingSettings(
       salesAccountId: accountingSettings.salesAccountId,
       purchaseAccountId: accountingSettings.purchaseAccountId,
       bankAccountId: accountingSettings.bankAccountId,
+      payrollJournalId: accountingSettings.payrollJournalId,
+      payrollExpenseAccountId: accountingSettings.payrollExpenseAccountId,
+      payrollEmployerChargeAccountId: accountingSettings.payrollEmployerChargeAccountId,
+      payrollSocialAccountId: accountingSettings.payrollSocialAccountId,
+      payrollDeductionAccountId: accountingSettings.payrollDeductionAccountId,
+      payrollPayableAccountId: accountingSettings.payrollPayableAccountId,
     })
     .from(accountingSettings)
     .where(eq(accountingSettings.tenantId, tenantId))
@@ -67,14 +85,24 @@ export async function getAccountingSettingsView(
     return null;
   }
 
-  const journalIds = [row.salesJournalId, row.purchaseJournalId, row.bankJournalId];
+  const journalIds = [
+    row.salesJournalId,
+    row.purchaseJournalId,
+    row.bankJournalId,
+    row.payrollJournalId,
+  ].filter((id): id is string => id !== null);
   const accountIds = [
     row.customerAccountId,
     row.supplierAccountId,
     row.salesAccountId,
     row.purchaseAccountId,
     row.bankAccountId,
-  ];
+    row.payrollExpenseAccountId,
+    row.payrollEmployerChargeAccountId,
+    row.payrollSocialAccountId,
+    row.payrollDeductionAccountId,
+    row.payrollPayableAccountId,
+  ].filter((id): id is string => id !== null);
   const [journalRows, accountRows] = await Promise.all([
     db
       .select({ id: accountingJournals.id, code: accountingJournals.code })
@@ -100,6 +128,24 @@ export async function getAccountingSettingsView(
     salesAccountCode: accountCode.get(row.salesAccountId) ?? "—",
     purchaseAccountCode: accountCode.get(row.purchaseAccountId) ?? "—",
     bankAccountCode: accountCode.get(row.bankAccountId) ?? "—",
+    payrollJournalCode: row.payrollJournalId
+      ? (journalCode.get(row.payrollJournalId) ?? null)
+      : null,
+    payrollExpenseAccountCode: row.payrollExpenseAccountId
+      ? (accountCode.get(row.payrollExpenseAccountId) ?? null)
+      : null,
+    payrollEmployerChargeAccountCode: row.payrollEmployerChargeAccountId
+      ? (accountCode.get(row.payrollEmployerChargeAccountId) ?? null)
+      : null,
+    payrollSocialAccountCode: row.payrollSocialAccountId
+      ? (accountCode.get(row.payrollSocialAccountId) ?? null)
+      : null,
+    payrollDeductionAccountCode: row.payrollDeductionAccountId
+      ? (accountCode.get(row.payrollDeductionAccountId) ?? null)
+      : null,
+    payrollPayableAccountCode: row.payrollPayableAccountId
+      ? (accountCode.get(row.payrollPayableAccountId) ?? null)
+      : null,
   };
 }
 
@@ -115,6 +161,12 @@ export interface SaveAccountingSettingsInput {
     readonly salesAccountId: unknown;
     readonly purchaseAccountId: unknown;
     readonly bankAccountId: unknown;
+    readonly payrollJournalId?: unknown;
+    readonly payrollExpenseAccountId?: unknown;
+    readonly payrollEmployerChargeAccountId?: unknown;
+    readonly payrollSocialAccountId?: unknown;
+    readonly payrollDeductionAccountId?: unknown;
+    readonly payrollPayableAccountId?: unknown;
   };
 }
 
@@ -126,6 +178,17 @@ function uuidOf(raw: unknown, label: string): string {
   const value = textOf(raw);
   if (!value) {
     throw new AccountingError(`${label} : obligatoire.`);
+  }
+  if (!UUID_PATTERN.test(value)) {
+    throw new AccountingError(`${label} : référence invalide.`);
+  }
+  return value;
+}
+
+function optionalUuidOf(raw: unknown, label: string): string | null {
+  const value = textOf(raw);
+  if (!value) {
+    return null;
   }
   if (!UUID_PATTERN.test(value)) {
     throw new AccountingError(`${label} : référence invalide.`);
@@ -163,6 +226,34 @@ export async function saveAccountingSettings(
     purchase: uuidOf(input.raw.purchaseAccountId, "Compte d'achat"),
     bank: uuidOf(input.raw.bankAccountId, "Compte de banque"),
   };
+  const payroll = {
+    journal: optionalUuidOf(input.raw.payrollJournalId, "Journal de paie"),
+    expense: optionalUuidOf(input.raw.payrollExpenseAccountId, "Compte de charges de personnel"),
+    employerCharge: optionalUuidOf(
+      input.raw.payrollEmployerChargeAccountId,
+      "Compte de charges sociales patronales",
+    ),
+    social: optionalUuidOf(input.raw.payrollSocialAccountId, "Compte d'organismes sociaux"),
+    deduction: optionalUuidOf(input.raw.payrollDeductionAccountId, "Compte de retenues diverses"),
+    payable: optionalUuidOf(
+      input.raw.payrollPayableAccountId,
+      "Compte de rémunérations dues au personnel",
+    ),
+  };
+  const payrollValues = Object.values(payroll);
+  const payrollFilled = payrollValues.filter((value) => value !== null).length;
+  if (payrollFilled > 0 && payrollFilled < payrollValues.length) {
+    throw new AccountingError(
+      "Comptabilisation de la paie : renseignez le journal et les cinq comptes, ou laissez tout vide.",
+    );
+  }
+  const payrollAccountIds = [
+    payroll.expense,
+    payroll.employerCharge,
+    payroll.social,
+    payroll.deduction,
+    payroll.payable,
+  ].filter((id): id is string => id !== null);
 
   return db.transaction(async (tx) => {
     const journalRows = await tx
@@ -176,7 +267,10 @@ export async function saveAccountingSettings(
       .where(
         and(
           eq(accountingJournals.tenantId, input.tenantId),
-          inArray(accountingJournals.id, Object.values(journalIds)),
+          inArray(accountingJournals.id, [
+            ...Object.values(journalIds),
+            ...(payroll.journal ? [payroll.journal] : []),
+          ]),
         ),
       );
     const journals = new Map(journalRows.map((row) => [row.id, row]));
@@ -192,7 +286,7 @@ export async function saveAccountingSettings(
       .where(
         and(
           eq(ledgerAccounts.tenantId, input.tenantId),
-          inArray(ledgerAccounts.id, Object.values(accountIds)),
+          inArray(ledgerAccounts.id, [...Object.values(accountIds), ...payrollAccountIds]),
         ),
       );
     const accounts = new Map(accountRows.map((row) => [row.id, row]));
@@ -243,6 +337,25 @@ export async function saveAccountingSettings(
     const purchaseAccount = account("Compte d'achat", accountIds.purchase, 6);
     const bankAccount = account("Compte de banque", accountIds.bank, 5);
 
+    const payrollJournal = payroll.journal
+      ? journal("Journal de paie", payroll.journal, "misc", "divers")
+      : null;
+    const payrollExpenseAccount = payroll.expense
+      ? account("Compte de charges de personnel", payroll.expense, 6)
+      : null;
+    const payrollEmployerChargeAccount = payroll.employerCharge
+      ? account("Compte de charges sociales patronales", payroll.employerCharge, 6)
+      : null;
+    const payrollSocialAccount = payroll.social
+      ? account("Compte d'organismes sociaux", payroll.social, 4)
+      : null;
+    const payrollDeductionAccount = payroll.deduction
+      ? account("Compte de retenues diverses", payroll.deduction, 4)
+      : null;
+    const payrollPayableAccount = payroll.payable
+      ? account("Compte de rémunérations dues au personnel", payroll.payable, 4)
+      : null;
+
     const [existing] = await tx
       .select({ id: accountingSettings.id })
       .from(accountingSettings)
@@ -260,6 +373,12 @@ export async function saveAccountingSettings(
       salesAccountId: salesAccount.id,
       purchaseAccountId: purchaseAccount.id,
       bankAccountId: bankAccount.id,
+      payrollJournalId: payrollJournal?.id ?? null,
+      payrollExpenseAccountId: payrollExpenseAccount?.id ?? null,
+      payrollEmployerChargeAccountId: payrollEmployerChargeAccount?.id ?? null,
+      payrollSocialAccountId: payrollSocialAccount?.id ?? null,
+      payrollDeductionAccountId: payrollDeductionAccount?.id ?? null,
+      payrollPayableAccountId: payrollPayableAccount?.id ?? null,
       updatedByUserId: input.actorUserId,
     };
 
@@ -291,6 +410,17 @@ export async function saveAccountingSettings(
           purchase: purchaseAccount.code,
           bank: bankAccount.code,
         },
+        payroll:
+          payrollJournal === null
+            ? null
+            : {
+                journal: payrollJournal.code,
+                expense: payrollExpenseAccount?.code ?? null,
+                employerCharge: payrollEmployerChargeAccount?.code ?? null,
+                social: payrollSocialAccount?.code ?? null,
+                deduction: payrollDeductionAccount?.code ?? null,
+                payable: payrollPayableAccount?.code ?? null,
+              },
       },
     });
 

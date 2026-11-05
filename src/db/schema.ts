@@ -343,7 +343,8 @@ export type JournalEntrySource =
   | "purchase_reception"
   | "purchase_reception_cancel"
   | "fiscal_year_close"
-  | "fiscal_year_open";
+  | "fiscal_year_open"
+  | "payroll";
 export type EmailSecurity = "tls" | "starttls" | "none";
 export type ExchangeType = "purchase_request" | "purchase_confirmation";
 export type ExchangeMessageStatus = "sent" | "failed";
@@ -2925,7 +2926,7 @@ export const journalEntries = pgTable(
     check("journal_entries_status_check", sql`${table.status} in ('draft', 'validated')`),
     check(
       "journal_entries_source_check",
-      sql`${table.source} in ('manual', 'import', 'sale_invoice', 'sale_payment', 'purchase_reception', 'purchase_reception_cancel', 'fiscal_year_close', 'fiscal_year_open')`,
+      sql`${table.source} in ('manual', 'import', 'sale_invoice', 'sale_payment', 'purchase_reception', 'purchase_reception_cancel', 'fiscal_year_close', 'fiscal_year_open', 'payroll')`,
     ),
     check(
       "journal_entries_totals_check",
@@ -3049,6 +3050,12 @@ export const accountingSettings = pgTable(
     salesAccountId: uuid("sales_account_id").notNull(),
     purchaseAccountId: uuid("purchase_account_id").notNull(),
     bankAccountId: uuid("bank_account_id").notNull(),
+    payrollJournalId: uuid("payroll_journal_id"),
+    payrollExpenseAccountId: uuid("payroll_expense_account_id"),
+    payrollEmployerChargeAccountId: uuid("payroll_employer_charge_account_id"),
+    payrollSocialAccountId: uuid("payroll_social_account_id"),
+    payrollDeductionAccountId: uuid("payroll_deduction_account_id"),
+    payrollPayableAccountId: uuid("payroll_payable_account_id"),
     updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
@@ -3095,6 +3102,36 @@ export const accountingSettings = pgTable(
     foreignKey({
       name: "accounting_settings_tenant_bank_account_fk",
       columns: [table.tenantId, table.bankAccountId],
+      foreignColumns: [ledgerAccounts.tenantId, ledgerAccounts.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "accounting_settings_tenant_payroll_journal_fk",
+      columns: [table.tenantId, table.payrollJournalId],
+      foreignColumns: [accountingJournals.tenantId, accountingJournals.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "accounting_settings_tenant_payroll_expense_account_fk",
+      columns: [table.tenantId, table.payrollExpenseAccountId],
+      foreignColumns: [ledgerAccounts.tenantId, ledgerAccounts.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "accounting_settings_tenant_payroll_employer_charge_account_fk",
+      columns: [table.tenantId, table.payrollEmployerChargeAccountId],
+      foreignColumns: [ledgerAccounts.tenantId, ledgerAccounts.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "accounting_settings_tenant_payroll_social_account_fk",
+      columns: [table.tenantId, table.payrollSocialAccountId],
+      foreignColumns: [ledgerAccounts.tenantId, ledgerAccounts.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "accounting_settings_tenant_payroll_deduction_account_fk",
+      columns: [table.tenantId, table.payrollDeductionAccountId],
+      foreignColumns: [ledgerAccounts.tenantId, ledgerAccounts.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "accounting_settings_tenant_payroll_payable_account_fk",
+      columns: [table.tenantId, table.payrollPayableAccountId],
       foreignColumns: [ledgerAccounts.tenantId, ledgerAccounts.id],
     }).onDelete("restrict"),
   ],

@@ -90,14 +90,15 @@ export const LOTS: readonly Lot[] = [
   {
     id: 13,
     title: "Paie",
-    scope: "Périodes, rubriques et taux paramétrés, bulletins, export et écritures",
-    status: "next",
+    scope:
+      "13A à 13E livrés : rubriques et paramétrage, périodes, bulletins brut net, export Excel et comptabilisation dans le journal de paie",
+    status: "done",
   },
   {
     id: 14,
     title: "Paramétrage systématique",
     scope: "Réglages de chaque module et masquage des actions hors niveau de droit",
-    status: "planned",
+    status: "next",
   },
   {
     id: 15,

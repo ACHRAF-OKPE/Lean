@@ -401,6 +401,133 @@ export async function postPurchaseReceptionCancel(
   });
 }
 
+export interface PostPayrollPayslipInput {
+  readonly tenantId: string;
+  readonly actorUserId: string;
+  readonly payslipId: string;
+  readonly entryDate: string;
+  readonly reference: string | null;
+  readonly employeeName: string;
+  readonly periodLabel: string;
+  readonly grossXof: number;
+  readonly socialEmployeeXof: number;
+  readonly socialEmployerXof: number;
+  readonly deductionsXof: number;
+  readonly netXof: number;
+}
+
+/**
+ * PAY-009 — un bulletin validé se comptabilise dans le journal de paie : le brut et la cotisation
+ * patronale sont portés au débit des charges de personnel, la cotisation salariale et patronale au
+ * crédit des organismes sociaux, les retenues au crédit des retenues diverses et le net au crédit
+ * des rémunérations dues au personnel. Sans paramétrage de paie, aucun effet ; un bulletin déjà
+ * comptabilisé ne l'est pas deux fois.
+ */
+export async function postPayrollPayslip(
+  tx: Transaction,
+  input: PostPayrollPayslipInput,
+): Promise<PostingResult | null> {
+  const settings = await loadAccountingSettings(tx, input.tenantId);
+  const journalId = settings?.payrollJournalId ?? null;
+  const expenseAccountId = settings?.payrollExpenseAccountId ?? null;
+  const employerChargeAccountId = settings?.payrollEmployerChargeAccountId ?? null;
+  const socialAccountId = settings?.payrollSocialAccountId ?? null;
+  const deductionAccountId = settings?.payrollDeductionAccountId ?? null;
+  const payableAccountId = settings?.payrollPayableAccountId ?? null;
+  if (
+    !journalId ||
+    !expenseAccountId ||
+    !employerChargeAccountId ||
+    !socialAccountId ||
+    !deductionAccountId ||
+    !payableAccountId ||
+    input.grossXof <= 0
+  ) {
+    return null;
+  }
+  if (
+    await hasPostedEntry(tx, {
+      tenantId: input.tenantId,
+      source: "payroll",
+      sourceId: input.payslipId,
+    })
+  ) {
+    return null;
+  }
+
+  const label = `Paie ${input.periodLabel} · ${input.employeeName}`;
+  const lines: EntryLineInput[] = [];
+  if (input.grossXof > 0) {
+    lines.push({
+      accountId: expenseAccountId,
+      partnerId: null,
+      label,
+      debit: input.grossXof,
+      credit: 0,
+    });
+  }
+  if (input.socialEmployerXof > 0) {
+    lines.push({
+      accountId: employerChargeAccountId,
+      partnerId: null,
+      label,
+      debit: input.socialEmployerXof,
+      credit: 0,
+    });
+  }
+  const socialTotal = input.socialEmployeeXof + input.socialEmployerXof;
+  if (socialTotal > 0) {
+    lines.push({
+      accountId: socialAccountId,
+      partnerId: null,
+      label,
+      debit: 0,
+      credit: socialTotal,
+    });
+  }
+  if (input.deductionsXof > 0) {
+    lines.push({
+      accountId: deductionAccountId,
+      partnerId: null,
+      label,
+      debit: 0,
+      credit: input.deductionsXof,
+    });
+  }
+  if (input.netXof > 0) {
+    lines.push({
+      accountId: payableAccountId,
+      partnerId: null,
+      label,
+      debit: 0,
+      credit: input.netXof,
+    });
+  }
+
+  const context = await requireContext(tx, {
+    tenantId: input.tenantId,
+    entryDate: input.entryDate,
+    journalId,
+    accountIds: [
+      expenseAccountId,
+      employerChargeAccountId,
+      socialAccountId,
+      deductionAccountId,
+      payableAccountId,
+    ],
+  });
+  return postEntry(tx, context, {
+    tenantId: input.tenantId,
+    actorUserId: input.actorUserId,
+    source: "payroll",
+    sourceId: input.payslipId,
+    entryDate: input.entryDate,
+    reference: input.reference,
+    label,
+    lines,
+  });
+}
+
 export interface PostCutoffInput {
   readonly tenantId: string;
   readonly actorUserId: string;

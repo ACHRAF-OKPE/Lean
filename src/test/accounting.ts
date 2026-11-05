@@ -275,3 +275,103 @@ export async function enableAccounting(
     bankJournalId,
   };
 }
+
+export interface PayrollAccountingRefs {
+  readonly payrollJournalId: string;
+  readonly payrollExpenseAccountId: string;
+  readonly payrollEmployerChargeAccountId: string;
+  readonly payrollSocialAccountId: string;
+  readonly payrollDeductionAccountId: string;
+  readonly payrollPayableAccountId: string;
+}
+
+/**
+ * Complète le paramétrage comptable d'un espace par les comptes et le journal de paie.
+ * Le socle (exercice, journaux de vente, d'achat et de banque, comptes de tiers et de gestion)
+ * est créé par `enableAccounting`.
+ */
+export async function enablePayrollAccounting(
+  db: Database,
+  input: { readonly tenantId: string; readonly userId: string },
+): Promise<PayrollAccountingRefs> {
+  const base = await enableAccounting(db, input);
+
+  const accountRows = await db
+    .insert(ledgerAccounts)
+    .values([
+      {
+        tenantId: input.tenantId,
+        code: "661000",
+        label: "Rémunérations du personnel",
+        accountClass: 6,
+      },
+      {
+        tenantId: input.tenantId,
+        code: "664000",
+        label: "Charges sociales patronales",
+        accountClass: 6,
+      },
+      { tenantId: input.tenantId, code: "431000", label: "Sécurité sociale", accountClass: 4 },
+      { tenantId: input.tenantId, code: "428000", label: "Retenues diverses", accountClass: 4 },
+      {
+        tenantId: input.tenantId,
+        code: "422000",
+        label: "Personnel, rémunérations dues",
+        accountClass: 4,
+      },
+    ])
+    .returning({ id: ledgerAccounts.id, code: ledgerAccounts.code });
+  const accountByCode = new Map(accountRows.map((row) => [row.code, row.id]));
+
+  const [journal] = await db
+    .insert(accountingJournals)
+    .values({
+      tenantId: input.tenantId,
+      code: "PA",
+      label: "Journal de paie",
+      type: "misc" as const,
+    })
+    .returning({ id: accountingJournals.id });
+
+  const refs = {
+    payrollJournalId: journal?.id,
+    payrollExpenseAccountId: accountByCode.get("661000"),
+    payrollEmployerChargeAccountId: accountByCode.get("664000"),
+    payrollSocialAccountId: accountByCode.get("431000"),
+    payrollDeductionAccountId: accountByCode.get("428000"),
+    payrollPayableAccountId: accountByCode.get("422000"),
+  };
+  if (Object.values(refs).some((value) => value === undefined)) {
+    throw new Error("Référentiel de paie de test non créé.");
+  }
+
+  await saveAccountingSettings(db, {
+    tenantId: input.tenantId,
+    actorUserId: input.userId,
+    raw: {
+      salesJournalId: base.saleJournalId,
+      purchaseJournalId: base.purchaseJournalId,
+      bankJournalId: base.bankJournalId,
+      customerAccountId: base.clientAccountId,
+      supplierAccountId: base.supplierAccountId,
+      salesAccountId: base.salesAccountId,
+      purchaseAccountId: base.purchaseAccountId,
+      bankAccountId: base.bankAccountId,
+      payrollJournalId: refs.payrollJournalId,
+      payrollExpenseAccountId: refs.payrollExpenseAccountId,
+      payrollEmployerChargeAccountId: refs.payrollEmployerChargeAccountId,
+      payrollSocialAccountId: refs.payrollSocialAccountId,
+      payrollDeductionAccountId: refs.payrollDeductionAccountId,
+      payrollPayableAccountId: refs.payrollPayableAccountId,
+    },
+  });
+
+  return {
+    payrollJournalId: refs.payrollJournalId!,
+    payrollExpenseAccountId: refs.payrollExpenseAccountId!,
+    payrollEmployerChargeAccountId: refs.payrollEmployerChargeAccountId!,
+    payrollSocialAccountId: refs.payrollSocialAccountId!,
+    payrollDeductionAccountId: refs.payrollDeductionAccountId!,
+    payrollPayableAccountId: refs.payrollPayableAccountId!,
+  };
+}

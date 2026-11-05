@@ -264,6 +264,12 @@ export async function saveAccountingSettingsAction(
         salesAccountId: text(formData, "salesAccountId"),
         purchaseAccountId: text(formData, "purchaseAccountId"),
         bankAccountId: text(formData, "bankAccountId"),
+        payrollJournalId: text(formData, "payrollJournalId"),
+        payrollExpenseAccountId: text(formData, "payrollExpenseAccountId"),
+        payrollEmployerChargeAccountId: text(formData, "payrollEmployerChargeAccountId"),
+        payrollSocialAccountId: text(formData, "payrollSocialAccountId"),
+        payrollDeductionAccountId: text(formData, "payrollDeductionAccountId"),
+        payrollPayableAccountId: text(formData, "payrollPayableAccountId"),
       },
     });
   } catch (error) {

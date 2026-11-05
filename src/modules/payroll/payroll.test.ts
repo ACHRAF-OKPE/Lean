@@ -1,10 +1,11 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { Workbook } from "exceljs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/db/client";
-import { auditEvents } from "@/db/schema";
+import { auditEvents, journalEntries, journalEntryLines, ledgerAccounts } from "@/db/schema";
 import { createContract, createEmployee, startContract } from "@/modules/hr/queries";
 import { createTestDatabase, type TestDatabase } from "@/test/pglite";
+import { enablePayrollAccounting } from "@/test/accounting";
 import { seedHrTenant, type HrTenant } from "@/test/hr";
 import {
   createPayrollComponent,
@@ -829,5 +830,144 @@ describe("PAY-008 — export des bulletins", () => {
     const sheet = workbook.getWorksheet("Bulletins");
     expect(sheet!.getCell("A1").value).toBe("Bulletins de paie");
     expect(sheet!.getCell("A5").value).toBe("Aucun bulletin sur ce périmètre.");
+  });
+});
+
+/* ------------------------------------------------------------------------- PAY-009 */
+
+async function journalEntryCount(tenantId: string): Promise<number> {
+  const rows = await db
+    .select({ id: journalEntries.id })
+    .from(journalEntries)
+    .where(eq(journalEntries.tenantId, tenantId));
+  return rows.length;
+}
+
+describe("PAY-009 — comptabilisation des bulletins", () => {
+  it("comptabilise un bulletin validé dans le journal de paie et ne le double pas", async () => {
+    const compta = await seedHrTenant(db, "payroll-compta");
+    await enablePayrollAccounting(db, { tenantId: compta.tenantId, userId: compta.userId });
+    await savePayrollSettings(db, {
+      tenantId: compta.tenantId,
+      actorUserId: compta.userId,
+      raw: { paymentDayOfMonth: "28", socialEmployeeRate: "5.5", socialEmployerRate: "16" },
+    });
+    await createPayrollComponent(db, {
+      tenantId: compta.tenantId,
+      actorUserId: compta.userId,
+      raw: {
+        code: "PRIME",
+        label: "Prime",
+        kind: "earning",
+        mode: "fixed",
+        amountXof: "50000",
+        ratePercent: "",
+        taxable: true,
+      },
+    });
+
+    const employee = await createEmployee(db, {
+      tenantId: compta.tenantId,
+      actorUserId: compta.userId,
+      raw: { code: "SAL900", lastName: "Fall", firstName: "Awa", hireDate: "2024-01-01" },
+    });
+    const contract = await createContract(db, {
+      tenantId: compta.tenantId,
+      actorUserId: compta.userId,
+      raw: { employeeId: employee.id, kind: "cdi", startDate: "2024-01-01", salaryXof: "200000" },
+    });
+    await startContract(db, {
+      tenantId: compta.tenantId,
+      actorUserId: compta.userId,
+      contractId: contract.id,
+    });
+
+    const period = await createPayrollPeriod(db, {
+      tenantId: compta.tenantId,
+      actorUserId: compta.userId,
+      raw: { year: "2026", month: "3" },
+    });
+    await generatePayrollPayslips(db, {
+      tenantId: compta.tenantId,
+      actorUserId: compta.userId,
+      periodId: period.id,
+    });
+    const [payslip] = await listPayrollPayslips(db, compta.tenantId, { periodId: period.id });
+    expect(payslip).toBeDefined();
+    expect(await journalEntryCount(compta.tenantId)).toBe(0);
+
+    const first = await validatePayrollPayslip(db, {
+      tenantId: compta.tenantId,
+      actorUserId: compta.userId,
+      payslipId: payslip!.id,
+    });
+    expect(first.changed).toBe(true);
+
+    const entries = await db
+      .select()
+      .from(journalEntries)
+      .where(eq(journalEntries.tenantId, compta.tenantId));
+    expect(entries).toHaveLength(1);
+    const entry = entries[0]!;
+    expect(entry.source).toBe("payroll");
+    expect(entry.sourceId).toBe(payslip!.id);
+    expect(entry.entryDate).toBe("2026-03-31");
+    expect(entry.status).toBe("validated");
+    expect(entry.totalDebit).toBe(290000);
+    expect(entry.totalCredit).toBe(290000);
+
+    const lines = await db
+      .select({
+        code: ledgerAccounts.code,
+        debit: journalEntryLines.debit,
+        credit: journalEntryLines.credit,
+      })
+      .from(journalEntryLines)
+      .innerJoin(
+        ledgerAccounts,
+        and(
+          eq(ledgerAccounts.tenantId, journalEntryLines.tenantId),
+          eq(ledgerAccounts.id, journalEntryLines.accountId),
+        ),
+      )
+      .where(eq(journalEntryLines.entryId, entry.id))
+      .orderBy(asc(journalEntryLines.lineNumber));
+    expect(lines).toEqual([
+      { code: "661000", debit: 250000, credit: 0 },
+      { code: "664000", debit: 40000, credit: 0 },
+      { code: "431000", debit: 0, credit: 53750 },
+      { code: "422000", debit: 0, credit: 236250 },
+    ]);
+
+    const second = await validatePayrollPayslip(db, {
+      tenantId: compta.tenantId,
+      actorUserId: compta.userId,
+      payslipId: payslip!.id,
+    });
+    expect(second.changed).toBe(false);
+    expect(await journalEntryCount(compta.tenantId)).toBe(1);
+  });
+
+  it("ne comptabilise rien tant que la paie n'est pas paramétrée en comptabilité", async () => {
+    const period = await createPayrollPeriod(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      raw: { year: "2026", month: "8" },
+    });
+    await generatePayrollPayslips(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      periodId: period.id,
+    });
+    const [payslip] = await listPayrollPayslips(db, tenant.tenantId, { periodId: period.id });
+    expect(payslip).toBeDefined();
+
+    const result = await validatePayrollPayslip(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      payslipId: payslip!.id,
+    });
+    expect(result.changed).toBe(true);
+    expect(await journalEntryCount(tenant.tenantId)).toBe(0);
   });
 });

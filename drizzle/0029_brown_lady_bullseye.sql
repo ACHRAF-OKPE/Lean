@@ -1,0 +1,12 @@
+ALTER TABLE "accounting_settings" ADD COLUMN "payroll_journal_id" uuid;--> statement-breakpoint
+ALTER TABLE "accounting_settings" ADD COLUMN "payroll_expense_account_id" uuid;--> statement-breakpoint
+ALTER TABLE "accounting_settings" ADD COLUMN "payroll_employer_charge_account_id" uuid;--> statement-breakpoint
+ALTER TABLE "accounting_settings" ADD COLUMN "payroll_social_account_id" uuid;--> statement-breakpoint
+ALTER TABLE "accounting_settings" ADD COLUMN "payroll_deduction_account_id" uuid;--> statement-breakpoint
+ALTER TABLE "accounting_settings" ADD COLUMN "payroll_payable_account_id" uuid;--> statement-breakpoint
+ALTER TABLE "accounting_settings" ADD CONSTRAINT "accounting_settings_tenant_payroll_journal_fk" FOREIGN KEY ("tenant_id","payroll_journal_id") REFERENCES "public"."accounting_journals"("tenant_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "accounting_settings" ADD CONSTRAINT "accounting_settings_tenant_payroll_expense_account_fk" FOREIGN KEY ("tenant_id","payroll_expense_account_id") REFERENCES "public"."ledger_accounts"("tenant_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "accounting_settings" ADD CONSTRAINT "accounting_settings_tenant_payroll_employer_charge_account_fk" FOREIGN KEY ("tenant_id","payroll_employer_charge_account_id") REFERENCES "public"."ledger_accounts"("tenant_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "accounting_settings" ADD CONSTRAINT "accounting_settings_tenant_payroll_social_account_fk" FOREIGN KEY ("tenant_id","payroll_social_account_id") REFERENCES "public"."ledger_accounts"("tenant_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "accounting_settings" ADD CONSTRAINT "accounting_settings_tenant_payroll_deduction_account_fk" FOREIGN KEY ("tenant_id","payroll_deduction_account_id") REFERENCES "public"."ledger_accounts"("tenant_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "accounting_settings" ADD CONSTRAINT "accounting_settings_tenant_payroll_payable_account_fk" FOREIGN KEY ("tenant_id","payroll_payable_account_id") REFERENCES "public"."ledger_accounts"("tenant_id","id") ON DELETE restrict ON UPDATE no action;

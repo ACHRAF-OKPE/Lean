@@ -204,6 +204,20 @@
       "when": 1793797634766,
       "tag": "0028_youthful_richard_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793864691327,
+      "tag": "0029_brown_lady_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793864898055,
+      "tag": "0030_chemical_marvel_boy",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,7 @@ import {
   type PayrollComponentMode,
   type PayrollPayslipStatus,
 } from "@/db/schema";
+import { postPayrollPayslip } from "@/modules/accounting/posting";
 import { employeeFullName } from "@/modules/hr/validation";
 import { MAX_PAYSLIP_AMOUNT_XOF, payrollPeriodLabel } from "./constants";
 import { PayrollError } from "./errors";
@@ -504,6 +505,12 @@ export interface ValidatePayrollPayslipInput {
   readonly payslipId: string;
 }
 
+/** PAY-009 — la date d'écriture d'un bulletin est le dernier jour du mois de sa période. */
+function payrollEntryDate(year: number, month: number): string {
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+}
+
 /** PAY-007 — un bulletin naît brouillon et se valide une seule fois : la validation le fige. */
 export async function validatePayrollPayslip(
   db: Database,
@@ -511,7 +518,17 @@ export async function validatePayrollPayslip(
 ): Promise<{ changed: boolean }> {
   return db.transaction(async (tx) => {
     const [payslip] = await tx
-      .select({ id: payrollPayslips.id, status: payrollPayslips.status })
+      .select({
+        id: payrollPayslips.id,
+        status: payrollPayslips.status,
+        periodId: payrollPayslips.periodId,
+        employeeId: payrollPayslips.employeeId,
+        grossXof: payrollPayslips.grossXof,
+        socialEmployeeXof: payrollPayslips.socialEmployeeXof,
+        socialEmployerXof: payrollPayslips.socialEmployerXof,
+        deductionsXof: payrollPayslips.deductionsXof,
+        netXof: payrollPayslips.netXof,
+      })
       .from(payrollPayslips)
       .where(
         and(eq(payrollPayslips.tenantId, input.tenantId), eq(payrollPayslips.id, input.payslipId)),
@@ -536,6 +553,41 @@ export async function validatePayrollPayslip(
       .where(
         and(eq(payrollPayslips.tenantId, input.tenantId), eq(payrollPayslips.id, input.payslipId)),
       );
+
+    /*
+     * PAY-009 — la validation d'un bulletin le comptabilise dans le journal de paie, quand celui-ci
+     * est paramétré : les montants du bulletin alimentent l'écriture et le net l'emporte au crédit
+     * des rémunérations dues. Sans paramétrage, aucun effet, comme pour les documents de vente.
+     */
+    const [period] = await tx
+      .select({ year: payrollPeriods.year, month: payrollPeriods.month })
+      .from(payrollPeriods)
+      .where(
+        and(eq(payrollPeriods.tenantId, input.tenantId), eq(payrollPeriods.id, payslip.periodId)),
+      )
+      .limit(1);
+    const [employee] = await tx
+      .select({ lastName: hrEmployees.lastName, firstName: hrEmployees.firstName })
+      .from(hrEmployees)
+      .where(and(eq(hrEmployees.tenantId, input.tenantId), eq(hrEmployees.id, payslip.employeeId)))
+      .limit(1);
+    if (!period || !employee) {
+      throw new PayrollError("Bulletin incomplet : sa période ou son salarié est introuvable.");
+    }
+    await postPayrollPayslip(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      payslipId: payslip.id,
+      entryDate: payrollEntryDate(period.year, period.month),
+      reference: null,
+      employeeName: employeeFullName(employee.lastName, employee.firstName),
+      periodLabel: payrollPeriodLabel(period.year, period.month),
+      grossXof: payslip.grossXof,
+      socialEmployeeXof: payslip.socialEmployeeXof,
+      socialEmployerXof: payslip.socialEmployerXof,
+      deductionsXof: payslip.deductionsXof,
+      netXof: payslip.netXof,
+    });
 
     await tx.insert(auditEvents).values({
       tenantId: input.tenantId,

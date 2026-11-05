@@ -66,7 +66,7 @@ async function AccountingSettingsContent({
           Dès que ce paramétrage existe, chaque facture validée, chaque règlement client et chaque
           réception d&apos;achat est comptabilisé automatiquement dans les journaux choisis. Sans
           paramétrage, aucun document n&apos;est comptabilisé : le rapprochement les signale pour un
-          rattrapage manuel.
+          rattrapage manuel. La paie se paramètre en plus, avec son propre journal et ses comptes.
         </p>
 
         {saved ? (
@@ -111,6 +111,14 @@ async function AccountingSettingsContent({
             <div className="rounded-lg border border-line bg-panel px-4 py-3">
               <dt className="text-[10px] text-muted">Compte de trésorerie</dt>
               <dd className="mt-1 font-mono text-sm">{settings.bankAccountCode}</dd>
+            </div>
+            <div className="rounded-lg border border-line bg-panel px-4 py-3">
+              <dt className="text-[10px] text-muted">Paie</dt>
+              <dd className="mt-1 font-mono text-sm">
+                {settings.payrollJournalCode === null
+                  ? "Non paramétrée"
+                  : `${settings.payrollJournalCode} · ${settings.payrollExpenseAccountCode} · ${settings.payrollSocialAccountCode} · ${settings.payrollPayableAccountCode}`}
+              </dd>
             </div>
           </dl>
         )}
