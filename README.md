@@ -7,8 +7,9 @@ référentiel SYSCOHADA/OHADA, tarif extérieur UEMOA/TEDU et régimes ASYCUDA.
 Le Lot 11A pose l'organisation, le personnel et les contrats, le Lot 11B le temps de travail et
 le Lot 11C les congés (types paramétrables, demande en demi-journées, solde et workflow). Le
 Lot 12 est livré : ergonomie et vues du registre des tiers. Les droits par module, l'équipe et
-les responsables sont en production depuis le Lot 10. La paie (Lot 13) et le paramétrage
-systématique de chaque module (Lot 14) suivent.
+les responsables sont en production depuis le Lot 10. La paie (Lot 13) et son export sont livrés.
+Le Lot 14 est en cours : 14A masque les actions hors niveau de droit, 14B ouvre l'annuaire du
+paramétrage des modules à la manière d'Odoo, chaque module gagnant ensuite son propre écran.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.

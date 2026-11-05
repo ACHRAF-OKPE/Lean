@@ -99,6 +99,11 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "settings", href: "/parametres", label: "Paramètres", icon: Settings },
 ];
 
+/** L'icône d'un module, reprise de la barre de navigation pour un usage unique (annuaire des paramètres). */
+export const MODULE_ICONS = Object.fromEntries(
+  NAV_ITEMS.filter((item) => item.module !== undefined).map((item) => [item.module, item.icon]),
+) as Record<ModuleKey, LucideIcon>;
+
 export const TEAM_NAV_ITEM: NavItem = {
   key: "team",
   href: "/equipe",

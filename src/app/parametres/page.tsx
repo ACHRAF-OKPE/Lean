@@ -2,14 +2,17 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { Check, CircleDashed, Mail, ScrollText, ShieldCheck } from "lucide-react";
+import { Check, CircleDashed, Mail, ScrollText, Settings2, ShieldCheck } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
+import { MODULE_ICONS } from "@/components/nav-items";
 import { getDb } from "@/db/client";
-import { requirePermission } from "@/lib/auth/session";
+import { getAccessLevels, requirePermission } from "@/lib/auth/session";
+import { atLeast, MODULE_KEYS, moduleLabel } from "@/modules/identity/modules";
 import { can } from "@/modules/identity/permissions";
 import { ROLE_LABELS } from "@/modules/identity/labels";
 import { listMembershipsForUser } from "@/modules/identity/queries";
+import { MODULE_SETTINGS, settingsCoverage, settingsHref } from "@/modules/settings/directory";
 import { getCompanySettings } from "@/modules/settings/queries";
 import { CompanyForm } from "./company-form";
 import { LogoPanel } from "./logo-panel";
@@ -54,14 +57,17 @@ async function SettingsContent({ searchParams }: Pick<PageProps<"/parametres">, 
   await connection();
   const session = await requirePermission("data.read");
   const db = getDb();
-  const [settings, memberships, query] = await Promise.all([
+  const [settings, memberships, levels, query] = await Promise.all([
     getCompanySettings(db, session.tenantId),
     listMembershipsForUser(db, session.userId),
+    getAccessLevels(session),
     searchParams,
   ]);
   const editable = can(session.role, "settings.manage");
   const canReadAudit = can(session.role, "audit.read");
   const banner = bannerFor(query);
+  const coverage = settingsCoverage();
+  const visibleModules = MODULE_KEYS.filter((key) => atLeast(levels[key], "read"));
 
   const checkpoints = [
     { label: "Identité légale", done: Boolean(settings?.legalName && settings.countryCode) },
@@ -84,9 +90,10 @@ async function SettingsContent({ searchParams }: Pick<PageProps<"/parametres">, 
             </p>
             <h1 className="mt-2 text-2xl font-medium tracking-tight">Paramètres</h1>
             <p className="mt-1 max-w-2xl text-[11px] leading-5 text-muted">
-              Identité de l&apos;entreprise, coordonnées, règlement, banque et logo. Ces valeurs
-              alimenteront les documents et les modèles d&apos;échange ; elles ne modifient jamais
-              un document déjà émis.
+              L&apos;annuaire du paramétrage : chaque module ouvre son propre écran, à la manière
+              d&apos;Odoo. La fiche entreprise fixe l&apos;identité, les coordonnées, le règlement,
+              la banque et le logo, et alimente les documents et les modèles d&apos;échange sans
+              jamais modifier un document déjà émis.
             </p>
           </div>
           <span className="rounded-full border border-line bg-panel px-2.5 py-1 text-[10px] text-muted">
@@ -113,6 +120,77 @@ async function SettingsContent({ searchParams }: Pick<PageProps<"/parametres">, 
             ou à un administrateur pour toute mise à jour.
           </p>
         ) : null}
+
+        <section aria-labelledby="modules-title" className="mt-8">
+          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-line pb-4">
+            <div>
+              <p className="font-mono text-[10px] tracking-[0.18em] text-muted uppercase">
+                Annuaire
+              </p>
+              <h2 id="modules-title" className="mt-1 text-lg font-medium tracking-tight">
+                Paramétrage des modules
+              </h2>
+            </div>
+            <p className="text-[11px] text-muted">
+              {coverage.delivered}/{coverage.total} écrans livrés
+            </p>
+          </div>
+
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {visibleModules.map((key) => {
+              const Icon = MODULE_ICONS[key];
+              const href = settingsHref(key);
+              const label = moduleLabel(key);
+              const body = (
+                <>
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="grid size-8 place-items-center rounded-lg bg-brand-soft text-brand-strong">
+                      <Icon className="size-4" aria-hidden="true" />
+                    </span>
+                    {href ? (
+                      <Settings2
+                        className="size-4 text-muted transition-colors group-hover:text-brand"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <span className="rounded-full border border-line bg-canvas px-2 py-0.5 font-mono text-[10px] text-muted">
+                        À venir
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-3 block text-sm font-medium">{label}</span>
+                  <span className="mt-1 block text-[10px] leading-4 text-muted">
+                    {MODULE_SETTINGS[key].summary}
+                  </span>
+                </>
+              );
+
+              return (
+                <li key={key} className="flex">
+                  {href ? (
+                    <Link
+                      href={href}
+                      aria-label={`Paramètres · ${label}`}
+                      title={`Paramètres · ${label}`}
+                      className="group flex w-full flex-col rounded-xl border border-line bg-panel p-4 transition-colors hover:border-brand/30"
+                    >
+                      {body}
+                    </Link>
+                  ) : (
+                    <div
+                      aria-disabled="true"
+                      className="flex w-full flex-col rounded-xl border border-dashed border-line bg-panel/60 p-4"
+                    >
+                      {body}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+
+        <h2 className="mt-10 border-b border-line pb-4 text-sm font-semibold">Entreprise</h2>
 
         <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
           <CompanyForm
