@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ArrowLeft, Calculator, ReceiptText } from "lucide-react";
+import { ArrowLeft, Calculator, Download, ReceiptText } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import {
@@ -137,32 +137,42 @@ async function PayrollPayslipsContent({
               <ReceiptText className="size-4 text-brand" aria-hidden="true" />
               Registre des bulletins
             </h2>
-            <form method="get" className="flex items-center gap-2">
-              <label htmlFor="payslip-filter" className="sr-only">
-                Filtrer par période
-              </label>
-              <select
-                id="payslip-filter"
-                name="periode"
-                defaultValue={periodFilter ?? ""}
-                className="rounded-md border border-line bg-panel px-2 py-1 text-[11px]"
+            <div className="flex items-center gap-2">
+              <a
+                href={`/api/export/paie${periodFilter ? `?periode=${periodFilter}` : ""}`}
+                aria-label="Exporter les bulletins en XLSX"
+                title="Exporter en XLSX"
+                className={ACTION_LINK}
               >
-                <option value="">Toutes les périodes</option>
-                {periods.map((period) => (
-                  <option key={period.id} value={period.id}>
-                    {period.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                aria-label="Filtrer les bulletins"
-                title="Filtrer"
-                className="rounded-md border border-line bg-panel px-2 py-1 text-[11px] text-muted transition-colors hover:border-brand/30 hover:text-brand"
-              >
-                Filtrer
-              </button>
-            </form>
+                <Download className="size-4" aria-hidden="true" />
+              </a>
+              <form method="get" className="flex items-center gap-2">
+                <label htmlFor="payslip-filter" className="sr-only">
+                  Filtrer par période
+                </label>
+                <select
+                  id="payslip-filter"
+                  name="periode"
+                  defaultValue={periodFilter ?? ""}
+                  className="rounded-md border border-line bg-panel px-2 py-1 text-[11px]"
+                >
+                  <option value="">Toutes les périodes</option>
+                  {periods.map((period) => (
+                    <option key={period.id} value={period.id}>
+                      {period.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="submit"
+                  aria-label="Filtrer les bulletins"
+                  title="Filtrer"
+                  className="rounded-md border border-line bg-panel px-2 py-1 text-[11px] text-muted transition-colors hover:border-brand/30 hover:text-brand"
+                >
+                  Filtrer
+                </button>
+              </form>
+            </div>
           </div>
 
           {payslips.length === 0 ? (

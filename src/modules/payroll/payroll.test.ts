@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { Workbook } from "exceljs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/db/client";
 import { auditEvents } from "@/db/schema";
@@ -13,6 +14,11 @@ import {
 } from "./components";
 import { MAX_PAYSLIP_AMOUNT_XOF } from "./constants";
 import { PayrollError } from "./errors";
+import {
+  buildPayrollPayslipsExport,
+  payrollPayslipsExportFileName,
+  type PayrollPayslipExportRow,
+} from "./exports";
 import {
   createPayrollPeriod,
   listPayrollPeriods,
@@ -754,5 +760,74 @@ describe("PAY-007 — cycle de vie d'un bulletin", () => {
         payslipId: payslip!.id,
       }),
     ).rejects.toBeInstanceOf(PayrollError);
+  });
+});
+
+/* ------------------------------------------------------------------------- PAY-008 */
+
+describe("PAY-008 — export des bulletins", () => {
+  it("nomme le classeur d'après la période filtrée, ou l'ensemble", () => {
+    expect(payrollPayslipsExportFileName("Avril 2026")).toBe("bulletins-paie-avril-2026.xlsx");
+    expect(payrollPayslipsExportFileName(null)).toBe("bulletins-paie-tous.xlsx");
+  });
+
+  it("exporte le registre à plat : colonnes, montants et total net", async () => {
+    const rows: PayrollPayslipExportRow[] = [
+      {
+        employeeCode: "SAL100",
+        employeeName: "DIOP Moussa",
+        periodLabel: "Avril 2026",
+        baseSalaryXof: 200000,
+        grossXof: 230000,
+        socialEmployeeXof: 13800,
+        socialEmployerXof: 41975,
+        deductionsXof: 0,
+        netXof: 216200,
+        status: "draft",
+        validatedAt: null,
+      },
+      {
+        employeeCode: "SAL001",
+        employeeName: "DIALLO Amina",
+        periodLabel: "Avril 2026",
+        baseSalaryXof: 250000,
+        grossXof: 280000,
+        socialEmployeeXof: 16800,
+        socialEmployerXof: 51100,
+        deductionsXof: 0,
+        netXof: 263200,
+        status: "validated",
+        validatedAt: new Date("2026-04-30T10:00:00Z"),
+      },
+    ];
+
+    const bytes = await buildPayrollPayslipsExport(rows, "Avril 2026");
+    const workbook = new Workbook();
+    await workbook.xlsx.load(bytes as unknown as Parameters<Workbook["xlsx"]["load"]>[0]);
+    const sheet = workbook.getWorksheet("Bulletins");
+    expect(sheet).toBeDefined();
+    expect(sheet!.getCell("A1").value).toBe("Bulletins de paie");
+    expect(sheet!.getCell("A4").value).toBe("Matricule");
+    expect(sheet!.getCell("J4").value).toBe("Statut");
+
+    expect(sheet!.getCell("A5").value).toBe("SAL100");
+    expect(sheet!.getCell("I5").value).toBe(216200);
+    expect(sheet!.getCell("J5").value).toBe("Brouillon");
+    expect(sheet!.getCell("K5").value).toBe("");
+
+    expect(sheet!.getCell("J6").value).toBe("Validé");
+    expect(sheet!.getCell("K6").value).toBe("30/04/2026");
+
+    expect(sheet!.getCell("A7").value).toBe("Total (2)");
+    expect(sheet!.getCell("I7").value).toBe(479400);
+  });
+
+  it("rend une feuille vide lisible quand aucun bulletin n'est exporté", async () => {
+    const bytes = await buildPayrollPayslipsExport([], null);
+    const workbook = new Workbook();
+    await workbook.xlsx.load(bytes as unknown as Parameters<Workbook["xlsx"]["load"]>[0]);
+    const sheet = workbook.getWorksheet("Bulletins");
+    expect(sheet!.getCell("A1").value).toBe("Bulletins de paie");
+    expect(sheet!.getCell("A5").value).toBe("Aucun bulletin sur ce périmètre.");
   });
 });

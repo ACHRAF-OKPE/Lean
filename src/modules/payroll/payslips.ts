@@ -134,9 +134,14 @@ export interface PayrollPayslipSummary {
   readonly employeeId: string;
   readonly employeeCode: string;
   readonly employeeName: string;
+  readonly baseSalaryXof: number;
   readonly grossXof: number;
+  readonly socialEmployeeXof: number;
+  readonly socialEmployerXof: number;
+  readonly deductionsXof: number;
   readonly netXof: number;
   readonly status: PayrollPayslipStatus;
+  readonly validatedAt: Date | null;
   readonly createdAt: Date;
 }
 
@@ -156,11 +161,6 @@ export interface PayrollPayslipDetail extends PayrollPayslipSummary {
   readonly year: number;
   readonly month: number;
   readonly contractId: string;
-  readonly baseSalaryXof: number;
-  readonly socialEmployeeXof: number;
-  readonly socialEmployerXof: number;
-  readonly deductionsXof: number;
-  readonly validatedAt: Date | null;
   readonly lines: readonly PayrollPayslipLineView[];
 }
 
@@ -191,9 +191,14 @@ export async function listPayrollPayslips(
       employeeCode: hrEmployees.code,
       employeeLastName: hrEmployees.lastName,
       employeeFirstName: hrEmployees.firstName,
+      baseSalaryXof: payrollPayslips.baseSalaryXof,
       grossXof: payrollPayslips.grossXof,
+      socialEmployeeXof: payrollPayslips.socialEmployeeXof,
+      socialEmployerXof: payrollPayslips.socialEmployerXof,
+      deductionsXof: payrollPayslips.deductionsXof,
       netXof: payrollPayslips.netXof,
       status: payrollPayslips.status,
+      validatedAt: payrollPayslips.validatedAt,
       createdAt: payrollPayslips.createdAt,
     })
     .from(payrollPayslips)
@@ -221,9 +226,14 @@ export async function listPayrollPayslips(
     employeeId: row.employeeId,
     employeeCode: row.employeeCode,
     employeeName: employeeFullName(row.employeeLastName, row.employeeFirstName),
+    baseSalaryXof: row.baseSalaryXof,
     grossXof: row.grossXof,
+    socialEmployeeXof: row.socialEmployeeXof,
+    socialEmployerXof: row.socialEmployerXof,
+    deductionsXof: row.deductionsXof,
     netXof: row.netXof,
     status: row.status,
+    validatedAt: row.validatedAt,
     createdAt: row.createdAt,
   }));
 }
