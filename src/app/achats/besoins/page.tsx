@@ -6,8 +6,7 @@ import { ArrowUpRight, ClipboardList, Clock, SlidersHorizontal } from "lucide-re
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
-import { can } from "@/modules/identity/permissions";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { listSupplyPolicies, listSupplyRuns } from "@/modules/supply/queries";
 import { RunCalculationForm } from "./run-form";
@@ -43,7 +42,8 @@ async function SupplyRunsContent({
     listSupplyPolicies(db, session.tenantId),
     listMembershipsForUser(db, session.userId),
   ]);
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — lancer un calcul des besoins relève de l'écriture du module.
+  const canWrite = await canAccessModule(session, "supply", "write");
   const activePolicies = policies.rows.filter((row) => row.supplierId && row.active).length;
   const pendingTotal = runs.reduce((sum, run) => sum + run.pendingCount, 0);
   const latest = runs[0] ?? null;

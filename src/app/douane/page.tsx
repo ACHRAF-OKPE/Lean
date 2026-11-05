@@ -8,7 +8,7 @@ import { CatalogActions } from "@/components/catalog-actions";
 import { DeclarationStatusBadge } from "@/components/customs-badges";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -34,10 +34,11 @@ async function CustomsContent() {
   await connection();
   const session = await requireModule("customs", "read");
   const db = getDb();
-  const [declarations, counters, memberships] = await Promise.all([
+  const [declarations, counters, memberships, canWrite] = await Promise.all([
     listDeclarations(db, { tenantId: session.tenantId }),
     customsCounters(db, session.tenantId),
     listMembershipsForUser(db, session.userId),
+    canAccessModule(session, "customs", "write"),
   ]);
 
   return (
@@ -82,7 +83,7 @@ async function CustomsContent() {
             >
               <SlidersHorizontal className="size-4" aria-hidden="true" />
             </Link>
-            <CatalogActions kind="customs_lines" />
+            <CatalogActions kind="customs_lines" canDraft={canWrite} />
           </div>
         </div>
 

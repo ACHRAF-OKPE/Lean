@@ -111,7 +111,7 @@ async function PartnersContent({ searchParams }: Pick<PageProps<"/tiers">, "sear
                 <Tags className="size-4" aria-hidden="true" />
               </Link>
             ) : null}
-            <CatalogActions kind="partners" />
+            <CatalogActions kind="partners" canDraft={atLeast(level, "write")} />
           </div>
         </div>
 

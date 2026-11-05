@@ -10,10 +10,10 @@ import { DocumentTasks } from "@/components/document-tasks";
 import { LoadingShell } from "@/components/loading-shell";
 import { InvoiceStatusBadge } from "@/components/sales-badges";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { getAccessLevels, requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
-import { can } from "@/modules/identity/permissions";
+import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { PAYMENT_METHOD_LABELS } from "@/modules/sales/payment-methods";
 import { getInvoice } from "@/modules/sales/queries";
@@ -90,7 +90,10 @@ async function InvoiceContent({
   }
 
   const { invoice, lines, payments } = detail;
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — valider la facture relève de la gestion, encaisser un règlement de l'écriture.
+  const levels = await getAccessLevels(session);
+  const canManageInvoices = atLeast(levels.invoices, "manage");
+  const canWriteInvoices = atLeast(levels.invoices, "write");
   const today = todayIsoDate();
   const overdue =
     invoice.status === "validated" && invoice.balanceXof > 0 && invoice.dueDate < today;
@@ -140,7 +143,7 @@ async function InvoiceContent({
             >
               <ArrowUpRight className="size-4" aria-hidden="true" />
             </Link>
-            {canWrite && invoice.status === "draft" ? (
+            {canManageInvoices && invoice.status === "draft" ? (
               <ValidateInvoiceButton invoiceId={invoice.id} />
             ) : null}
           </div>
@@ -330,7 +333,7 @@ async function InvoiceContent({
           <p className="mt-4 rounded-lg border border-brand/20 bg-brand-soft px-4 py-3 text-[11px] text-brand-strong">
             Facture intégralement réglée.
           </p>
-        ) : canWrite ? (
+        ) : canWriteInvoices ? (
           <PaymentForm
             key={`${invoice.id}:${invoice.balanceXof}`}
             invoiceId={invoice.id}

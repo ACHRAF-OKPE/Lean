@@ -22,7 +22,7 @@ import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { getAccountingOverview, listJournalEntries } from "@/modules/accounting/queries";
@@ -67,10 +67,11 @@ async function AccountingContent() {
   await connection();
   const session = await requireModule("accounting", "read");
   const db = getDb();
-  const [overview, entries, memberships] = await Promise.all([
+  const [overview, entries, memberships, canWrite] = await Promise.all([
     getAccountingOverview(db, session.tenantId),
     listJournalEntries(db, { tenantId: session.tenantId, limit: 10 }),
     listMembershipsForUser(db, session.userId),
+    canAccessModule(session, "accounting", "write"),
   ]);
 
   return (
@@ -104,7 +105,7 @@ async function AccountingContent() {
                 </Link>
               );
             })}
-            <CatalogActions kind="journal_entries" />
+            <CatalogActions kind="journal_entries" canDraft={canWrite} />
           </div>
         </div>
 

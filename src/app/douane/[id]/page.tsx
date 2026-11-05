@@ -20,7 +20,6 @@ import { getAccessLevels, requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { atLeast } from "@/modules/identity/modules";
-import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import {
   APUREMENT_DECLARATION_STATE_LABELS,
@@ -89,12 +88,12 @@ async function DeclarationContent({
     notFound();
   }
 
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — l'écriture ouvre la saisie de la déclaration, la gestion ses transitions.
+  const levels = await getAccessLevels(session);
+  const canWrite = atLeast(levels.customs, "write");
+  const canManage = atLeast(levels.customs, "manage");
   const isDraft = declaration.status === "draft";
-  const [options, levels] =
-    canWrite && isDraft
-      ? await Promise.all([getDeclarationOptions(db, session.tenantId), getAccessLevels(session)])
-      : [null, null];
+  const options = canWrite && isDraft ? await getDeclarationOptions(db, session.tenantId) : null;
   const banner = bannerFor(query);
   const balance = declaration.grandTotal - declaration.paidTotal;
   const today = todayIsoDate();
@@ -135,7 +134,7 @@ async function DeclarationContent({
             </p>
           </div>
 
-          {canWrite ? (
+          {canManage ? (
             <div className="ml-auto flex flex-wrap items-center gap-1.5">
               {TRANSITION_ORDER.filter((transition) =>
                 DECLARATION_TRANSITIONS[transition].from.includes(declaration.status),
@@ -360,7 +359,7 @@ async function DeclarationContent({
           <DeclarationLineForm
             declarationId={declaration.id}
             hsCodes={options.hsCodes}
-            canCreateHsCode={levels !== null && atLeast(levels.nomenclature, "write")}
+            canCreateHsCode={atLeast(levels.nomenclature, "write")}
           />
         ) : null}
 

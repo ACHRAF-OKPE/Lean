@@ -10,7 +10,7 @@ import { LoadingShell } from "@/components/loading-shell";
 import { TaskChrono } from "@/components/task-chrono";
 import { TaskPriorityBadge, TaskStatusBadge } from "@/components/task-badges";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { listMentionableMembers } from "@/modules/discussion/queries";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -81,10 +81,11 @@ async function TasksContent({ searchParams }: Pick<PageProps<"/taches">, "search
   await connection();
   const session = await requireModule("tasks", "read");
   const db = getDb();
-  const [query, memberships, members] = await Promise.all([
+  const [query, memberships, members, canWrite] = await Promise.all([
     searchParams,
     listMembershipsForUser(db, session.userId),
     listMentionableMembers(db, session.tenantId),
+    canAccessModule(session, "tasks", "write"),
   ]);
 
   const filters = parseFilters(query);
@@ -116,7 +117,7 @@ async function TasksContent({ searchParams }: Pick<PageProps<"/taches">, "search
               fiche.
             </p>
           </div>
-          <CatalogActions kind="tasks" />
+          <CatalogActions kind="tasks" canDraft={canWrite} />
         </div>
 
         <dl className="mt-5 grid gap-2 sm:grid-cols-3">

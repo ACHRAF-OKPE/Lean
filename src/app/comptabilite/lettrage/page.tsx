@@ -7,9 +7,8 @@ import { AppHeader } from "@/components/app-header";
 import { LetteringTable, UnletterButton } from "@/components/accounting-forms";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { formatXof } from "@/lib/money";
-import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getLetteringCandidates, getLetteringGroups } from "@/modules/accounting/lettering";
 
@@ -45,7 +44,8 @@ async function LetteringContent({
     listMembershipsForUser(db, session.userId),
     searchParams,
   ]);
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — lettrer ou délettrer relève de l'écriture du module.
+  const canWrite = await canAccessModule(session, "accounting", "write");
   const lettered = typeof query.lettre === "string";
   const unlettered = typeof query.delettre === "string";
 

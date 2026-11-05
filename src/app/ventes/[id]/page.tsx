@@ -17,10 +17,10 @@ import {
   SalesStatusBadge,
 } from "@/components/sales-badges";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { getAccessLevels, requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
-import { can } from "@/modules/identity/permissions";
+import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { canApplySalesAction, salesStatusLabel } from "@/modules/sales/lifecycle";
 import { getSalesOrder } from "@/modules/sales/queries";
@@ -107,18 +107,23 @@ async function SalesOrderContent({
   }
 
   const { order, lines, deliveries, invoices, hasValidatedDelivery, hasValidatedInvoice } = detail;
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — chaque action suit le niveau du module qui la porte.
+  const levels = await getAccessLevels(session);
+  const canManageSales = atLeast(levels.sales, "manage");
+  const canWriteStock = atLeast(levels.stock, "write");
+  const canManageStock = atLeast(levels.stock, "manage");
+  const canWriteInvoices = atLeast(levels.invoices, "write");
   const hasDeliverableLines = lines.some(
     (line) => line.articleType === "product" && compareQuantity(line.remainingToDeliver, "0") > 0,
   );
   const hasBillableLines = lines.some((line) => compareQuantity(line.remainingToInvoice, "0") > 0);
   const locations =
-    canWrite && order.status === "confirmed"
+    canWriteStock && order.status === "confirmed"
       ? await listInternalLocations(db, session.tenantId)
       : [];
   const banner = bannerFor(query);
-  const canDeliverNow = canWrite && order.status === "confirmed" && hasDeliverableLines;
-  const canInvoiceNow = canWrite && order.status === "confirmed" && hasBillableLines;
+  const canDeliverNow = canWriteStock && order.status === "confirmed" && hasDeliverableLines;
+  const canInvoiceNow = canWriteInvoices && order.status === "confirmed" && hasBillableLines;
 
   const dueDate = new Date();
   dueDate.setUTCDate(dueDate.getUTCDate() + 30);
@@ -157,13 +162,13 @@ async function SalesOrderContent({
           </div>
 
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
-            {canWrite && canApplySalesAction(order.status, "confirm") ? (
+            {canManageSales && canApplySalesAction(order.status, "confirm") ? (
               <TransitionButton orderId={order.id} action="confirm" />
             ) : null}
-            {canWrite && canApplySalesAction(order.status, "close") ? (
+            {canManageSales && canApplySalesAction(order.status, "close") ? (
               <TransitionButton orderId={order.id} action="close" />
             ) : null}
-            {canWrite &&
+            {canManageSales &&
             canApplySalesAction(order.status, "cancel") &&
             !hasValidatedDelivery &&
             !hasValidatedInvoice ? (
@@ -394,7 +399,7 @@ async function SalesOrderContent({
                         <DeliveryStatusBadge status={delivery.status} />
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        {canWrite && delivery.status === "validated" ? (
+                        {canManageStock && delivery.status === "validated" ? (
                           <div className="flex justify-end">
                             <CancelDeliveryButton
                               orderId={order.id}
@@ -499,7 +504,7 @@ async function SalesOrderContent({
           )}
         </section>
 
-        {canWrite && order.status === "confirmed" ? (
+        {canWriteStock && order.status === "confirmed" ? (
           <DeliveryForm
             key={lines
               .map((line) => `${line.id}:${line.deliveredQty}:${line.remainingToDeliver}`)
@@ -511,7 +516,7 @@ async function SalesOrderContent({
           />
         ) : null}
 
-        {canWrite && order.status === "confirmed" ? (
+        {canWriteInvoices && order.status === "confirmed" ? (
           <InvoiceForm
             key={lines
               .map((line) => `${line.id}:${line.invoicedQty}:${line.remainingToInvoice}`)

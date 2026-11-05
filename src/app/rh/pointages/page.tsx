@@ -127,7 +127,7 @@ async function TimeEntriesContent({
                 >
                   <Plus className="size-4" aria-hidden="true" />
                 </Link>
-                <CatalogActions kind="hr_time_entries" />
+                <CatalogActions kind="hr_time_entries" canDraft={canWrite} />
               </>
             ) : null}
           </div>

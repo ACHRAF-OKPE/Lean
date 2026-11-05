@@ -104,7 +104,7 @@ async function HrContent() {
                 </Link>
               );
             })}
-            {canWrite ? <CatalogActions kind="hr_employees" /> : null}
+            {canWrite ? <CatalogActions kind="hr_employees" canDraft={canWrite} /> : null}
           </div>
         </div>
 

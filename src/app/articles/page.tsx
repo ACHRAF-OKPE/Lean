@@ -112,7 +112,7 @@ async function ArticlesContent({ searchParams }: Pick<PageProps<"/articles">, "s
                 <Tags className="size-4" aria-hidden="true" />
               </Link>
             ) : null}
-            <CatalogActions kind="articles" />
+            <CatalogActions kind="articles" canDraft={atLeast(level, "write")} />
           </div>
         </div>
 

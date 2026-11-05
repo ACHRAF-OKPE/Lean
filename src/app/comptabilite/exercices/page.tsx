@@ -8,9 +8,8 @@ import { AppHeader } from "@/components/app-header";
 import { CloseFiscalYearButton, FiscalYearForm } from "@/components/accounting-forms";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
-import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { listFiscalYears } from "@/modules/accounting/queries";
 
@@ -45,7 +44,8 @@ async function FiscalYearsContent({
     listMembershipsForUser(db, session.userId),
     searchParams,
   ]);
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — ouvrir ou clôturer un exercice relève de la gestion du module.
+  const canManage = await canAccessModule(session, "accounting", "manage");
   const created = typeof query.cree === "string";
   const closed = typeof query.clos === "string";
 
@@ -100,7 +100,7 @@ async function FiscalYearsContent({
           </p>
         ) : null}
 
-        {canWrite ? (
+        {canManage ? (
           <section className="mt-5 rounded-xl border border-line bg-panel p-5">
             <div className="flex items-center gap-2">
               <CalendarRange className="size-4 text-brand" aria-hidden="true" />
@@ -140,7 +140,7 @@ async function FiscalYearsContent({
                     <th scope="col" className={TH}>
                       Clôturé le
                     </th>
-                    {canWrite ? (
+                    {canManage ? (
                       <th scope="col" className={`${TH} text-right`}>
                         Clôturer
                       </th>
@@ -163,7 +163,7 @@ async function FiscalYearsContent({
                       <td className="px-4 py-2.5 whitespace-nowrap text-muted tabular-nums">
                         {year.closedAt ? dateFormatter.format(year.closedAt) : "—"}
                       </td>
-                      {canWrite ? (
+                      {canManage ? (
                         <td className="px-4 py-2.5">
                           {year.status === "open" ? (
                             <div className="flex justify-end">

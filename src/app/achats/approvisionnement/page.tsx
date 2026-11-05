@@ -6,9 +6,8 @@ import { ArrowLeftRight, ClipboardList, ShieldCheck } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { formatXof } from "@/lib/money";
-import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { listSupplyPolicies } from "@/modules/supply/queries";
 import { formatQuantity } from "@/modules/stock/quantities";
@@ -44,7 +43,8 @@ async function SupplyPoliciesContent({
     listSupplyPolicies(db, session.tenantId),
     listMembershipsForUser(db, session.userId),
   ]);
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — enregistrer une politique d'approvisionnement relève de la gestion du module.
+  const canManage = await canAccessModule(session, "supply", "manage");
   const followed = page.rows.filter((row) => row.supplierId);
   const active = followed.filter((row) => row.active);
 
@@ -105,7 +105,7 @@ async function SupplyPoliciesContent({
           </div>
         </dl>
 
-        {canWrite && page.rows.length > 0 && page.suppliers.length > 0 ? (
+        {canManage && page.rows.length > 0 && page.suppliers.length > 0 ? (
           <div className="mt-5">
             <PolicyEditor rows={page.rows} suppliers={page.suppliers} />
           </div>

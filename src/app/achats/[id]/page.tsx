@@ -21,10 +21,10 @@ import { ExchangeStatusBadge, ExchangeTypeBadge } from "@/components/exchange-ba
 import { LoadingShell } from "@/components/loading-shell";
 import { PurchaseStatusBadge, ReceiptStateBadge } from "@/components/purchase-badges";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { getAccessLevels, requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
-import { can } from "@/modules/identity/permissions";
+import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { canApplyAction, statusLabel } from "@/modules/purchases/lifecycle";
 import { getPurchaseOrder } from "@/modules/purchases/queries";
@@ -154,16 +154,21 @@ async function PurchaseOrderContent({
   }
 
   const { order, lines, receptions, hasValidatedReception } = detail;
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — chaque action suit le niveau du module qui la porte.
+  const levels = await getAccessLevels(session);
+  const canManagePurchases = atLeast(levels.purchases, "manage");
+  const canWritePurchases = atLeast(levels.purchases, "write");
+  const canWriteStock = atLeast(levels.stock, "write");
+  const canManageStock = atLeast(levels.stock, "manage");
   const hasReceivableLines = lines.some(
     (line) => line.articleType === "product" && line.receiptState !== "received",
   );
   const locations =
-    canWrite && order.status === "confirmed"
+    canWriteStock && order.status === "confirmed"
       ? await listInternalLocations(db, session.tenantId)
       : [];
   const banner = bannerFor(query);
-  const canReceiveNow = canWrite && order.status === "confirmed" && hasReceivableLines;
+  const canReceiveNow = canWriteStock && order.status === "confirmed" && hasReceivableLines;
 
   return (
     <div className="min-h-dvh">
@@ -197,19 +202,21 @@ async function PurchaseOrderContent({
           </div>
 
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
-            {canWrite && canApplyAction(order.status, "request") ? (
+            {canManagePurchases && canApplyAction(order.status, "request") ? (
               <TransitionButton orderId={order.id} action="request" />
             ) : null}
-            {canWrite && canApplyAction(order.status, "confirm") ? (
+            {canManagePurchases && canApplyAction(order.status, "confirm") ? (
               <TransitionButton orderId={order.id} action="confirm" />
             ) : null}
-            {canWrite && canApplyAction(order.status, "close") ? (
+            {canManagePurchases && canApplyAction(order.status, "close") ? (
               <TransitionButton orderId={order.id} action="close" />
             ) : null}
-            {canWrite && canApplyAction(order.status, "cancel") && !hasValidatedReception ? (
+            {canManagePurchases &&
+            canApplyAction(order.status, "cancel") &&
+            !hasValidatedReception ? (
               <TransitionButton orderId={order.id} action="cancel" />
             ) : null}
-            {canWrite && order.status !== "draft" && order.status !== "cancelled" ? (
+            {canWritePurchases && order.status !== "draft" && order.status !== "cancelled" ? (
               <Link
                 href={`/achats/${order.id}/envoyer`}
                 aria-label="Envoyer au fournisseur"
@@ -562,7 +569,7 @@ async function PurchaseOrderContent({
                           </span>
                         </td>
                         <td className="px-4 py-2.5 text-right">
-                          {canWrite && reception.status === "validated" ? (
+                          {canManageStock && reception.status === "validated" ? (
                             <div className="flex justify-end">
                               <CancelReceptionButton
                                 orderId={order.id}
@@ -583,7 +590,7 @@ async function PurchaseOrderContent({
           )}
         </section>
 
-        {canWrite && order.status === "confirmed" ? (
+        {canWriteStock && order.status === "confirmed" ? (
           <ReceptionForm
             key={lines
               .map((line) => `${line.id}:${line.receivedQty}:${line.remainingQty}`)

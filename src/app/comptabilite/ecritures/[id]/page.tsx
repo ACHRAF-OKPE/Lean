@@ -9,10 +9,9 @@ import { DeleteEntryButton, ValidateEntryButton } from "@/components/accounting-
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
-import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getJournalEntry } from "@/modules/accounting/queries";
 
@@ -64,7 +63,8 @@ async function JournalEntryContent({
     notFound();
   }
 
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — valider ou supprimer une écriture relève de la gestion du module.
+  const canManage = await canAccessModule(session, "accounting", "manage");
   const isDraft = entry.status === "draft";
   const banner = bannerFor(query);
   const balanced = entry.totalDebit === entry.totalCredit;
@@ -95,7 +95,7 @@ async function JournalEntryContent({
               </h1>
             </div>
           </div>
-          {canWrite && isDraft ? (
+          {canManage && isDraft ? (
             <div className="flex items-center gap-1.5">
               <ValidateEntryButton entryId={entry.id} />
               <DeleteEntryButton entryId={entry.id} number={entry.number} />

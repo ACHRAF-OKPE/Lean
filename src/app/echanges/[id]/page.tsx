@@ -8,8 +8,7 @@ import { AppHeader } from "@/components/app-header";
 import { ExchangeStatusBadge, ExchangeTypeBadge } from "@/components/exchange-badges";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
-import { can } from "@/modules/identity/permissions";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getExchangeMessage } from "@/modules/exchange/queries";
 import { ResendButton } from "./resend-button";
@@ -80,7 +79,8 @@ async function ExchangeMessageContent({
 
   const failed = message.status === "failed";
   const banner = bannerFor(query, failed);
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — renvoyer un message relève de l'écriture du module.
+  const canWrite = await canAccessModule(session, "exchanges", "write");
 
   return (
     <div className="min-h-dvh">

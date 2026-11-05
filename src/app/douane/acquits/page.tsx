@@ -8,10 +8,9 @@ import { BondStatusBadge } from "@/components/customs-badges";
 import { ApurementForm } from "@/components/customs-forms";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
-import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { listBonds } from "@/modules/customs/queries";
 
@@ -38,7 +37,8 @@ async function BondsContent({ searchParams }: Pick<PageProps<"/douane/acquits">,
     listMembershipsForUser(db, session.userId),
     searchParams,
   ]);
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — enregistrer un apurement relève de l'écriture du module.
+  const canWrite = await canAccessModule(session, "customs", "write");
   const updated = typeof query.maj === "string";
   const openCount = bonds.filter((bond) => bond.status === "open").length;
 

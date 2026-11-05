@@ -7,9 +7,9 @@ import { ArrowLeft, CircleAlert, ClipboardList, ShieldCheck } from "lucide-react
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { getAccessLevels, requireModule } from "@/lib/auth/session";
 import { todayIsoDate } from "@/lib/dates";
-import { can } from "@/modules/identity/permissions";
+import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { addIsoDays } from "@/modules/supply/calculation";
 import { getSupplyRun } from "@/modules/supply/queries";
@@ -87,7 +87,11 @@ async function SupplyRunDetailContent({
   if (!detail) {
     notFound();
   }
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — la sélection suit l'écriture du module, la génération celle des cibles.
+  const levels = await getAccessLevels(session);
+  const canWrite = atLeast(levels.supply, "write");
+  const canOrder = atLeast(levels.purchases, "manage");
+  const canTender = atLeast(levels.tenders, "manage");
   const banners = bannersFor(query);
   const today = todayIsoDate();
   const { run, lines } = detail;
@@ -177,6 +181,8 @@ async function SupplyRunDetailContent({
             runId={run.id}
             lines={lines}
             canWrite={canWrite}
+            canOrder={canOrder}
+            canTender={canTender}
             today={today}
             defaultDeadline={addIsoDays(today, 7)}
           />

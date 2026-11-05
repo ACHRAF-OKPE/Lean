@@ -85,6 +85,26 @@ export function atLeast(actual: Level, required: RequiredLevel): boolean {
   return RANK[actual] >= RANK[required];
 }
 
+/** GEN-018 — ce qu'un écran de module a le droit d'afficher selon le niveau effectif. */
+export interface ActionVisibility {
+  /** Créer ou modifier un brouillon ou une donnée de base. */
+  readonly canDraft: boolean;
+  /** Faire sortir un document du brouillon, le supprimer, ou enregistrer le paramétrage. */
+  readonly canManage: boolean;
+}
+
+/**
+ * GEN-018 — l'interface ne fait que masquer ce que le serveur refuse : l'écriture ouvre la
+ * création et la modification d'un brouillon, la gestion ouvre les transitions, la suppression
+ * et l'enregistrement du paramétrage du module.
+ */
+export function actionVisibility(level: Level): ActionVisibility {
+  return {
+    canDraft: atLeast(level, "write"),
+    canManage: atLeast(level, "manage"),
+  };
+}
+
 export function resolveLevels(
   role: Role,
   grants: Readonly<Partial<Record<ModuleKey, Level>>>,

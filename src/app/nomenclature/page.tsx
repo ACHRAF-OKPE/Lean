@@ -9,7 +9,7 @@ import { HsCodeListView } from "@/components/views/hs-code-list-view";
 import { HsCodeTreeView } from "@/components/views/hs-code-tree-view";
 import { HsCodeViewSwitcher } from "@/components/views/hs-code-view-switcher";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import {
   hasActiveHsCodeFilters,
   parseHsCodeFilters,
@@ -48,9 +48,10 @@ async function HsCodesContent({ searchParams }: Pick<PageProps<"/nomenclature">,
   const filters: HsCodeFilters = parseHsCodeFilters(query);
 
   const db = getDb();
-  const [page, memberships] = await Promise.all([
+  const [page, memberships, canWrite] = await Promise.all([
     listHsCodes(db, session.tenantId, filters),
     listMembershipsForUser(db, session.userId),
+    canAccessModule(session, "nomenclature", "write"),
   ]);
 
   const lines = bannerLines(query);
@@ -78,7 +79,7 @@ async function HsCodesContent({ searchParams }: Pick<PageProps<"/nomenclature">,
               {page.total} {filtered ? "filtrés" : "au total"}
             </span>
             <HsCodeViewSwitcher filters={filters} />
-            <CatalogActions kind="hs_codes" />
+            <CatalogActions kind="hs_codes" canDraft={canWrite} />
           </div>
         </div>
 

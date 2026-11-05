@@ -8,7 +8,7 @@ import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
 import { PurchaseStatusBadge, ReceiptStateBadge } from "@/components/purchase-badges";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -33,10 +33,11 @@ async function PurchasesContent() {
   await connection();
   const session = await requireModule("purchases", "read");
   const db = getDb();
-  const [orders, stats, memberships] = await Promise.all([
+  const [orders, stats, memberships, canWrite] = await Promise.all([
     listPurchaseOrders(db, session.tenantId),
     getPurchaseOrderStats(db, session.tenantId),
     listMembershipsForUser(db, session.userId),
+    canAccessModule(session, "purchases", "write"),
   ]);
 
   return (
@@ -65,7 +66,7 @@ async function PurchasesContent() {
             >
               <FileSignature className="size-4" aria-hidden="true" />
             </Link>
-            <CatalogActions kind="purchase_lines" />
+            <CatalogActions kind="purchase_lines" canDraft={canWrite} />
           </div>
         </div>
 

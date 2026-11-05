@@ -9,10 +9,9 @@ import { PostCutoffButton } from "@/components/accounting-forms";
 import { Field, INPUT_CLASS } from "@/components/form-fields";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
-import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { CUTOFF_DOCUMENT_KIND_LABELS, getCutoffReport } from "@/modules/accounting/cutoff";
 import { listFiscalYears } from "@/modules/accounting/queries";
@@ -53,7 +52,8 @@ async function CutoffContent({
   const report = selectedYear
     ? await getCutoffReport(db, { tenantId: session.tenantId, fiscalYearId: selectedYear.id })
     : null;
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — comptabiliser un document en rattrapage relève de la gestion du module.
+  const canManage = await canAccessModule(session, "accounting", "manage");
   const postedCount = typeof query.comptabilise === "string" ? Number(query.comptabilise) : 0;
   const justPosted = Number.isSafeInteger(postedCount) && postedCount > 0;
 
@@ -184,7 +184,7 @@ async function CutoffContent({
               <div className="flex items-center gap-2 border-b border-line px-4 py-3">
                 <FileSearch className="size-4 text-brand" aria-hidden="true" />
                 <h2 className="text-sm font-semibold">Documents de l&apos;exercice</h2>
-                {canWrite && report.configured ? (
+                {canManage && report.configured ? (
                   <div className="ml-auto">
                     <PostCutoffButton
                       fiscalYearId={report.fiscalYear.id}

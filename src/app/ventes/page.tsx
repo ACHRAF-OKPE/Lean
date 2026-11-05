@@ -12,7 +12,7 @@ import {
   SalesStatusBadge,
 } from "@/components/sales-badges";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
 import { listMembershipsForUser } from "@/modules/identity/queries";
@@ -37,10 +37,11 @@ async function SalesContent() {
   await connection();
   const session = await requireModule("sales", "read");
   const db = getDb();
-  const [orders, stats, memberships] = await Promise.all([
+  const [orders, stats, memberships, canWrite] = await Promise.all([
     listSalesOrders(db, session.tenantId),
     getSalesOrderStats(db, session.tenantId),
     listMembershipsForUser(db, session.userId),
+    canAccessModule(session, "sales", "write"),
   ]);
 
   return (
@@ -61,7 +62,7 @@ async function SalesContent() {
             <span className="rounded-full border border-line bg-panel px-2.5 py-1 font-mono text-[10px] text-muted">
               {orders.length} commande{orders.length > 1 ? "s" : ""}
             </span>
-            <CatalogActions kind="sales_lines" />
+            <CatalogActions kind="sales_lines" canDraft={canWrite} />
           </div>
         </div>
 

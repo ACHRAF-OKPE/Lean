@@ -7,8 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { JournalForm, JournalToggleButton } from "@/components/accounting-forms";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
-import { can } from "@/modules/identity/permissions";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { ACCOUNTING_JOURNAL_TYPE_LABELS } from "@/modules/accounting/constants";
 import { listJournals } from "@/modules/accounting/queries";
@@ -38,7 +37,8 @@ async function JournalsContent({
     listMembershipsForUser(db, session.userId),
     searchParams,
   ]);
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — créer un journal ou basculer son statut relève de la gestion du module.
+  const canManage = await canAccessModule(session, "accounting", "manage");
   const created = typeof query.cree === "string";
   const updated = typeof query.maj === "string";
 
@@ -86,7 +86,7 @@ async function JournalsContent({
           </p>
         ) : null}
 
-        {canWrite ? (
+        {canManage ? (
           <section className="mt-5 rounded-xl border border-line bg-panel p-5">
             <div className="flex items-center gap-2">
               <BookMarked className="size-4 text-brand" aria-hidden="true" />
@@ -123,7 +123,7 @@ async function JournalsContent({
                     <th scope="col" className={TH}>
                       Statut
                     </th>
-                    {canWrite ? (
+                    {canManage ? (
                       <th scope="col" className={`${TH} text-right`}>
                         Activer
                       </th>
@@ -145,7 +145,7 @@ async function JournalsContent({
                           <span className="font-mono text-[10px] text-muted">Inactif</span>
                         )}
                       </td>
-                      {canWrite ? (
+                      {canManage ? (
                         <td className="px-4 py-2.5">
                           <div className="flex justify-end">
                             <JournalToggleButton

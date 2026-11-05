@@ -46,25 +46,30 @@ const IMPORT_LABELS: Record<ImportKind, string> = {
   hr_time_entries: "Importer des pointages",
 };
 
-export function CatalogActions({ kind }: { kind: ImportKind }) {
+/** GEN-018 — créer et importer relèvent de l'écriture ; le modèle XLSX reste offert en lecture. */
+export function CatalogActions({ kind, canDraft }: { kind: ImportKind; canDraft: boolean }) {
   return (
     <div className="flex items-center gap-1.5">
-      <Link
-        href={CREATE_PATHS[kind] ?? `${IMPORT_KIND_PATHS[kind]}/nouveau`}
-        aria-label={CREATE_LABELS[kind]}
-        title={CREATE_LABELS[kind]}
-        className={ACTION_LINK}
-      >
-        <Plus className="size-4" aria-hidden="true" />
-      </Link>
-      <Link
-        href={`${IMPORT_KIND_PATHS[kind]}/import`}
-        aria-label={IMPORT_LABELS[kind]}
-        title={IMPORT_LABELS[kind]}
-        className={ACTION_LINK}
-      >
-        <Upload className="size-4" aria-hidden="true" />
-      </Link>
+      {canDraft ? (
+        <>
+          <Link
+            href={CREATE_PATHS[kind] ?? `${IMPORT_KIND_PATHS[kind]}/nouveau`}
+            aria-label={CREATE_LABELS[kind]}
+            title={CREATE_LABELS[kind]}
+            className={ACTION_LINK}
+          >
+            <Plus className="size-4" aria-hidden="true" />
+          </Link>
+          <Link
+            href={`${IMPORT_KIND_PATHS[kind]}/import`}
+            aria-label={IMPORT_LABELS[kind]}
+            title={IMPORT_LABELS[kind]}
+            className={ACTION_LINK}
+          >
+            <Upload className="size-4" aria-hidden="true" />
+          </Link>
+        </>
+      ) : null}
       <a
         href={IMPORT_TEMPLATE_PATHS[kind]}
         aria-label="Télécharger le modèle XLSX"

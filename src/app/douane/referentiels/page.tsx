@@ -13,8 +13,7 @@ import {
 } from "@/components/customs-forms";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
-import { can } from "@/modules/identity/permissions";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { CUSTOMS_REGIME_KIND_LABELS, CUSTOMS_TAX_BASE_LABELS } from "@/modules/customs/constants";
 import { listCustomsReferentials } from "@/modules/customs/queries";
@@ -44,7 +43,8 @@ async function ReferentialsContent({
     listMembershipsForUser(db, session.userId),
     searchParams,
   ]);
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — gérer les bureaux, régimes et taxes relève de la gestion du module.
+  const canManage = await canAccessModule(session, "customs", "manage");
   const updated = typeof query.maj === "string";
 
   return (
@@ -81,7 +81,7 @@ async function ReferentialsContent({
           </p>
         ) : null}
 
-        {!canWrite ? (
+        {!canManage ? (
           <div className="mt-4 flex gap-2 rounded-md border border-line bg-panel px-3 py-2 text-[11px] leading-5 text-muted">
             <CircleAlert className="mt-0.5 size-3.5 shrink-0 text-brand" aria-hidden="true" />
             Lecture seule : la modification exige le droit d&apos;écriture.
@@ -94,7 +94,7 @@ async function ReferentialsContent({
             <h2 className="text-sm font-semibold">Bureaux de douane</h2>
             <span className="font-mono text-[10px] text-muted">{referentials.offices.length}</span>
           </div>
-          {canWrite ? <OfficeForm /> : null}
+          {canManage ? <OfficeForm /> : null}
           {referentials.offices.length === 0 ? (
             <p className="mt-4 text-[11px] text-muted">
               Aucun bureau. Un code UN/LOCODE suffit pour commencer.
@@ -114,7 +114,7 @@ async function ReferentialsContent({
                     <th scope="col" className={TH}>
                       État
                     </th>
-                    {canWrite ? (
+                    {canManage ? (
                       <th scope="col" className={`${TH} text-right`}>
                         Action
                       </th>
@@ -131,7 +131,7 @@ async function ReferentialsContent({
                           {office.active ? "Actif" : "Inactif"}
                         </span>
                       </td>
-                      {canWrite ? (
+                      {canManage ? (
                         <td className="px-4 py-2.5">
                           <div className="flex justify-end">
                             <ReferentialToggle
@@ -157,7 +157,7 @@ async function ReferentialsContent({
             <h2 className="text-sm font-semibold">Régimes douaniers</h2>
             <span className="font-mono text-[10px] text-muted">{referentials.regimes.length}</span>
           </div>
-          {canWrite ? <RegimeForm /> : null}
+          {canManage ? <RegimeForm /> : null}
           {referentials.regimes.length === 0 ? (
             <p className="mt-4 text-[11px] text-muted">
               Aucun régime. Créez au moins un régime d&apos;importation pour déclarer.
@@ -186,7 +186,7 @@ async function ReferentialsContent({
                     <th scope="col" className={TH}>
                       État
                     </th>
-                    {canWrite ? (
+                    {canManage ? (
                       <th scope="col" className={`${TH} text-right`}>
                         Action
                       </th>
@@ -212,7 +212,7 @@ async function ReferentialsContent({
                           {regime.active ? "Actif" : "Inactif"}
                         </span>
                       </td>
-                      {canWrite ? (
+                      {canManage ? (
                         <td className="px-4 py-2.5">
                           <div className="flex justify-end">
                             <ReferentialToggle
@@ -238,7 +238,7 @@ async function ReferentialsContent({
             <h2 className="text-sm font-semibold">Taxes douanières</h2>
             <span className="font-mono text-[10px] text-muted">{referentials.taxes.length}</span>
           </div>
-          {canWrite ? <TaxForm /> : null}
+          {canManage ? <TaxForm /> : null}
           {referentials.taxes.length === 0 ? (
             <p className="mt-4 text-[11px] text-muted">
               Aucune taxe. La liquidation peut se limiter aux droits TEC.
@@ -267,7 +267,7 @@ async function ReferentialsContent({
                     <th scope="col" className={TH}>
                       État
                     </th>
-                    {canWrite ? (
+                    {canManage ? (
                       <th scope="col" className={`${TH} text-right`}>
                         Action
                       </th>
@@ -291,7 +291,7 @@ async function ReferentialsContent({
                           {tax.active ? "Actif" : "Inactif"}
                         </span>
                       </td>
-                      {canWrite ? (
+                      {canManage ? (
                         <td className="px-4 py-2.5">
                           <div className="flex justify-end">
                             <ReferentialToggle

@@ -7,10 +7,9 @@ import { EntryStatusBadge } from "@/components/accounting-badges";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
-import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { ACCOUNTING_LIST_LIMIT } from "@/modules/accounting/constants";
 import { listJournalEntries } from "@/modules/accounting/queries";
@@ -51,7 +50,8 @@ async function JournalEntriesContent({
     listJournalEntries(db, { tenantId: session.tenantId, status: statusFilter }),
     listMembershipsForUser(db, session.userId),
   ]);
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — saisir ou importer une écriture relève de l'écriture du module.
+  const canWrite = await canAccessModule(session, "accounting", "write");
   const deleted = typeof query.supprime === "string";
 
   return (

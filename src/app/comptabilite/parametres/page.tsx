@@ -7,8 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { AccountingSettingsForm } from "@/components/accounting-forms";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
-import { can } from "@/modules/identity/permissions";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { listAccounts, listJournals } from "@/modules/accounting/queries";
 import { getAccountingSettingsView } from "@/modules/accounting/settings";
@@ -38,7 +37,8 @@ async function AccountingSettingsContent({
     listMembershipsForUser(db, session.userId),
     searchParams,
   ]);
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — enregistrer le paramétrage comptable relève de la gestion du module.
+  const canManage = await canAccessModule(session, "accounting", "manage");
   const saved = typeof query.enregistre === "string";
 
   return (
@@ -123,7 +123,7 @@ async function AccountingSettingsContent({
           </dl>
         )}
 
-        {canWrite ? (
+        {canManage ? (
           <section className="mt-5 rounded-xl border border-line bg-panel p-5">
             <div className="flex items-center gap-2">
               <Settings2 className="size-4 text-brand" aria-hidden="true" />

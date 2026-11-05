@@ -99,17 +99,24 @@ export function ProposalWorkbench({
   runId,
   lines,
   canWrite,
+  canOrder,
+  canTender,
   today,
   defaultDeadline,
 }: {
   runId: string;
   lines: readonly SupplyRunLineDetail[];
   canWrite: boolean;
+  canOrder: boolean;
+  canTender: boolean;
   today: string;
   defaultDeadline: string;
 }) {
   const pendingIds = lines.filter((line) => line.decision === "pending").map((line) => line.id);
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set(pendingIds));
+  const canGenerate = canOrder || canTender;
+  // GEN-018 — la sélection alimente la génération ; la colonne d'action suit l'écriture ou la génération.
+  const showActions = canWrite || canGenerate;
   const [ordersState, ordersAction, ordersPending] = useActionState(
     generateOrdersAction,
     EMPTY_SUPPLY_FORM_STATE,
@@ -148,89 +155,93 @@ export function ProposalWorkbench({
 
   return (
     <div className="space-y-4">
-      {canWrite && pendingIds.length > 0 ? (
+      {canGenerate && pendingIds.length > 0 ? (
         <div className="grid gap-3 rounded-xl border border-line bg-panel px-4 py-4 md:grid-cols-2 md:px-5">
-          <form action={ordersAction} className="space-y-2">
-            <input type="hidden" name="runId" value={runId} />
-            {[...selected].map((id) => (
-              <input key={id} type="hidden" name="lineId" value={id} />
-            ))}
-            <p className="text-[11px] font-medium">
-              Commandes fournisseurs ({selectedCount} proposition{selectedCount > 1 ? "s" : ""})
-            </p>
-            <div className="space-y-1.5">
-              <label className="flex items-center gap-2 text-[10px]">
-                <input
-                  type="radio"
-                  name="grouping"
-                  value="supplier"
-                  defaultChecked
-                  className="size-3.5 accent-brand"
-                />
-                Un bon brouillon par fournisseur
-              </label>
-              <label className="flex items-center gap-2 text-[10px]">
-                <input
-                  type="radio"
-                  name="grouping"
-                  value="supplier_date"
-                  className="size-3.5 accent-brand"
-                />
-                Un bon par fournisseur et date de besoin
-              </label>
-            </div>
-            <button
-              type="submit"
-              disabled={ordersPending || selectedCount === 0}
-              aria-label="Générer les commandes des propositions sélectionnées"
-              title="Générer les commandes"
-              className={`${ICON_BUTTON} border-transparent bg-brand text-white hover:opacity-90`}
-            >
-              {ordersPending ? (
-                <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <ShoppingCart className="size-4" aria-hidden="true" />
-              )}
-            </button>
-            <FormErrors errors={ordersState.errors} />
-          </form>
+          {canOrder ? (
+            <form action={ordersAction} className="space-y-2">
+              <input type="hidden" name="runId" value={runId} />
+              {[...selected].map((id) => (
+                <input key={id} type="hidden" name="lineId" value={id} />
+              ))}
+              <p className="text-[11px] font-medium">
+                Commandes fournisseurs ({selectedCount} proposition{selectedCount > 1 ? "s" : ""})
+              </p>
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-2 text-[10px]">
+                  <input
+                    type="radio"
+                    name="grouping"
+                    value="supplier"
+                    defaultChecked
+                    className="size-3.5 accent-brand"
+                  />
+                  Un bon brouillon par fournisseur
+                </label>
+                <label className="flex items-center gap-2 text-[10px]">
+                  <input
+                    type="radio"
+                    name="grouping"
+                    value="supplier_date"
+                    className="size-3.5 accent-brand"
+                  />
+                  Un bon par fournisseur et date de besoin
+                </label>
+              </div>
+              <button
+                type="submit"
+                disabled={ordersPending || selectedCount === 0}
+                aria-label="Générer les commandes des propositions sélectionnées"
+                title="Générer les commandes"
+                className={`${ICON_BUTTON} border-transparent bg-brand text-white hover:opacity-90`}
+              >
+                {ordersPending ? (
+                  <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <ShoppingCart className="size-4" aria-hidden="true" />
+                )}
+              </button>
+              <FormErrors errors={ordersState.errors} />
+            </form>
+          ) : null}
 
-          <form action={tenderAction} className="space-y-2 md:border-l md:border-line md:pl-4">
-            <input type="hidden" name="runId" value={runId} />
-            {[...selected].map((id) => (
-              <input key={id} type="hidden" name="lineId" value={id} />
-            ))}
-            <p className="text-[11px] font-medium">Demande de cotation</p>
-            <label htmlFor="supply-deadline" className="block text-[10px]">
-              Échéance de cotation
-            </label>
-            <input
-              id="supply-deadline"
-              type="date"
-              name="deadline"
-              min={today}
-              defaultValue={defaultDeadline}
-              className={INPUT_CLASS}
-            />
-            <button
-              type="submit"
-              disabled={tenderPending || selectedCount === 0}
-              aria-label="Créer une demande de cotation depuis les propositions sélectionnées"
-              title="Créer une demande de cotation"
-              className={`${ICON_BUTTON} border-line bg-panel text-brand hover:border-brand/40`}
-            >
-              {tenderPending ? (
-                <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <FileSignature className="size-4" aria-hidden="true" />
-              )}
-            </button>
-            <p className="text-[10px] leading-4 text-muted">
-              Le brouillon invite chaque fournisseur retenu ; l&apos;envoi reste une action
-              distincte.
-            </p>
-            <FormErrors errors={tenderState.errors} />
-          </form>
+          {canTender ? (
+            <form action={tenderAction} className="space-y-2 md:border-l md:border-line md:pl-4">
+              <input type="hidden" name="runId" value={runId} />
+              {[...selected].map((id) => (
+                <input key={id} type="hidden" name="lineId" value={id} />
+              ))}
+              <p className="text-[11px] font-medium">Demande de cotation</p>
+              <label htmlFor="supply-deadline" className="block text-[10px]">
+                Échéance de cotation
+              </label>
+              <input
+                id="supply-deadline"
+                type="date"
+                name="deadline"
+                min={today}
+                defaultValue={defaultDeadline}
+                className={INPUT_CLASS}
+              />
+              <button
+                type="submit"
+                disabled={tenderPending || selectedCount === 0}
+                aria-label="Créer une demande de cotation depuis les propositions sélectionnées"
+                title="Créer une demande de cotation"
+                className={`${ICON_BUTTON} border-line bg-panel text-brand hover:border-brand/40`}
+              >
+                {tenderPending ? (
+                  <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <FileSignature className="size-4" aria-hidden="true" />
+                )}
+              </button>
+              <p className="text-[10px] leading-4 text-muted">
+                Le brouillon invite chaque fournisseur retenu ; l&apos;envoi reste une action
+                distincte.
+              </p>
+              <FormErrors errors={tenderState.errors} />
+            </form>
+          ) : null}
         </div>
       ) : null}
 
@@ -240,7 +251,7 @@ export function ProposalWorkbench({
             <caption className="sr-only">Propositions d&apos;achat du calcul</caption>
             <thead>
               <tr className="border-b border-line font-mono text-[10px] tracking-[0.12em] text-muted uppercase">
-                {canWrite ? (
+                {canGenerate ? (
                   <th scope="col" className={`${TH} w-8`}>
                     <input
                       type="checkbox"
@@ -291,7 +302,7 @@ export function ProposalWorkbench({
                 <th scope="col" className={TH}>
                   État
                 </th>
-                {canWrite ? (
+                {showActions ? (
                   <th scope="col" className={`${TH} text-right`}>
                     Action
                   </th>
@@ -301,7 +312,7 @@ export function ProposalWorkbench({
             <tbody>
               {lines.map((line) => (
                 <tr key={line.id} className="border-b border-line last:border-b-0">
-                  {canWrite ? (
+                  {canGenerate ? (
                     <td className="px-3 py-2.5">
                       {line.decision === "pending" ? (
                         <input
@@ -374,7 +385,7 @@ export function ProposalWorkbench({
                       </span>
                     ) : null}
                   </td>
-                  {canWrite ? (
+                  {showActions ? (
                     <td className="px-3 py-2.5">
                       <div className="flex justify-end gap-1.5">
                         {line.convertedDocumentId ? (
@@ -391,7 +402,7 @@ export function ProposalWorkbench({
                             <ArrowUpRight className="size-3.5" aria-hidden="true" />
                           </Link>
                         ) : null}
-                        {line.decision === "pending" ? (
+                        {canWrite && line.decision === "pending" ? (
                           <DismissLineForm
                             runId={runId}
                             lineId={line.id}

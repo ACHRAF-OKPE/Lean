@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { APUREMENT_DECLARATION_STATE_LABELS } from "@/modules/customs/apurement";
@@ -32,9 +32,10 @@ async function ApurementContent() {
   await connection();
   const session = await requireModule("customs", "read");
   const db = getDb();
-  const [rows, memberships] = await Promise.all([
+  const [rows, memberships, canWrite] = await Promise.all([
     listApurementOverviews(db, session.tenantId),
     listMembershipsForUser(db, session.userId),
+    canAccessModule(session, "customs", "write"),
   ]);
 
   const openCount = rows.filter((row) => row.progress.state === "open").length;
@@ -62,7 +63,7 @@ async function ApurementContent() {
           <span className="ml-auto rounded-full border border-line bg-panel px-2.5 py-1 font-mono text-[10px] text-muted">
             {rows.length} sommier{rows.length > 1 ? "s" : ""} IM9
           </span>
-          <CatalogActions kind="customs_apurements" />
+          <CatalogActions kind="customs_apurements" canDraft={canWrite} />
         </div>
         <p className="mt-3 max-w-2xl text-[11px] leading-5 text-muted">
           Les déclarations admises sous un régime à apurement progressif (IM9, zone franche) gardent

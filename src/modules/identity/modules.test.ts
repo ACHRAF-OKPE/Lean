@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  actionVisibility,
   atLeast,
   defaultLevel,
   effectiveLevel,
@@ -106,6 +107,22 @@ describe("PAY-002 — le module Paie rejoint le catalogue des droits", () => {
     expect(effectiveLevel("member", "payroll", "none")).toBe("none");
     expect(effectiveLevel("owner", "payroll", "none")).toBe("manage");
     expect(atLeast(defaultLevel("admin", "payroll"), "manage")).toBe(true);
+  });
+});
+
+describe("GEN-018 — un écran n'affiche que les actions que le niveau autorise", () => {
+  it("n'ouvre la création et la modification d'un brouillon qu'à partir de l'écriture", () => {
+    expect(actionVisibility("none").canDraft).toBe(false);
+    expect(actionVisibility("read").canDraft).toBe(false);
+    expect(actionVisibility("write").canDraft).toBe(true);
+    expect(actionVisibility("manage").canDraft).toBe(true);
+  });
+
+  it("réserve les transitions, la suppression et le paramétrage à la gestion", () => {
+    expect(actionVisibility("none").canManage).toBe(false);
+    expect(actionVisibility("read").canManage).toBe(false);
+    expect(actionVisibility("write").canManage).toBe(false);
+    expect(actionVisibility("manage").canManage).toBe(true);
   });
 });
 

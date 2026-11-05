@@ -12,10 +12,9 @@ import { TaskAssigneeForm, TaskStatusActions } from "@/components/task-controls"
 import { TaskPriorityBadge, TaskStatusBadge } from "@/components/task-badges";
 import { TaskForm } from "@/components/task-form";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { listMentionableMembers } from "@/modules/discussion/queries";
-import { can } from "@/modules/identity/permissions";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import {
   isTaskClosed,
@@ -73,7 +72,8 @@ async function TaskContent({
     notFound();
   }
 
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — créer, modifier, assigner ou changer le statut relève de l'écriture du module.
+  const canWrite = await canAccessModule(session, "tasks", "write");
   const closed = isTaskClosed(task.status);
   const now = new Date();
   const overdue = isTaskOverdue(task, todayIsoDate(now));

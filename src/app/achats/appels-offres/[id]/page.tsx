@@ -17,10 +17,10 @@ import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { TenderInvitationStatusBadge, TenderStatusBadge } from "@/components/tender-badges";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { getAccessLevels, requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { formatXof } from "@/lib/money";
-import { can } from "@/modules/identity/permissions";
+import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { offersByLine, type TenderOffer } from "@/modules/tenders/awards";
 import { getTender } from "@/modules/tenders/queries";
@@ -137,7 +137,11 @@ async function TenderDetailContent({
     notFound();
   }
   const banners = bannersFor(query);
-  const canWrite = can(session.role, "data.write");
+  // GEN-018 — modifier relève de l'écriture ; envoyer, annuler, attribuer et générer relèvent de la gestion.
+  const levels = await getAccessLevels(session);
+  const canWrite = atLeast(levels.tenders, "write");
+  const canManage = atLeast(levels.tenders, "manage");
+  const canManageOrders = atLeast(levels.purchases, "manage");
   const { tender, lines, invitations, awards, purchaseOrders } = detail;
 
   const offers: TenderOffer[] = invitations.flatMap((invitation) => {
@@ -171,7 +175,7 @@ async function TenderDetailContent({
   const lineNumberById = new Map(lines.map((line) => [line.id, line.lineNumber]));
   const unresolved = lines.filter((line) => !line.rejected && !awardsByLine.has(line.id)).length;
   const late = tender.status === "open" && tender.deadline < todayIsoDate();
-  const showAwardControls = canWrite && tender.status === "open";
+  const showAwardControls = canManage && tender.status === "open";
 
   return (
     <div className="min-h-dvh">
@@ -213,20 +217,22 @@ async function TenderDetailContent({
 
           <div className="flex items-center gap-2">
             {canWrite && tender.status === "draft" ? (
+              <Link
+                href={`/achats/appels-offres/${tender.id}/modifier`}
+                aria-label="Modifier le brouillon"
+                title="Modifier le brouillon"
+                className="grid size-9 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
+              >
+                <Pencil className="size-4" aria-hidden="true" />
+              </Link>
+            ) : null}
+            {canManage && tender.status === "draft" ? (
               <>
-                <Link
-                  href={`/achats/appels-offres/${tender.id}/modifier`}
-                  aria-label="Modifier le brouillon"
-                  title="Modifier le brouillon"
-                  className="grid size-9 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
-                >
-                  <Pencil className="size-4" aria-hidden="true" />
-                </Link>
                 <DeleteTenderButton tenderId={tender.id} />
                 <SendTenderButton tenderId={tender.id} />
               </>
             ) : null}
-            {canWrite &&
+            {canManageOrders &&
             tender.status === "awarded" &&
             !tender.ordersCreatedAt &&
             awards.length > 0 ? (
@@ -460,7 +466,7 @@ async function TenderDetailContent({
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-right">
-                          {canWrite && tender.status === "open" ? (
+                          {canManage && tender.status === "open" ? (
                             <div className="flex justify-end">
                               <ResendInvitationButton
                                 tenderId={tender.id}
@@ -731,7 +737,7 @@ async function TenderDetailContent({
           </p>
         ) : null}
 
-        {canWrite && tender.status === "open" ? (
+        {canManage && tender.status === "open" ? (
           <div className="mt-5">
             <CancelTenderForm tenderId={tender.id} />
           </div>

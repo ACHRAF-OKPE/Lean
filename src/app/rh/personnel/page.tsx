@@ -102,7 +102,7 @@ async function PersonnelContent({
               niveau écriture.
             </p>
           </div>
-          {canWrite ? <CatalogActions kind="hr_employees" /> : null}
+          {canWrite ? <CatalogActions kind="hr_employees" canDraft={canWrite} /> : null}
         </div>
 
         {removed ? (
