@@ -50,8 +50,8 @@ export const MODULE_SETTINGS: Record<ModuleKey, ModuleSettingsEntry> = {
     summary: "Délai de livraison par défaut, proposé à la saisie d'une commande client.",
   },
   invoices: {
-    href: null,
-    summary: "Échéances de règlement, mentions et règles de facturation.",
+    href: "/factures/parametres",
+    summary: "Délai d'échéance par défaut pour les nouvelles factures.",
   },
   stock: {
     href: "/stock/parametres",

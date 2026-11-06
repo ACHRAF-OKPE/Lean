@@ -9,9 +9,9 @@ le Lot 11C les congés (types paramétrables, demande en demi-journées, solde e
 Lot 12 est livré : ergonomie et vues du registre des tiers. Les droits par module, l'équipe et
 les responsables sont en production depuis le Lot 10. La paie (Lot 13) et son export sont livrés.
 Le Lot 14 est en cours : 14A masque les actions hors niveau de droit, 14B ouvre l'annuaire du
-paramétrage des modules à la manière d'Odoo, 14C puis 14D livrent les deux premiers écrans de
-module — achats (délai de réception par défaut) et ventes (délai de livraison par défaut) —,
-chaque module gagnant ensuite son propre écran.
+paramétrage des modules à la manière d'Odoo, puis 14C à 14E livrent le paramétrage des achats
+(délai de réception), des ventes (délai de livraison) et des factures (délai d'échéance par
+défaut). Chaque module gagnera son propre écran.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.

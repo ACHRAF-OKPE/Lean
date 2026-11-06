@@ -9,6 +9,7 @@ import { createInvoice, validateInvoice } from "@/modules/sales/invoices";
 import type { SalesAction } from "@/modules/sales/lifecycle";
 import { createInvoicePayment } from "@/modules/sales/payments";
 import { createSalesOrder, transitionSalesOrder } from "@/modules/sales/queries";
+import { saveInvoiceSettings } from "@/modules/sales/invoice-settings";
 import { saveSalesSettings } from "@/modules/sales/settings";
 import { StockError } from "@/modules/stock/errors";
 import type { SalesFormState } from "./form-state";
@@ -275,4 +276,23 @@ export async function saveSalesSettingsAction(
   }
 
   redirect("/ventes/parametres?enregistre=1");
+}
+
+export async function saveInvoiceSettingsAction(
+  _state: SalesFormState,
+  formData: FormData,
+): Promise<SalesFormState> {
+  const session = await requireModule("invoices", "manage");
+
+  try {
+    await saveInvoiceSettings(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      raw: { dueDateOffsetDays: text(formData, "dueDateOffsetDays") },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect("/factures/parametres?enregistre=1");
 }

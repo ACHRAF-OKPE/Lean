@@ -24,6 +24,7 @@ import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { canApplySalesAction, salesStatusLabel } from "@/modules/sales/lifecycle";
 import { getSalesOrder } from "@/modules/sales/queries";
+import { defaultInvoiceDueDate, loadInvoiceSettings } from "@/modules/sales/invoice-settings";
 import { listInternalLocations } from "@/modules/stock/locations";
 import { compareQuantity, formatQuantity } from "@/modules/stock/quantities";
 import { CancelDeliveryButton } from "./cancel-delivery-button";
@@ -97,10 +98,11 @@ async function SalesOrderContent({
   }
 
   const db = getDb();
-  const [detail, memberships, query] = await Promise.all([
+  const [detail, memberships, query, invoiceSettings] = await Promise.all([
     getSalesOrder(db, { tenantId: session.tenantId, orderId }),
     listMembershipsForUser(db, session.userId),
     searchParams,
+    loadInvoiceSettings(db, session.tenantId),
   ]);
   if (!detail) {
     notFound();
@@ -125,9 +127,7 @@ async function SalesOrderContent({
   const canDeliverNow = canWriteStock && order.status === "confirmed" && hasDeliverableLines;
   const canInvoiceNow = canWriteInvoices && order.status === "confirmed" && hasBillableLines;
 
-  const dueDate = new Date();
-  dueDate.setUTCDate(dueDate.getUTCDate() + 30);
-  const defaultDueDate = todayIsoDate(dueDate);
+  const defaultDueDate = defaultInvoiceDueDate(todayIsoDate(), invoiceSettings);
 
   return (
     <div className="min-h-dvh">
