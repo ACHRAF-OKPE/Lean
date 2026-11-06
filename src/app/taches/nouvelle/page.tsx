@@ -8,9 +8,11 @@ import { LoadingShell } from "@/components/loading-shell";
 import { TaskForm, type LinkedDocument } from "@/components/task-form";
 import { getDb } from "@/db/client";
 import { requireModule } from "@/lib/auth/session";
+import { todayIsoDate } from "@/lib/dates";
 import { listMentionableMembers } from "@/modules/discussion/queries";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { isTaskRelatedEntityType, TASK_RELATED_LABELS } from "@/modules/tasks/constants";
+import { defaultTaskDueDate, loadTaskSettings } from "@/modules/tasks/settings";
 
 export const metadata: Metadata = {
   title: "Nouvelle tâche",
@@ -33,9 +35,10 @@ async function NewTaskContent({
   const session = await requireModule("tasks", "write");
   const query = await searchParams;
   const db = getDb();
-  const [memberships, members] = await Promise.all([
+  const [memberships, members, taskSettings] = await Promise.all([
     listMembershipsForUser(db, session.userId),
     listMentionableMembers(db, session.tenantId),
+    loadTaskSettings(db, session.tenantId),
   ]);
 
   const documentType = typeof query.document_type === "string" ? query.document_type : "";
@@ -50,6 +53,11 @@ async function NewTaskContent({
       label: documentLabel || TASK_RELATED_LABELS[documentType],
     };
   }
+  const defaultAssigneeUserId = members.some(
+    (member) => member.userId === taskSettings?.defaultAssigneeUserId,
+  )
+    ? (taskSettings?.defaultAssigneeUserId ?? null)
+    : null;
 
   return (
     <div className="min-h-dvh">
@@ -77,7 +85,16 @@ async function NewTaskContent({
         </p>
 
         <section className="mt-5 rounded-xl border border-line bg-panel p-5">
-          <TaskForm mode="create" members={members} linkedDocument={linkedDocument} />
+          <TaskForm
+            mode="create"
+            members={members}
+            linkedDocument={linkedDocument}
+            defaults={{
+              priority: taskSettings?.defaultPriority ?? "normal",
+              dueDate: defaultTaskDueDate(todayIsoDate(), taskSettings),
+              assigneeUserId: defaultAssigneeUserId,
+            }}
+          />
         </section>
       </main>
     </div>

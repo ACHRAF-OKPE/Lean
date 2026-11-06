@@ -225,6 +225,13 @@
       "when": 1793950660284,
       "tag": "0031_crazy_gideon",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793968787857,
+      "tag": "0032_furry_warstar",
+      "breakpoints": true
     }
   ]
 }

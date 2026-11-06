@@ -35,12 +35,18 @@ export function TaskForm({
   members,
   taskId,
   task,
+  defaults,
   linkedDocument,
 }: {
   mode: "create" | "edit";
   members: readonly MentionableMember[];
   taskId?: string;
   task?: TaskFormValues;
+  defaults?: {
+    readonly priority: TaskPriority;
+    readonly dueDate: string | null;
+    readonly assigneeUserId: string | null;
+  };
   linkedDocument?: LinkedDocument;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -77,7 +83,7 @@ export function TaskForm({
             <select
               id="priority"
               name="priority"
-              defaultValue={task?.priority ?? "normal"}
+              defaultValue={task ? task.priority : (defaults?.priority ?? "normal")}
               className={INPUT_CLASS}
             >
               {TASK_PRIORITIES.map((priority) => (
@@ -93,7 +99,7 @@ export function TaskForm({
               id="dueDate"
               name="dueDate"
               type="date"
-              defaultValue={task?.dueDate ?? ""}
+              defaultValue={task ? (task.dueDate ?? "") : (defaults?.dueDate ?? "")}
               className={INPUT_CLASS}
             />
           </Field>
@@ -107,7 +113,7 @@ export function TaskForm({
               <select
                 id="assigneeUserId"
                 name="assigneeUserId"
-                defaultValue=""
+                defaultValue={defaults?.assigneeUserId ?? ""}
                 className={INPUT_CLASS}
               >
                 <option value="">Non assignée</option>

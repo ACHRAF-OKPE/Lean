@@ -58,8 +58,8 @@ export const MODULE_SETTINGS: Record<ModuleKey, ModuleSettingsEntry> = {
     summary: "Magasin par défaut, seuil de réapprovisionnement et motif d'ajustement.",
   },
   tasks: {
-    href: null,
-    summary: "Priorités, échéances et assignation proposées par défaut.",
+    href: "/taches/parametres",
+    summary: "Priorité, échéance et assigné proposés par défaut.",
   },
   accounting: {
     href: "/comptabilite/parametres",

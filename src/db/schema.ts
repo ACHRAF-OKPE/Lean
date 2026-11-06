@@ -2243,6 +2243,9 @@ export const taskSettings = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
     defaultPriority: text("default_priority").$type<TaskPriority>().notNull().default("normal"),
     defaultDueInDays: integer("default_due_in_days").notNull().default(0),
+    defaultAssigneeUserId: uuid("default_assignee_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),

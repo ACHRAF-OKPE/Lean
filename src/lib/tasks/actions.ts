@@ -18,6 +18,7 @@ import {
   getTask,
   updateTask,
 } from "@/modules/tasks/queries";
+import { saveTaskSettings } from "@/modules/tasks/settings";
 import type { TasksFormState } from "./form-state";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -185,4 +186,27 @@ export async function assignTaskAction(
   }
 
   redirect(`/taches/${taskId}?maj=1`);
+}
+
+export async function saveTaskSettingsAction(
+  _state: TasksFormState,
+  formData: FormData,
+): Promise<TasksFormState> {
+  const session = await requireModule("tasks", "manage");
+
+  try {
+    await saveTaskSettings(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      raw: {
+        defaultPriority: text(formData, "defaultPriority"),
+        defaultDueInDays: text(formData, "defaultDueInDays"),
+        defaultAssigneeUserId: text(formData, "defaultAssigneeUserId"),
+      },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect("/taches/parametres?enregistre=1");
 }

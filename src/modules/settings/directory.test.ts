@@ -25,6 +25,7 @@ describe("ORG-010 — chaque module porte son propre écran de paramétrage", ()
     }
     expect(new Set(hrefs).size).toBe(hrefs.length);
     expect(settingsHref("invoices")).toBe("/factures/parametres");
+    expect(settingsHref("tasks")).toBe("/taches/parametres");
   });
 
   it("aligne hasSettings sur la présence d'une adresse", () => {

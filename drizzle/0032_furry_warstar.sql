@@ -1,0 +1,2 @@
+ALTER TABLE "task_settings" ADD COLUMN "default_assignee_user_id" uuid;--> statement-breakpoint
+ALTER TABLE "task_settings" ADD CONSTRAINT "task_settings_default_assignee_user_id_users_id_fk" FOREIGN KEY ("default_assignee_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;

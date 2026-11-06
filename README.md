@@ -9,9 +9,10 @@ le Lot 11C les congés (types paramétrables, demande en demi-journées, solde e
 Lot 12 est livré : ergonomie et vues du registre des tiers. Les droits par module, l'équipe et
 les responsables sont en production depuis le Lot 10. La paie (Lot 13) et son export sont livrés.
 Le Lot 14 est en cours : 14A masque les actions hors niveau de droit, 14B ouvre l'annuaire du
-paramétrage des modules à la manière d'Odoo, puis 14C à 14E livrent le paramétrage des achats
-(délai de réception), des ventes (délai de livraison) et des factures (délai d'échéance par
-défaut). Chaque module gagnera son propre écran.
+paramétrage des modules à la manière d'Odoo, puis 14C à 14F livrent le paramétrage des achats
+(délai de réception), des ventes (délai de livraison), des factures (délai d'échéance par
+défaut) et des tâches (priorité, échéance et assigné par défaut). Chaque module gagnera son propre
+écran.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -733,7 +734,8 @@ les propositions d'achat, `0018` pour les sources d'écriture de clôture et d'�
 pour les droits par module et les responsables, `0020` pour l'organisation, le personnel et les
 contrats de travail, `0021` pour les calendriers, jours fériés et pointages, `0022` pour les
 catégories de tiers et les coordonnées, `0023` pour les types de congé et les demandes, `0024`
-pour les catégories d'articles. Les
+pour les catégories d'articles, `0031` pour les tables de paramétrage des modules et `0032`
+pour l'assigné par défaut des tâches. Les
 contraintes d'unicité, de rôle, de format SH, de quantités, de
 cohérence article/nomenclature, de bloc bancaire, d'idempotence des évènements, d'unicité des
 écritures de clôture, d'appartenance à l'espace (clé composite `(tenant_id, user_id)` vers
