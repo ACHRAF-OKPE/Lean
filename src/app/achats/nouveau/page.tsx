@@ -7,8 +7,10 @@ import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
 import { requireModule } from "@/lib/auth/session";
+import { isoDatePlusDays, todayIsoDate } from "@/lib/dates";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getArticleOptions, getSupplierOptions } from "@/modules/purchases/queries";
+import { getPurchaseSettingsView } from "@/modules/purchases/settings";
 import { PurchaseOrderForm } from "./order-form";
 
 export const metadata: Metadata = {
@@ -27,12 +29,16 @@ async function NewPurchaseContent() {
   await connection();
   const session = await requireModule("purchases", "write");
   const db = getDb();
-  const [suppliers, articles, memberships] = await Promise.all([
+  const [suppliers, articles, settings, memberships] = await Promise.all([
     getSupplierOptions(db, session.tenantId),
     getArticleOptions(db, session.tenantId),
+    getPurchaseSettingsView(db, session.tenantId),
     listMembershipsForUser(db, session.userId),
   ]);
   const blocked = suppliers.length === 0 || articles.length === 0;
+  const delayDays = settings?.defaultReceiptDelayDays ?? 0;
+  const defaultExpectedReceiptDate =
+    delayDays > 0 ? isoDatePlusDays(todayIsoDate(), delayDays) : null;
 
   return (
     <div className="min-h-dvh">
@@ -81,7 +87,11 @@ async function NewPurchaseContent() {
             </div>
           </div>
         ) : (
-          <PurchaseOrderForm suppliers={suppliers} articles={articles} />
+          <PurchaseOrderForm
+            suppliers={suppliers}
+            articles={articles}
+            defaultExpectedReceiptDate={defaultExpectedReceiptDate}
+          />
         )}
       </main>
     </div>

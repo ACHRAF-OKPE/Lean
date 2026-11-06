@@ -6,6 +6,7 @@ import { requireModule } from "@/lib/auth/session";
 import { PurchaseError } from "@/modules/purchases/errors";
 import type { PurchaseAction } from "@/modules/purchases/lifecycle";
 import { createPurchaseOrder, transitionPurchaseOrder } from "@/modules/purchases/queries";
+import { savePurchaseSettings } from "@/modules/purchases/settings";
 import { StockError } from "@/modules/stock/errors";
 import { cancelReception, createReception } from "@/modules/stock/receptions";
 import type { PurchaseFormState } from "./form-state";
@@ -161,4 +162,23 @@ export async function cancelReceptionAction(
   }
 
   redirect(`/achats/${orderId}?annulee=${encodeURIComponent(number)}`);
+}
+
+export async function savePurchaseSettingsAction(
+  _state: PurchaseFormState,
+  formData: FormData,
+): Promise<PurchaseFormState> {
+  const session = await requireModule("purchases", "manage");
+
+  try {
+    await savePurchaseSettings(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      raw: { defaultReceiptDelayDays: text(formData, "defaultReceiptDelayDays") },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect("/achats/parametres?enregistre=1");
 }

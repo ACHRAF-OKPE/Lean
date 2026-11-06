@@ -98,7 +98,7 @@ export const LOTS: readonly Lot[] = [
     id: 14,
     title: "Paramétrage systématique",
     scope:
-      "14A et 14B livrés : masquage des actions hors niveau de droit, puis annuaire du paramétrage des modules à la manière d'Odoo (/parametres) ; chaque module y gagne son bouton et sa page, livrées module par module en suite",
+      "14A, 14B et 14C livrés : masquage des actions hors niveau de droit, annuaire du paramétrage des modules à la manière d'Odoo (/parametres), puis premier écran de module livré, le paramétrage des achats ; chaque module y gagne son bouton et sa page, livrées module par module en suite",
     status: "next",
   },
   {

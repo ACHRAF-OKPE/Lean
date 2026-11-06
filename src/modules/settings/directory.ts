@@ -30,7 +30,7 @@ export const MODULE_SETTINGS: Record<ModuleKey, ModuleSettingsEntry> = {
     summary: "Bureaux douaniers, régimes ASYCUDA et taxes du tarif extérieur.",
   },
   purchases: {
-    href: null,
+    href: "/achats/parametres",
     summary: "Conditions d'achat, réception et valeurs proposées par défaut.",
   },
   tenders: {

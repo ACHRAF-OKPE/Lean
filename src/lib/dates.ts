@@ -17,3 +17,11 @@ export function isoDateLabel(isoDate: string): string {
   const [year, month, day] = isoDate.split("-");
   return `${day}/${month}/${year}`;
 }
+
+/** Décale une date ISO d'un nombre de jours, en temps universel, sans dépendre du fuseau local. */
+export function isoDatePlusDays(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.split("-");
+  const base = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  base.setUTCDate(base.getUTCDate() + days);
+  return base.toISOString().slice(0, 10);
+}

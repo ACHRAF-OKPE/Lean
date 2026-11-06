@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ArrowUpRight, FileSignature, ShoppingCart } from "lucide-react";
+import { ArrowUpRight, FileSignature, Settings2, ShoppingCart } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
@@ -65,6 +65,14 @@ async function PurchasesContent() {
               className="grid size-9 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
             >
               <FileSignature className="size-4" aria-hidden="true" />
+            </Link>
+            <Link
+              href="/achats/parametres"
+              aria-label="Paramètres des achats"
+              title="Paramètres des achats"
+              className="grid size-9 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
+            >
+              <Settings2 className="size-4" aria-hidden="true" />
             </Link>
             <CatalogActions kind="purchase_lines" canDraft={canWrite} />
           </div>

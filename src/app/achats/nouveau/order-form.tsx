@@ -38,9 +38,11 @@ function lineTotal(line: LineDraft): number | null {
 export function PurchaseOrderForm({
   suppliers,
   articles,
+  defaultExpectedReceiptDate = null,
 }: {
   suppliers: readonly SupplierOption[];
   articles: readonly ArticleOption[];
+  defaultExpectedReceiptDate?: string | null;
 }) {
   const [state, formAction, pending] = useActionState(
     createPurchaseOrderAction,
@@ -116,6 +118,7 @@ export function PurchaseOrderForm({
                 id="expectedReceiptDate"
                 name="expectedReceiptDate"
                 type="date"
+                defaultValue={defaultExpectedReceiptDate ?? undefined}
                 className={INPUT_CLASS}
               />
             </Field>
