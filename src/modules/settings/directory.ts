@@ -34,8 +34,8 @@ export const MODULE_SETTINGS: Record<ModuleKey, ModuleSettingsEntry> = {
     summary: "Conditions d'achat, réception et valeurs proposées par défaut.",
   },
   tenders: {
-    href: null,
-    summary: "Validité des appels d'offres et règles de sélection des cotations.",
+    href: "/achats/appels-offres/parametres",
+    summary: "Délai de réponse par défaut des demandes de cotation.",
   },
   supply: {
     href: "/achats/approvisionnement",

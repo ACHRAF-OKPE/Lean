@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ArrowUpRight, FileSignature, Plus, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, FileSignature, Plus, Settings2, ShieldCheck } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { TenderStatusBadge } from "@/components/tender-badges";
 import { getDb } from "@/db/client";
-import { requireModule } from "@/lib/auth/session";
+import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { listTenders } from "@/modules/tenders/queries";
@@ -31,6 +31,7 @@ async function TendersContent({
 }: Pick<PageProps<"/achats/appels-offres">, "searchParams">) {
   await connection();
   const session = await requireModule("tenders", "read");
+  const canManage = await canAccessModule(session, "tenders", "manage");
   const query = await searchParams;
   const db = getDb();
   const [tenders, memberships] = await Promise.all([
@@ -58,6 +59,16 @@ async function TendersContent({
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {canManage ? (
+              <Link
+                href="/achats/appels-offres/parametres"
+                aria-label="Paramétrer les appels d'offres"
+                title="Paramètres des appels d'offres"
+                className="grid size-9 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
+              >
+                <Settings2 className="size-4" aria-hidden="true" />
+              </Link>
+            ) : null}
             <span className="rounded-full border border-line bg-panel px-2.5 py-1 font-mono text-[10px] text-muted">
               {tenders.length} demande{tenders.length > 1 ? "s" : ""}
             </span>

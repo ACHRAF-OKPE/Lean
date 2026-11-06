@@ -39,12 +39,14 @@ export function TenderForm({
   mode,
   tenderId,
   initial,
+  defaultDeadline,
   suppliers,
   articles,
 }: {
   mode: "create" | "edit";
   tenderId?: string;
   initial?: TenderFormInitial;
+  defaultDeadline?: string | null;
   suppliers: readonly TenderSupplierOption[];
   articles: readonly ArticleOption[];
 }) {
@@ -137,7 +139,7 @@ export function TenderForm({
                 name="deadline"
                 type="date"
                 required
-                defaultValue={initial?.deadline ?? ""}
+                defaultValue={initial?.deadline ?? defaultDeadline ?? ""}
                 className={INPUT_CLASS}
               />
             </Field>

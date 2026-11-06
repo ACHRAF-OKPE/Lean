@@ -4,10 +4,12 @@ import { connection } from "next/server";
 import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
+import { todayIsoDate } from "@/lib/dates";
 import { requireModule } from "@/lib/auth/session";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getArticleOptions } from "@/modules/purchases/queries";
 import { getTenderSupplierOptions } from "@/modules/tenders/queries";
+import { defaultTenderDeadlineDate, loadTenderSettings } from "@/modules/tenders/settings";
 import { TenderForm } from "../tender-form";
 
 export const metadata: Metadata = {
@@ -26,11 +28,13 @@ async function NewTenderContent() {
   await connection();
   const session = await requireModule("tenders", "write");
   const db = getDb();
-  const [suppliers, articles, memberships] = await Promise.all([
+  const [suppliers, articles, memberships, settings] = await Promise.all([
     getTenderSupplierOptions(db, session.tenantId),
     getArticleOptions(db, session.tenantId),
     listMembershipsForUser(db, session.userId),
+    loadTenderSettings(db, session.tenantId),
   ]);
+  const defaultDeadline = defaultTenderDeadlineDate(todayIsoDate(), settings);
 
   return (
     <div className="min-h-dvh">
@@ -44,7 +48,12 @@ async function NewTenderContent() {
           Le brouillon reste modifiable et supprimable. À l&apos;envoi, un numéro DAO est attribué,
           les lignes sont figées et chaque fournisseur reçoit son lien personnel.
         </p>
-        <TenderForm mode="create" suppliers={suppliers} articles={articles} />
+        <TenderForm
+          mode="create"
+          suppliers={suppliers}
+          articles={articles}
+          defaultDeadline={defaultDeadline}
+        />
       </main>
     </div>
   );

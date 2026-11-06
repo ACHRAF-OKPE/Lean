@@ -9,10 +9,10 @@ le Lot 11C les congés (types paramétrables, demande en demi-journées, solde e
 Lot 12 est livré : ergonomie et vues du registre des tiers. Les droits par module, l'équipe et
 les responsables sont en production depuis le Lot 10. La paie (Lot 13) et son export sont livrés.
 Le Lot 14 est en cours : 14A masque les actions hors niveau de droit, 14B ouvre l'annuaire du
-paramétrage des modules à la manière d'Odoo, puis 14C à 14F livrent le paramétrage des achats
+paramétrage des modules à la manière d'Odoo, puis 14C à 14G livrent le paramétrage des achats
 (délai de réception), des ventes (délai de livraison), des factures (délai d'échéance par
-défaut) et des tâches (priorité, échéance et assigné par défaut). Chaque module gagnera son propre
-écran.
+défaut), des tâches (priorité, échéance et assigné par défaut) et des appels d'offres (délai de
+réponse par défaut). Chaque module garde son écran dédié.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -513,6 +513,13 @@ absente. La consultation exige la lecture du module, l'enregistrement sa gestion
 - **Ventes** — `/ventes/parametres` porte un délai de livraison par défaut, entier de 0 à 365
   jours (`SAL-009`). Il est proposé comme date de livraison prévue à la saisie d'une commande
   client ; zéro ne propose aucune date.
+- **Appels d'offres** — `/achats/appels-offres/parametres` porte un délai de réponse par défaut,
+  entier de 1 à 365 jours (`SCM-013`). Il préremplit l'échéance des nouvelles demandes ; sans
+  réglage, aucune date n'est proposée.
+- **Factures** — `/factures/parametres` porte le délai d'échéance proposé aux nouvelles factures
+  (`SAL-010`). Tant qu'aucun réglage n'est enregistré, les 30 jours actuels restent appliqués.
+- **Tâches** — `/taches/parametres` porte la priorité, l'échéance et l'assigné proposés aux
+  nouvelles tâches (`TSK-007`).
 
 Chaque enregistrement est unique par espace, tracé dans l'audit avec l'indication de création, et
 ne réécrit jamais un document déjà émis.

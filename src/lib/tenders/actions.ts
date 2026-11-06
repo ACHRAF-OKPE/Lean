@@ -18,6 +18,7 @@ import {
   sendTender,
   updateTenderDraft,
 } from "@/modules/tenders/queries";
+import { saveTenderSettings } from "@/modules/tenders/settings";
 import type { DraftTenderInput } from "@/modules/tenders/rules";
 import type { TenderFormState } from "./form-state";
 
@@ -89,6 +90,23 @@ export async function createTenderAction(
     return failure(error);
   }
   redirect(`/achats/appels-offres/${createdId}?cree=1`);
+}
+
+export async function saveTenderSettingsAction(
+  _state: TenderFormState,
+  formData: FormData,
+): Promise<TenderFormState> {
+  const session = await requireModule("tenders", "manage");
+  try {
+    await saveTenderSettings(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      raw: { defaultDeadlineDays: text(formData, "defaultDeadlineDays") },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  redirect("/achats/appels-offres/parametres?enregistre=1");
 }
 
 export async function updateTenderAction(

@@ -44,6 +44,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "catalog.partner.contact.update": "Mise à jour d'un contact tiers",
   "task.create": "Création d'une tâche",
   "task.settings.update": "Mise à jour du paramétrage Tâches",
+  "tender.settings.update": "Mise à jour du paramétrage Appels d'offres",
   "task.update": "Mise à jour d'une tâche",
   "task.status": "Changement de statut d'une tâche",
   "task.assign": "Assignation d'une tâche",
