@@ -9,8 +9,9 @@ le Lot 11C les congés (types paramétrables, demande en demi-journées, solde e
 Lot 12 est livré : ergonomie et vues du registre des tiers. Les droits par module, l'équipe et
 les responsables sont en production depuis le Lot 10. La paie (Lot 13) et son export sont livrés.
 Le Lot 14 est en cours : 14A masque les actions hors niveau de droit, 14B ouvre l'annuaire du
-paramétrage des modules à la manière d'Odoo, 14C livre le premier écran de module, le paramétrage
-des achats (délai de réception par défaut), chaque module gagnant ensuite son propre écran.
+paramétrage des modules à la manière d'Odoo, 14C puis 14D livrent les deux premiers écrans de
+module — achats (délai de réception par défaut) et ventes (délai de livraison par défaut) —,
+chaque module gagnant ensuite son propre écran.
 
 Production : <https://lean-lilac.vercel.app> — projet Vercel `lean` lié au dépôt, base Neon
 dédiée `lean`. Aucun autre service n'est nécessaire.
@@ -496,6 +497,24 @@ clôture annuelle :
   ou sans exercice ouvert commençant le lendemain, la clôture est refusée et aucune écriture
   n'est produite. Chaque écriture porte sa source (`fiscal_year_close`, `fiscal_year_open`),
   n'est produite qu'une fois, et les deux sont auditées.
+
+## Paramétrage des modules
+
+Le Lot 14 ouvre un écran de paramétrage par module, à la manière d'Odoo. Le poste de pilotage
+`/parametres` en tient l'annuaire : chaque module lisible au niveau effectif y figure avec son
+bouton, et un module dont l'écran reste à livrer est annoncé comme à venir, jamais lié à une page
+absente. La consultation exige la lecture du module, l'enregistrement sa gestion (`GEN-012`,
+`GEN-018`), et l'écran lui-même propose son bouton depuis sa page de liste.
+
+- **Achats** — `/achats/parametres` porte un délai de réception par défaut, entier de 0 à 365
+  jours (`PUR-007`). Il est proposé comme date de réception prévue à la saisie d'une commande ;
+  zéro ne propose aucune date.
+- **Ventes** — `/ventes/parametres` porte un délai de livraison par défaut, entier de 0 à 365
+  jours (`SAL-009`). Il est proposé comme date de livraison prévue à la saisie d'une commande
+  client ; zéro ne propose aucune date.
+
+Chaque enregistrement est unique par espace, tracé dans l'audit avec l'indication de création, et
+ne réécrit jamais un document déjà émis.
 
 ## Équipe et droits par module
 

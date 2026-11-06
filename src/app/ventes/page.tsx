@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ArrowUpRight, ShoppingBag } from "lucide-react";
+import { ArrowUpRight, Settings2, ShoppingBag } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
@@ -62,6 +62,14 @@ async function SalesContent() {
             <span className="rounded-full border border-line bg-panel px-2.5 py-1 font-mono text-[10px] text-muted">
               {orders.length} commande{orders.length > 1 ? "s" : ""}
             </span>
+            <Link
+              href="/ventes/parametres"
+              aria-label="Paramètres des ventes"
+              title="Paramètres des ventes"
+              className="grid size-9 place-items-center rounded-md border border-line bg-panel text-muted transition-colors hover:border-brand/30 hover:text-brand"
+            >
+              <Settings2 className="size-4" aria-hidden="true" />
+            </Link>
             <CatalogActions kind="sales_lines" canDraft={canWrite} />
           </div>
         </div>

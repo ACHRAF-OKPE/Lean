@@ -35,6 +35,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "purchase.reception.create": "Réception de commande",
   "purchase.reception.cancel": "Annulation de réception",
   "purchase.settings.update": "Mise à jour du paramétrage Achats",
+  "sales.settings.update": "Mise à jour du paramétrage Ventes",
   "settings.company.update": "Mise à jour de la fiche entreprise",
   "settings.logo.update": "Mise à jour du logo",
   "settings.logo.delete": "Retrait du logo",

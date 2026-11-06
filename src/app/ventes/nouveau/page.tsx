@@ -7,8 +7,10 @@ import { AppHeader } from "@/components/app-header";
 import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
 import { requireModule } from "@/lib/auth/session";
+import { isoDatePlusDays, todayIsoDate } from "@/lib/dates";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { getCustomerOptions, getSalesArticleOptions } from "@/modules/sales/queries";
+import { getSalesSettingsView } from "@/modules/sales/settings";
 import { SalesOrderForm } from "./order-form";
 
 export const metadata: Metadata = {
@@ -27,12 +29,16 @@ async function NewSalesContent() {
   await connection();
   const session = await requireModule("sales", "write");
   const db = getDb();
-  const [customers, articles, memberships] = await Promise.all([
+  const [customers, articles, settings, memberships] = await Promise.all([
     getCustomerOptions(db, session.tenantId),
     getSalesArticleOptions(db, session.tenantId),
+    getSalesSettingsView(db, session.tenantId),
     listMembershipsForUser(db, session.userId),
   ]);
   const blocked = customers.length === 0 || articles.length === 0;
+  const delayDays = settings?.defaultDeliveryDelayDays ?? 0;
+  const defaultExpectedDeliveryDate =
+    delayDays > 0 ? isoDatePlusDays(todayIsoDate(), delayDays) : null;
 
   return (
     <div className="min-h-dvh">
@@ -81,7 +87,11 @@ async function NewSalesContent() {
             </div>
           </div>
         ) : (
-          <SalesOrderForm customers={customers} articles={articles} />
+          <SalesOrderForm
+            customers={customers}
+            articles={articles}
+            defaultExpectedDeliveryDate={defaultExpectedDeliveryDate}
+          />
         )}
       </main>
     </div>

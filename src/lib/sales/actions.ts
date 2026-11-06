@@ -9,6 +9,7 @@ import { createInvoice, validateInvoice } from "@/modules/sales/invoices";
 import type { SalesAction } from "@/modules/sales/lifecycle";
 import { createInvoicePayment } from "@/modules/sales/payments";
 import { createSalesOrder, transitionSalesOrder } from "@/modules/sales/queries";
+import { saveSalesSettings } from "@/modules/sales/settings";
 import { StockError } from "@/modules/stock/errors";
 import type { SalesFormState } from "./form-state";
 
@@ -255,4 +256,23 @@ export async function createPaymentAction(
   }
 
   redirect(`/factures/${invoiceId}?regle=1`);
+}
+
+export async function saveSalesSettingsAction(
+  _state: SalesFormState,
+  formData: FormData,
+): Promise<SalesFormState> {
+  const session = await requireModule("sales", "manage");
+
+  try {
+    await saveSalesSettings(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      raw: { defaultDeliveryDelayDays: text(formData, "defaultDeliveryDelayDays") },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect("/ventes/parametres?enregistre=1");
 }

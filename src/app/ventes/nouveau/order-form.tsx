@@ -39,9 +39,11 @@ function lineTotal(line: LineDraft): number | null {
 export function SalesOrderForm({
   customers,
   articles,
+  defaultExpectedDeliveryDate,
 }: {
   customers: readonly CustomerOption[];
   articles: readonly SalesArticleOption[];
+  defaultExpectedDeliveryDate?: string | null;
 }) {
   const [state, formAction, pending] = useActionState(
     createSalesOrderAction,
@@ -107,12 +109,13 @@ export function SalesOrderForm({
             <Field
               label="Livraison prévue"
               htmlFor="expectedDeliveryDate"
-              hint="Facultative, au format AAAA-MM-JJ."
+              hint="Facultative, proposée depuis le paramétrage des ventes."
             >
               <input
                 id="expectedDeliveryDate"
                 name="expectedDeliveryDate"
                 type="date"
+                defaultValue={defaultExpectedDeliveryDate ?? ""}
                 className={INPUT_CLASS}
               />
             </Field>

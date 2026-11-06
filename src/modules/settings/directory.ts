@@ -46,8 +46,8 @@ export const MODULE_SETTINGS: Record<ModuleKey, ModuleSettingsEntry> = {
     summary: "Compte d'envoi e-mail, modèles de demande et de confirmation, journal des envois.",
   },
   sales: {
-    href: null,
-    summary: "Conditions de vente, livraison et valeurs proposées par défaut.",
+    href: "/ventes/parametres",
+    summary: "Délai de livraison par défaut, proposé à la saisie d'une commande client.",
   },
   invoices: {
     href: null,
