@@ -5,6 +5,7 @@ import { isoDatePlusDays } from "@/lib/dates";
 import { TenderError } from "./errors";
 
 export const DEFAULT_TENDER_DEADLINE_DAYS = 7;
+export const SUPPLY_TENDER_FALLBACK_DAYS = 7;
 export const MIN_TENDER_DEADLINE_DAYS = 1;
 export const MAX_TENDER_DEADLINE_DAYS = 365;
 
@@ -23,6 +24,17 @@ export function defaultTenderDeadlineDate(
   settings: Pick<TenderSettingsRecord, "defaultDeadlineDays"> | null,
 ): string | null {
   return settings ? isoDatePlusDays(today, settings.defaultDeadlineDays) : null;
+}
+
+/** SCM-011 — la conversion des besoins conserve son délai historique de sept jours sans réglage. */
+export function supplyTenderDeadlineDate(
+  today: string,
+  settings: Pick<TenderSettingsRecord, "defaultDeadlineDays"> | null,
+): string {
+  return (
+    defaultTenderDeadlineDate(today, settings) ??
+    isoDatePlusDays(today, SUPPLY_TENDER_FALLBACK_DAYS)
+  );
 }
 
 export async function loadTenderSettings(

@@ -11,6 +11,7 @@ import {
   getTenderSettingsView,
   loadTenderSettings,
   saveTenderSettings,
+  supplyTenderDeadlineDate,
 } from "./settings";
 
 let context: TestDatabase;
@@ -29,8 +30,10 @@ describe("SCM-013 — paramétrage des appels d'offres", () => {
   it("ne propose aucune date sans réglage et décale la date avec le délai enregistré", () => {
     expect(DEFAULT_TENDER_DEADLINE_DAYS).toBe(7);
     expect(defaultTenderDeadlineDate("2026-02-28", null)).toBeNull();
+    expect(supplyTenderDeadlineDate("2026-02-28", null)).toBe("2026-03-07");
     expect(defaultTenderDeadlineDate("2026-02-28", { defaultDeadlineDays: 1 })).toBe("2026-03-01");
     expect(defaultTenderDeadlineDate("2026-02-28", { defaultDeadlineDays: 7 })).toBe("2026-03-07");
+    expect(supplyTenderDeadlineDate("2026-02-28", { defaultDeadlineDays: 21 })).toBe("2026-03-21");
   });
 
   it("crée puis met à jour le délai unique avec audit", async () => {

@@ -514,8 +514,9 @@ absente. La consultation exige la lecture du module, l'enregistrement sa gestion
   jours (`SAL-009`). Il est proposé comme date de livraison prévue à la saisie d'une commande
   client ; zéro ne propose aucune date.
 - **Appels d'offres** — `/achats/appels-offres/parametres` porte un délai de réponse par défaut,
-  entier de 1 à 365 jours (`SCM-013`). Il préremplit l'échéance des nouvelles demandes ; sans
-  réglage, aucune date n'est proposée.
+  entier de 1 à 365 jours (`SCM-013`). Il préremplit l'échéance des nouvelles demandes créées
+  directement ; une conversion depuis les besoins garde son délai historique de 7 jours tant
+  qu'aucun réglage n'est enregistré.
 - **Factures** — `/factures/parametres` porte le délai d'échéance proposé aux nouvelles factures
   (`SAL-010`). Tant qu'aucun réglage n'est enregistré, les 30 jours actuels restent appliqués.
 - **Tâches** — `/taches/parametres` porte la priorité, l'échéance et l'assigné proposés aux
@@ -523,6 +524,14 @@ absente. La consultation exige la lecture du module, l'enregistrement sa gestion
 
 Chaque enregistrement est unique par espace, tracé dans l'audit avec l'indication de création, et
 ne réécrit jamais un document déjà émis.
+
+## Lot 16 — Pipeline Appels d'offres, Besoins et Achats
+
+Le Lot 15 (Stock) est livré. Le Lot 16 revoit le passage des propositions issues d'un calcul des
+besoins vers une demande de cotation ou une commande, puis de la cotation attribuée vers les
+commandes fournisseur. Les décisions à conserver sont consignées dans les règles `SCM-001` à
+`SCM-013` et `PUR-001` à `PUR-007` ; les changements du lot vérifieront les conversions, les
+références croisées et la cohérence des valeurs par défaut sur chaque entrée du pipeline.
 
 ## Équipe et droits par module
 

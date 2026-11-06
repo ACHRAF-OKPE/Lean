@@ -11,8 +11,8 @@ import { getAccessLevels, requireModule } from "@/lib/auth/session";
 import { todayIsoDate } from "@/lib/dates";
 import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
-import { addIsoDays } from "@/modules/supply/calculation";
 import { getSupplyRun } from "@/modules/supply/queries";
+import { loadTenderSettings, supplyTenderDeadlineDate } from "@/modules/tenders/settings";
 import { ProposalWorkbench } from "./workbench";
 
 export const metadata: Metadata = {
@@ -94,6 +94,8 @@ async function SupplyRunDetailContent({
   const canTender = atLeast(levels.tenders, "manage");
   const banners = bannersFor(query);
   const today = todayIsoDate();
+  const tenderSettings = canTender ? await loadTenderSettings(db, session.tenantId) : null;
+  const defaultDeadline = supplyTenderDeadlineDate(today, tenderSettings);
   const { run, lines } = detail;
   const late = lines.filter((line) => line.late && line.decision === "pending").length;
 
@@ -184,7 +186,7 @@ async function SupplyRunDetailContent({
             canOrder={canOrder}
             canTender={canTender}
             today={today}
-            defaultDeadline={addIsoDays(today, 7)}
+            defaultDeadline={defaultDeadline}
           />
         </div>
       </main>
