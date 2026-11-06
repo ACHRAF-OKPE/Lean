@@ -2144,6 +2144,196 @@ export const stockSettings = pgTable(
   ],
 );
 
+/**
+ * GEN-012 — un paramétrage par module et par espace. Chaque table porte un unique
+ * `tenant_id` ; son absence vaut valeurs par défaut. Seul un niveau gestion l'écrit.
+ */
+export const purchaseSettings = pgTable(
+  "purchase_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    defaultReceiptDelayDays: integer("default_receipt_delay_days").notNull().default(0),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("purchase_settings_tenant_idx").on(table.tenantId),
+    check(
+      "purchase_settings_receipt_delay_check",
+      sql`${table.defaultReceiptDelayDays} between 0 and 365`,
+    ),
+  ],
+);
+
+export const salesSettings = pgTable(
+  "sales_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    defaultDeliveryDelayDays: integer("default_delivery_delay_days").notNull().default(0),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("sales_settings_tenant_idx").on(table.tenantId),
+    check(
+      "sales_settings_delivery_delay_check",
+      sql`${table.defaultDeliveryDelayDays} between 0 and 365`,
+    ),
+  ],
+);
+
+export const invoiceSettings = pgTable(
+  "invoice_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    dueDateOffsetDays: integer("due_date_offset_days").notNull().default(0),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("invoice_settings_tenant_idx").on(table.tenantId),
+    check("invoice_settings_due_offset_check", sql`${table.dueDateOffsetDays} between 0 and 365`),
+  ],
+);
+
+export const tenderSettings = pgTable(
+  "tender_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    defaultDeadlineDays: integer("default_deadline_days").notNull().default(7),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("tender_settings_tenant_idx").on(table.tenantId),
+    check("tender_settings_deadline_check", sql`${table.defaultDeadlineDays} between 1 and 365`),
+  ],
+);
+
+export const taskSettings = pgTable(
+  "task_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    defaultPriority: text("default_priority").$type<TaskPriority>().notNull().default("normal"),
+    defaultDueInDays: integer("default_due_in_days").notNull().default(0),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("task_settings_tenant_idx").on(table.tenantId),
+    check(
+      "task_settings_priority_check",
+      sql`${table.defaultPriority} in ('low', 'normal', 'high', 'urgent')`,
+    ),
+    check("task_settings_due_days_check", sql`${table.defaultDueInDays} between 0 and 365`),
+  ],
+);
+
+export const partnerSettings = pgTable(
+  "partner_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    defaultPaymentTermDays: integer("default_payment_term_days").notNull().default(0),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("partner_settings_tenant_idx").on(table.tenantId),
+    check(
+      "partner_settings_payment_term_check",
+      sql`${table.defaultPaymentTermDays} between 0 and 365`,
+    ),
+  ],
+);
+
+export const articleSettings = pgTable(
+  "article_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    defaultUnitCode: text("default_unit_code").notNull().default("PCE"),
+    defaultSellable: boolean("default_sellable").notNull().default(true),
+    defaultPurchasable: boolean("default_purchasable").notNull().default(true),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("article_settings_tenant_idx").on(table.tenantId),
+    check(
+      "article_settings_unit_check",
+      sql`char_length(${table.defaultUnitCode}) between 1 and 10`,
+    ),
+    check(
+      "article_settings_usage_check",
+      sql`${table.defaultSellable} or ${table.defaultPurchasable}`,
+    ),
+  ],
+);
+
+export const nomenclatureSettings = pgTable(
+  "nomenclature_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    defaultTecRate: integer("default_tec_rate"),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("nomenclature_settings_tenant_idx").on(table.tenantId),
+    check(
+      "nomenclature_settings_tec_check",
+      sql`${table.defaultTecRate} is null or ${table.defaultTecRate} in (0, 5, 10, 20, 35)`,
+    ),
+  ],
+);
+
 export const documentSequences = pgTable(
   "document_sequences",
   {
