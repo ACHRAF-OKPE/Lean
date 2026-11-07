@@ -470,6 +470,46 @@ export const partnerContacts = pgTable(
   ],
 );
 
+/** ART-024 — coordonnées de règlement fournisseur, isolées des lectures ordinaires des tiers. */
+export const partnerBankAccounts = pgTable(
+  "partner_bank_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    partnerId: uuid("partner_id").notNull(),
+    bankName: text("bank_name"),
+    bankCountryCode: text("bank_country_code"),
+    accountHolder: text("account_holder"),
+    bankCode: text("bank_code"),
+    branchCode: text("branch_code"),
+    accountNumber: text("account_number"),
+    ribKey: text("rib_key"),
+    iban: text("iban"),
+    bic: text("bic"),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("partner_bank_accounts_tenant_partner_idx").on(table.tenantId, table.partnerId),
+    check(
+      "partner_bank_accounts_country_check",
+      sql`${table.bankCountryCode} is null or ${table.bankCountryCode} ~ '^[A-Z]{2}$'`,
+    ),
+    check(
+      "partner_bank_accounts_bic_check",
+      sql`${table.bic} is null or ${table.bic} ~ '^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$'`,
+    ),
+    foreignKey({
+      name: "partner_bank_accounts_tenant_partner_fk",
+      columns: [table.tenantId, table.partnerId],
+      foreignColumns: [partners.tenantId, partners.id],
+    }).onDelete("cascade"),
+  ],
+);
+
 /** ART-008 — catégories définies par l'espace, rattachées aux tiers en plusieurs-à-plusieurs. */
 export const partnerCategories = pgTable(
   "partner_categories",

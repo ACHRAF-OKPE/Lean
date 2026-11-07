@@ -232,6 +232,20 @@
       "when": 1793968787857,
       "tag": "0032_furry_warstar",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794045192757,
+      "tag": "0033_modern_iron_fist",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794045510267,
+      "tag": "0034_volatile_kang",
+      "breakpoints": true
     }
   ]
 }

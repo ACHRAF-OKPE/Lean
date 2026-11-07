@@ -54,6 +54,8 @@ import {
 } from "@/modules/catalog/hs-codes";
 import { applyImportBatch, getImportBatchModule } from "@/modules/catalog/imports";
 import { validatePartnerEdit } from "@/modules/catalog/partner-edit";
+import { validatePartnerBankAccount } from "@/modules/catalog/partner-bank-account";
+import { savePartnerBankAccount } from "@/modules/catalog/partner-bank-account-queries";
 import {
   applyPartnerBulk,
   createCategory,
@@ -74,6 +76,7 @@ import {
 } from "@/modules/catalog/validation";
 import { PurchaseError } from "@/modules/purchases/errors";
 import type { ImportKind } from "@/db/schema";
+import { atLeast } from "@/modules/identity/modules";
 
 const BOOLEAN_FIELDS = new Set(["client", "fournisseur", "vendable", "achetable", "actif"]);
 
@@ -447,6 +450,37 @@ export async function updatePartnerAction(
   }
 
   redirect(`/tiers/${partnerId}?maj=ok`);
+}
+
+/** ART-024 — coordonnées bancaires réservées aux gestionnaires Achats ou Comptabilité. */
+export async function updatePartnerBankAccountAction(
+  _state: { errors: readonly string[]; saved: boolean },
+  formData: FormData,
+): Promise<{ errors: readonly string[]; saved: boolean }> {
+  const session = await requirePermission("data.write");
+  const levels = await getAccessLevels(session);
+  if (!atLeast(levels.purchases, "manage") && !atLeast(levels.accounting, "manage")) {
+    redirect("/acces-refuse");
+  }
+
+  const partnerId = String(formData.get("partnerId") ?? "");
+  if (!UUID_PATTERN.test(partnerId)) return { errors: ["Fournisseur invalide."], saved: false };
+  const { data, errors } = validatePartnerBankAccount(Object.fromEntries(formData));
+  if (errors.length > 0) return { errors, saved: false };
+
+  try {
+    await savePartnerBankAccount(getDb(), {
+      tenantId: session.tenantId,
+      actorUserId: session.userId,
+      partnerId,
+      data,
+    });
+  } catch (error) {
+    if (error instanceof CatalogError) return { errors: [error.message], saved: false };
+    throw error;
+  }
+  revalidatePath(`/tiers/${partnerId}/modifier`);
+  return { errors: [], saved: true };
 }
 
 /** GEN-017 — une sélection, une transaction : le lot s'applique intégralement ou rien n'est écrit. */

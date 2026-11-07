@@ -1,0 +1,2 @@
+ALTER TABLE "partner_bank_accounts" DROP CONSTRAINT "partner_bank_accounts_bic_check";--> statement-breakpoint
+ALTER TABLE "partner_bank_accounts" ADD CONSTRAINT "partner_bank_accounts_bic_check" CHECK ("partner_bank_accounts"."bic" is null or "partner_bank_accounts"."bic" ~ '^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$');

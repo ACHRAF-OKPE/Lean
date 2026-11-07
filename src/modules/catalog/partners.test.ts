@@ -1,7 +1,14 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/db/client";
-import { auditEvents, partnerCategories, partnerCategoryLinks, tenants, users } from "@/db/schema";
+import {
+  auditEvents,
+  partnerBankAccounts,
+  partnerCategories,
+  partnerCategoryLinks,
+  tenants,
+  users,
+} from "@/db/schema";
 import { createTestDatabase, type TestDatabase } from "@/test/pglite";
 import { EMPTY_PARTNER_LIST_FILTERS } from "./filters";
 import {
@@ -13,6 +20,7 @@ import {
   setCategoryActive,
 } from "./partner-queries";
 import { createPartner, listPartners } from "./queries";
+import { getPartnerBankAccount, savePartnerBankAccount } from "./partner-bank-account-queries";
 import type { PartnerImportData } from "./validation";
 
 let context: TestDatabase;
@@ -106,6 +114,54 @@ describe("ART-008 — catégories portées par l'espace", () => {
     const other = await listPartners(db, otherId);
     expect(other.rows).toEqual([]);
     expect(created.code).toBe("CLI001");
+  });
+});
+
+describe("ART-024 — isolation et audit des coordonnées bancaires", () => {
+  it("réserve le compte au fournisseur du tenant et masque les numéros dans l'audit", async () => {
+    const tenantId = await makeTenant("bank-a");
+    const otherTenantId = await makeTenant("bank-b");
+    const supplier = await createPartner(db, {
+      tenantId,
+      actorUserId: actorId,
+      data: data({ code: "SUP001", isCustomer: false, isSupplier: true }),
+      categoryIds: [],
+    });
+    const dataSet = {
+      bankName: "Banque du Sahel",
+      bankCountryCode: "CI",
+      accountHolder: "Sahel Distribution SARL",
+      bankCode: "CI001",
+      branchCode: "01001",
+      accountNumber: "12345678901",
+      ribKey: "23",
+      iban: "CI93CI0080111301134291200589",
+      bic: "BNPAFRPP",
+    };
+
+    await savePartnerBankAccount(db, {
+      tenantId,
+      actorUserId: actorId,
+      partnerId: supplier.id,
+      data: dataSet,
+    });
+
+    expect(await getPartnerBankAccount(db, { tenantId, partnerId: supplier.id })).toMatchObject(
+      dataSet,
+    );
+    expect(
+      await getPartnerBankAccount(db, { tenantId: otherTenantId, partnerId: supplier.id }),
+    ).toBeNull();
+    const [audit] = await db
+      .select({ details: auditEvents.details })
+      .from(auditEvents)
+      .where(eq(auditEvents.action, "catalog.partner.bank_account.update"));
+    expect(JSON.stringify(audit?.details)).not.toContain(dataSet.accountNumber);
+    const [stored] = await db
+      .select({ accountNumber: partnerBankAccounts.accountNumber })
+      .from(partnerBankAccounts)
+      .where(eq(partnerBankAccounts.partnerId, supplier.id));
+    expect(stored?.accountNumber).toBe(dataSet.accountNumber);
   });
 });
 

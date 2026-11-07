@@ -13,6 +13,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "identity.bootstrap": "Création du propriétaire",
   "catalog.partner.create": "Création d'un tiers",
   "catalog.partner.update": "Mise à jour d'un tiers",
+  "catalog.partner.bank_account.update": "Mise à jour des coordonnées bancaires fournisseur",
   "catalog.partner.delete": "Suppression d'un tiers",
   "catalog.partner.bulk": "Action en lot sur un tiers",
   "catalog.partner.category": "Rattachement d'un tiers à une catégorie",

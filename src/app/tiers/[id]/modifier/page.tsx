@@ -9,10 +9,12 @@ import { LoadingShell } from "@/components/loading-shell";
 import { getDb } from "@/db/client";
 import { getAccessLevels, requireModule } from "@/lib/auth/session";
 import { categoriesByPartner, listPartnerCategories } from "@/modules/catalog/partner-queries";
+import { getPartnerBankAccount } from "@/modules/catalog/partner-bank-account-queries";
 import { getPartner } from "@/modules/catalog/queries";
 import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { PartnerEditForm } from "./partner-edit-form";
+import { PartnerBankForm } from "./partner-bank-form";
 
 export const metadata: Metadata = {
   title: "Modifier un tiers",
@@ -30,7 +32,7 @@ export default function PartnerEditPage(props: PageProps<"/tiers/[id]/modifier">
 
 async function PartnerEditContent({ params }: Pick<PageProps<"/tiers/[id]/modifier">, "params">) {
   await connection();
-  const session = await requireModule("partners", "write");
+  const session = await requireModule("partners", "read");
   const { id: partnerId } = await params;
   if (!UUID_PATTERN.test(partnerId)) {
     notFound();
@@ -48,6 +50,14 @@ async function PartnerEditContent({ params }: Pick<PageProps<"/tiers/[id]/modifi
   if (!partner) {
     notFound();
   }
+
+  const canManageBankDetails =
+    atLeast(levels.purchases, "manage") || atLeast(levels.accounting, "manage");
+  const canEditPartner = atLeast(levels.partners, "write");
+  const bankAccount =
+    partner.isSupplier && canManageBankDetails
+      ? await getPartnerBankAccount(db, { tenantId: session.tenantId, partnerId })
+      : null;
 
   const selected = (titles.get(partner.id) ?? []).map((category) => category.id);
   const options = categories
@@ -80,29 +90,40 @@ async function PartnerEditContent({ params }: Pick<PageProps<"/tiers/[id]/modifi
           code de la fiche reste immuable.
         </p>
 
-        <PartnerEditForm
-          partner={{
-            id: partner.id,
-            code: partner.code,
-            name: partner.name,
-            isCompany: partner.type === "company",
-            isCustomer: partner.isCustomer,
-            isSupplier: partner.isSupplier,
-            email: partner.email,
-            phone: partner.phone,
-            addressLine: partner.addressLine,
-            city: partner.city,
-            countryCode: partner.countryCode,
-            taxNumber: partner.taxNumber,
-            paymentTermDays: partner.paymentTermDays,
-            latitude: partner.latitude,
-            longitude: partner.longitude,
-            active: partner.active,
-          }}
-          categories={options}
-          selected={selected}
-          canCreateCategories={atLeast(levels.partners, "manage")}
-        />
+        {canEditPartner ? (
+          <PartnerEditForm
+            partner={{
+              id: partner.id,
+              code: partner.code,
+              name: partner.name,
+              isCompany: partner.type === "company",
+              isCustomer: partner.isCustomer,
+              isSupplier: partner.isSupplier,
+              email: partner.email,
+              phone: partner.phone,
+              addressLine: partner.addressLine,
+              city: partner.city,
+              countryCode: partner.countryCode,
+              taxNumber: partner.taxNumber,
+              paymentTermDays: partner.paymentTermDays,
+              latitude: partner.latitude,
+              longitude: partner.longitude,
+              active: partner.active,
+            }}
+            categories={options}
+            selected={selected}
+            canCreateCategories={atLeast(levels.partners, "manage")}
+          />
+        ) : null}
+        {partner.isSupplier && canManageBankDetails ? (
+          <PartnerBankForm partnerId={partner.id} account={bankAccount} />
+        ) : null}
+        {!canEditPartner && !canManageBankDetails ? (
+          <p className="mt-6 rounded-lg border border-line p-4 text-sm text-muted">
+            Votre accès permet de consulter cette fiche, sans modifier ses informations ni ses
+            coordonnées bancaires.
+          </p>
+        ) : null}
       </main>
     </div>
   );

@@ -527,11 +527,14 @@ ne réécrit jamais un document déjà émis.
 
 ## Lot 16 — Pipeline Appels d'offres, Besoins et Achats
 
-Le Lot 15 (Stock) est livré. Le Lot 16 revoit le passage des propositions issues d'un calcul des
-besoins vers une demande de cotation ou une commande, puis de la cotation attribuée vers les
-commandes fournisseur. Les décisions à conserver sont consignées dans les règles `SCM-001` à
-`SCM-013` et `PUR-001` à `PUR-007` ; les changements du lot vérifieront les conversions, les
-références croisées et la cohérence des valeurs par défaut sur chaque entrée du pipeline.
+Le Lot 15 (Stock) est livré. Le Lot 16 revoit le passage des besoins à la cotation, de la
+réponse fournisseur à la commande, puis jusqu'à la réception en magasin. L'étape 16A complète
+d'abord le tiers fournisseur avec son profil de règlement (titulaire, compte, RIB, IBAN et BIC),
+réservé aux gestionnaires Achats ou Comptabilité. Les étapes suivantes raccorderont ces données
+et les conditions convenues au bon de commande, puis traiteront les validations et signatures
+séquencées, l'envoi au fournisseur, les relances et la réception en magasin. Les règles
+`SCM-001` à `SCM-013` et `PUR-001` à `PUR-007` décrivent le flux actuel ; les décisions du
+nouveau circuit seront ajoutées à mesure de chaque étape.
 
 ## Équipe et droits par module
 
