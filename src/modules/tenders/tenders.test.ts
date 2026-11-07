@@ -6,6 +6,7 @@ import {
   companySettings,
   emailAccounts,
   partners,
+  partnerBankAccounts,
   purchaseOrderLines,
   purchaseOrders,
   tenderInvitations,
@@ -18,6 +19,7 @@ import { createTestDatabase, type TestDatabase } from "@/test/pglite";
 import { seedPurchasingTenant, type PurchasingTenant } from "@/test/purchases";
 import { todayIsoDate } from "@/lib/dates";
 import { saveEmailAccount } from "@/modules/exchange/queries";
+import { getPurchaseOrderPaymentDetails } from "@/modules/purchases/queries";
 import type { OutgoingMail, TransportFactory } from "@/modules/exchange/mailer";
 import {
   awardTenderLine,
@@ -1220,9 +1222,27 @@ describe("SCM-006 — génération des commandes fournisseur", () => {
     ).rejects.toThrow(/entièrement attribuée/);
   });
 
-  it("crée une commande brouillon par fournisseur retenu, une seule fois", async () => {
+  it("crée une commande par fournisseur retenu et fige ses conditions de règlement", async () => {
     const fixture = await tenderWithTwoQuotes("scm006-generation");
     const { ids, tenderId } = fixture;
+    await db.update(partners).set({ paymentTermDays: 30 }).where(eq(partners.id, ids.supplierId));
+    await db
+      .update(partners)
+      .set({ paymentTermDays: 45 })
+      .where(eq(partners.id, ids.secondSupplierId));
+    await db.insert(partnerBankAccounts).values({
+      tenantId: ids.tenantId,
+      partnerId: ids.supplierId,
+      bankName: "Banque du Sahel",
+      bankCountryCode: "CI",
+      accountHolder: "Sahel Distribution SARL",
+      bankCode: "CI001",
+      branchCode: "01001",
+      accountNumber: "12345678901",
+      ribKey: "23",
+      iban: "CI93CI0080111301134291200589",
+      bic: "BNPAFRPP",
+    });
 
     await awardTenderLine(db, {
       tenantId: ids.tenantId,
@@ -1270,6 +1290,34 @@ describe("SCM-006 — génération des commandes fournisseur", () => {
     expect(supplierBOrder?.expectedReceiptDate).toBe(addDays(todayIsoDate(), 10));
     expect(supplierAOrder?.exTaxTotal).toBe(450 * 5);
     expect(supplierBOrder?.exTaxTotal).toBe(900 * 10);
+    expect(supplierAOrder?.supplierPaymentTermDays).toBe(30);
+    expect(supplierBOrder?.supplierPaymentTermDays).toBe(45);
+    expect(supplierAOrder?.supplierBankDetails).toMatchObject({
+      accountNumber: "12345678901",
+      ribKey: "23",
+      iban: "CI93CI0080111301134291200589",
+    });
+
+    await db.update(partners).set({ paymentTermDays: 0 }).where(eq(partners.id, ids.supplierId));
+    await db
+      .update(partnerBankAccounts)
+      .set({ accountNumber: "99887766554", iban: null })
+      .where(eq(partnerBankAccounts.partnerId, ids.supplierId));
+    expect(
+      await getPurchaseOrderPaymentDetails(db, {
+        tenantId: ids.tenantId,
+        orderId: supplierAOrder!.id,
+      }),
+    ).toMatchObject({
+      paymentTermDays: 30,
+      bankDetails: { accountNumber: "12345678901", iban: "CI93CI0080111301134291200589" },
+    });
+    expect(
+      await getPurchaseOrderPaymentDetails(db, {
+        tenantId: "00000000-0000-4000-8000-000000000000",
+        orderId: supplierAOrder!.id,
+      }),
+    ).toBeNull();
 
     const bLines = await db
       .select()

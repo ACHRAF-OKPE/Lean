@@ -23,7 +23,7 @@ import { formatQuantity } from "@/modules/stock/quantities";
 import { getPurchaseOrder, type PurchaseOrderDetail } from "@/modules/purchases/queries";
 import type { MailAccountConfig, TransportFactory } from "./mailer";
 import { defaultTransportFactory } from "./mailer";
-import { buildPurchaseDocument, countryLabel } from "./document-model";
+import { buildPurchaseDocument, countryLabel, paymentTermsLabel } from "./document-model";
 import { renderPurchaseDocumentPdf } from "./document";
 import { ExchangeError } from "./errors";
 import { appendReplyLink, buildReplyLink, createReplyToken } from "./replies";
@@ -750,8 +750,9 @@ function buildTemplateValues(input: {
     "company.phone": company.phone ?? "",
     "company.tax_id": company.taxId ?? "",
     "company.rccm": company.rccm ?? "",
-    "company.payment_terms":
-      company.paymentTermDays > 0 ? `${company.paymentTermDays} jours` : "comptant",
+    "company.payment_terms": paymentTermsLabel(
+      order.supplierPaymentTermDays ?? company.paymentTermDays,
+    ),
     "company.incoterm": company.defaultIncoterm ?? "",
     "company.bank_name": company.bankName ?? "",
     "company.bank_account": company.bankAccountNumber ?? "",

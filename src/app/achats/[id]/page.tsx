@@ -27,7 +27,7 @@ import { formatXof } from "@/lib/money";
 import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { canApplyAction, statusLabel } from "@/modules/purchases/lifecycle";
-import { getPurchaseOrder } from "@/modules/purchases/queries";
+import { getPurchaseOrder, getPurchaseOrderPaymentDetails } from "@/modules/purchases/queries";
 import { listExchangeMessages } from "@/modules/exchange/queries";
 import { listSupplierReplies } from "@/modules/exchange/reply-queries";
 import { listInternalLocations } from "@/modules/stock/locations";
@@ -157,6 +157,7 @@ async function PurchaseOrderContent({
   // GEN-018 — chaque action suit le niveau du module qui la porte.
   const levels = await getAccessLevels(session);
   const canManagePurchases = atLeast(levels.purchases, "manage");
+  const canManageFinance = canManagePurchases || atLeast(levels.accounting, "manage");
   const canWritePurchases = atLeast(levels.purchases, "write");
   const canWriteStock = atLeast(levels.stock, "write");
   const canManageStock = atLeast(levels.stock, "manage");
@@ -169,6 +170,9 @@ async function PurchaseOrderContent({
       : [];
   const banner = bannerFor(query);
   const canReceiveNow = canWriteStock && order.status === "confirmed" && hasReceivableLines;
+  const paymentDetails = canManageFinance
+    ? await getPurchaseOrderPaymentDetails(db, { tenantId: session.tenantId, orderId })
+    : null;
 
   return (
     <div className="min-h-dvh">
@@ -281,6 +285,78 @@ async function PurchaseOrderContent({
             </dd>
           </div>
         </dl>
+
+        {canManageFinance && paymentDetails ? (
+          <section className="mt-4 rounded-xl border border-line bg-panel p-4">
+            <h2 className="text-sm font-semibold">Conditions et règlement fournisseur</h2>
+            <p className="mt-1 text-[10px] text-muted">
+              Instantané pris lors de la génération du bon de commande.
+            </p>
+            <dl className="mt-3 grid gap-3 text-[11px] sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <dt className="text-muted">Conditions de paiement</dt>
+                <dd className="mt-1 font-medium">
+                  {paymentDetails.paymentTermDays === null
+                    ? "Non renseignées"
+                    : paymentDetails.paymentTermDays > 0
+                      ? `${paymentDetails.paymentTermDays} jours`
+                      : "Comptant"}
+                </dd>
+              </div>
+              {paymentDetails.bankDetails ? (
+                <>
+                  <div>
+                    <dt className="text-muted">Banque</dt>
+                    <dd className="mt-1 font-medium">
+                      {paymentDetails.bankDetails.bankName ?? "—"}
+                      {paymentDetails.bankDetails.bankCountryCode
+                        ? ` · ${paymentDetails.bankDetails.bankCountryCode}`
+                        : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted">Codes banque / guichet</dt>
+                    <dd className="mt-1 font-mono font-medium">
+                      {[paymentDetails.bankDetails.bankCode, paymentDetails.bankDetails.branchCode]
+                        .filter(Boolean)
+                        .join(" · ") || "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted">Intitulé du compte</dt>
+                    <dd className="mt-1 font-medium">
+                      {paymentDetails.bankDetails.accountHolder ?? "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted">Numéro de compte</dt>
+                    <dd className="mt-1 font-mono font-medium">
+                      {paymentDetails.bankDetails.accountNumber ?? "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted">Clé RIB</dt>
+                    <dd className="mt-1 font-mono font-medium">
+                      {paymentDetails.bankDetails.ribKey ?? "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted">IBAN · BIC / SWIFT</dt>
+                    <dd className="mt-1 font-mono font-medium break-all">
+                      {[paymentDetails.bankDetails.iban, paymentDetails.bankDetails.bic]
+                        .filter(Boolean)
+                        .join(" · ") || "—"}
+                    </dd>
+                  </div>
+                </>
+              ) : (
+                <p className="text-muted">
+                  Aucun compte bancaire n’était enregistré à la génération.
+                </p>
+              )}
+            </dl>
+          </section>
+        ) : null}
 
         {order.notes ? (
           <div className="mt-4 flex gap-2 rounded-lg border border-line bg-panel px-4 py-3 text-[11px] leading-5 text-muted">

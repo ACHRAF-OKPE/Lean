@@ -40,6 +40,7 @@ export interface DocumentOrderSnapshot {
   readonly externalReference: string | null;
   readonly notes: string | null;
   readonly exTaxTotal: number;
+  readonly supplierPaymentTermDays?: number | null;
 }
 
 export interface DocumentLineSnapshot {
@@ -155,7 +156,7 @@ export function buildPurchaseDocument(input: PurchaseDocumentInput): PurchaseDoc
   ];
 
   const conditions = compact([
-    `Conditions de règlement : ${paymentTermsLabel(company.paymentTermDays)}.`,
+    `Conditions de règlement : ${paymentTermsLabel(order.supplierPaymentTermDays ?? company.paymentTermDays)}.`,
     company.defaultIncoterm ? `Incoterm : ${company.defaultIncoterm}.` : null,
     order.notes ? `Notes : ${order.notes}` : null,
   ]);

@@ -33,6 +33,7 @@ import {
 } from "./validation";
 import { nextDocumentNumber } from "@/modules/stock/sequences";
 import { normalizeQuantity, remainingQuantity } from "@/modules/stock/quantities";
+import type { SupplierBankSnapshot } from "./supplier-payment-snapshot";
 
 const PURCHASE_EVENT_BY_ACTION: Record<PurchaseAction, DocumentEventType> = {
   request: "purchase_order.requested",
@@ -101,6 +102,7 @@ export interface ReceptionSummary {
 export interface PurchaseOrderDetail {
   readonly order: PurchaseOrderSummary & {
     readonly supplierId: string;
+    readonly supplierPaymentTermDays: number | null;
     readonly externalReference: string | null;
     readonly notes: string | null;
     readonly confirmedAt: Date | null;
@@ -113,6 +115,27 @@ export interface PurchaseOrderDetail {
 export interface PurchaseOrderStats {
   readonly open: number;
   readonly awaitingReceipt: number;
+}
+
+export interface PurchaseOrderPaymentDetails {
+  readonly paymentTermDays: number | null;
+  readonly bankDetails: SupplierBankSnapshot | null;
+}
+
+/** PUR-008 — ne lit que l'instantané du PO, et l'appelant doit avoir la garde finance. */
+export async function getPurchaseOrderPaymentDetails(
+  db: Database,
+  input: { tenantId: string; orderId: string },
+): Promise<PurchaseOrderPaymentDetails | null> {
+  const [row] = await db
+    .select({
+      paymentTermDays: purchaseOrders.supplierPaymentTermDays,
+      bankDetails: purchaseOrders.supplierBankDetails,
+    })
+    .from(purchaseOrders)
+    .where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.id, input.orderId)))
+    .limit(1);
+  return row ?? null;
 }
 
 export async function getSupplierOptions(
@@ -259,6 +282,7 @@ export async function getPurchaseOrder(
       orderDate: purchaseOrders.orderDate,
       expectedReceiptDate: purchaseOrders.expectedReceiptDate,
       supplierId: purchaseOrders.supplierId,
+      supplierPaymentTermDays: purchaseOrders.supplierPaymentTermDays,
       supplierCode: partners.code,
       supplierName: partners.name,
       externalReference: purchaseOrders.externalReference,

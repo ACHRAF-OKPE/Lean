@@ -86,6 +86,19 @@ describe("ORG-009 — instantané du document émis", () => {
     expect(document.attachmentName).toBe("bon-de-commande-cmd-2026-0001.pdf");
   });
 
+  it("PUR-008 reprend le délai fournisseur figé sur le bon de commande", () => {
+    const document = buildPurchaseDocument({
+      type: "purchase_confirmation",
+      company: COMPANY,
+      supplier: SUPPLIER,
+      order: { ...ORDER, supplierPaymentTermDays: 15 },
+      lines: LINES,
+    });
+
+    expect(document.conditions.join(" ")).toContain("Conditions de règlement : 15 jours.");
+    expect(document.conditions.join(" ")).not.toContain("Conditions de règlement : 30 jours.");
+  });
+
   it("ORG-009 omet les valeurs absentes au lieu d'un espace réservé", () => {
     const document = buildPurchaseDocument({
       type: "purchase_request",

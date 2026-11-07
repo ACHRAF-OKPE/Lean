@@ -1314,6 +1314,18 @@ export const purchaseOrders = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
     number: text("number"),
     supplierId: uuid("supplier_id").notNull(),
+    supplierPaymentTermDays: integer("supplier_payment_term_days"),
+    supplierBankDetails: jsonb("supplier_bank_details").$type<{
+      bankName: string | null;
+      bankCountryCode: string | null;
+      accountHolder: string | null;
+      bankCode: string | null;
+      branchCode: string | null;
+      accountNumber: string | null;
+      ribKey: string | null;
+      iban: string | null;
+      bic: string | null;
+    } | null>(),
     tenderId: uuid("tender_id"),
     supplyRunId: uuid("supply_run_id"),
     status: text("status").$type<PurchaseOrderStatus>().notNull().default("draft"),
@@ -1345,6 +1357,10 @@ export const purchaseOrders = pgTable(
       sql`${table.receiptState} in ('not_received', 'partially_received', 'received')`,
     ),
     check("purchase_orders_total_check", sql`${table.exTaxTotal} between 0 and 2000000000`),
+    check(
+      "purchase_orders_supplier_payment_term_check",
+      sql`${table.supplierPaymentTermDays} is null or ${table.supplierPaymentTermDays} between 0 and 365`,
+    ),
     check(
       "purchase_orders_reference_check",
       sql`${table.externalReference} is null or char_length(${table.externalReference}) <= 60`,

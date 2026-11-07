@@ -529,12 +529,13 @@ ne réécrit jamais un document déjà émis.
 
 Le Lot 15 (Stock) est livré. Le Lot 16 revoit le passage des besoins à la cotation, de la
 réponse fournisseur à la commande, puis jusqu'à la réception en magasin. L'étape 16A complète
-d'abord le tiers fournisseur avec son profil de règlement (titulaire, compte, RIB, IBAN et BIC),
-réservé aux gestionnaires Achats ou Comptabilité. Les étapes suivantes raccorderont ces données
-et les conditions convenues au bon de commande, puis traiteront les validations et signatures
-séquencées, l'envoi au fournisseur, les relances et la réception en magasin. Les règles
-`SCM-001` à `SCM-013` et `PUR-001` à `PUR-007` décrivent le flux actuel ; les décisions du
-nouveau circuit seront ajoutées à mesure de chaque étape.
+le tiers fournisseur avec son profil de règlement, réservé aux gestionnaires Achats ou
+Comptabilité. L'étape 16B fige le délai fournisseur et ses coordonnées bancaires dans les PO
+générés depuis une cotation attribuée ; le PDF reprend le délai figé et les données bancaires
+restent réservées à la consultation finance. Les prochaines étapes traiteront les conditions
+propres à chaque offre, les signatures séquencées, l'envoi au fournisseur, les relances et la
+réception en magasin. Les règles `SCM-001` à `SCM-013` et `PUR-001` à `PUR-008` décrivent les
+décisions adoptées à ce stade.
 
 ## Équipe et droits par module
 

@@ -27,6 +27,7 @@ import {
   type TransportFactory,
 } from "@/modules/exchange/mailer";
 import { computeOrderReceiptState } from "@/modules/purchases/lifecycle";
+import { loadSupplierPaymentSnapshot } from "@/modules/purchases/supplier-payment-snapshot";
 import { getCompanySettings } from "@/modules/settings/queries";
 import { isZeroQuantity, computeLineTotal } from "@/modules/stock/quantities";
 import { nextDocumentNumber } from "@/modules/stock/sequences";
@@ -1717,6 +1718,13 @@ export async function generateTenderPurchaseOrders(
     const orderIds: string[] = [];
 
     for (const [supplierId, awards] of groups) {
+      const supplierSnapshot = await loadSupplierPaymentSnapshot(tx, {
+        tenantId: input.tenantId,
+        supplierId,
+      });
+      if (!supplierSnapshot) {
+        throw new TenderError("Le fournisseur retenu n'existe plus dans cet espace de travail.");
+      }
       const leadTimes = awards
         .map((award) => award.leadTimeDays)
         .filter((value): value is number => value !== null);
@@ -1741,6 +1749,8 @@ export async function generateTenderPurchaseOrders(
         .values({
           tenantId: input.tenantId,
           supplierId,
+          supplierPaymentTermDays: supplierSnapshot.paymentTermDays,
+          supplierBankDetails: supplierSnapshot.bankDetails,
           tenderId: input.tenderId,
           status: "draft",
           receiptState,

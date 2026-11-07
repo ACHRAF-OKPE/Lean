@@ -1,0 +1,3 @@
+ALTER TABLE "purchase_orders" ADD COLUMN "supplier_payment_term_days" integer;--> statement-breakpoint
+ALTER TABLE "purchase_orders" ADD COLUMN "supplier_bank_details" jsonb;--> statement-breakpoint
+ALTER TABLE "purchase_orders" ADD CONSTRAINT "purchase_orders_supplier_payment_term_check" CHECK ("purchase_orders"."supplier_payment_term_days" is null or "purchase_orders"."supplier_payment_term_days" between 0 and 365);
