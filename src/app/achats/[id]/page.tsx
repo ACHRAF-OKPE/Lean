@@ -30,11 +30,14 @@ import { canApplyAction, statusLabel } from "@/modules/purchases/lifecycle";
 import { getPurchaseOrder, getPurchaseOrderPaymentDetails } from "@/modules/purchases/queries";
 import { listExchangeMessages } from "@/modules/exchange/queries";
 import { listSupplierReplies } from "@/modules/exchange/reply-queries";
+import { getPurchaseSettingsView } from "@/modules/purchases/settings";
+import { listPurchaseSignatureSteps } from "@/modules/purchases/signatures";
 import { listInternalLocations } from "@/modules/stock/locations";
 import { compareQuantity, formatQuantity } from "@/modules/stock/quantities";
 import { CancelReceptionButton } from "./cancel-reception-button";
 import { ReceptionForm } from "./reception-form";
 import { TransitionButton } from "./transition-button";
+import { PurchaseSignatureWorkflow } from "./signature-workflow";
 
 export const metadata: Metadata = {
   title: "Commande fournisseur",
@@ -142,13 +145,16 @@ async function PurchaseOrderContent({
   }
 
   const db = getDb();
-  const [detail, memberships, query, exchangeMessages, supplierReplies] = await Promise.all([
-    getPurchaseOrder(db, { tenantId: session.tenantId, orderId }),
-    listMembershipsForUser(db, session.userId),
-    searchParams,
-    listExchangeMessages(db, { tenantId: session.tenantId, orderId, limit: 5 }),
-    listSupplierReplies(db, { tenantId: session.tenantId, orderId }),
-  ]);
+  const [detail, memberships, query, exchangeMessages, supplierReplies, signatureSteps, settings] =
+    await Promise.all([
+      getPurchaseOrder(db, { tenantId: session.tenantId, orderId }),
+      listMembershipsForUser(db, session.userId),
+      searchParams,
+      listExchangeMessages(db, { tenantId: session.tenantId, orderId, limit: 5 }),
+      listSupplierReplies(db, { tenantId: session.tenantId, orderId }),
+      listPurchaseSignatureSteps(db, { tenantId: session.tenantId, orderId }),
+      getPurchaseSettingsView(db, session.tenantId),
+    ]);
   if (!detail) {
     notFound();
   }
@@ -285,6 +291,17 @@ async function PurchaseOrderContent({
             </dd>
           </div>
         </dl>
+
+        {order.status === "confirmed" || order.status === "closed" ? (
+          <PurchaseSignatureWorkflow
+            orderId={order.id}
+            orderNumber={order.number}
+            activeUserId={session.userId}
+            steps={signatureSteps}
+            hasConfiguredSigners={(settings?.signerUserIds.length ?? 0) > 0}
+            canManage={canManagePurchases}
+          />
+        ) : null}
 
         {canManageFinance && paymentDetails ? (
           <section className="mt-4 rounded-xl border border-line bg-panel p-4">

@@ -1,12 +1,18 @@
 import { and, eq } from "drizzle-orm";
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import type { Database } from "@/db/client";
-import { auditEvents, emailAccounts } from "@/db/schema";
+import { auditEvents, emailAccounts, memberships } from "@/db/schema";
 import { createPurchaseOrder, transitionPurchaseOrder } from "@/modules/purchases/queries";
 import { updateCompanySettings } from "@/modules/settings/queries";
 import { createTestDatabase, type TestDatabase } from "@/test/pglite";
 import { seedExchangeTenant, type ExchangeTenant } from "@/test/exchange";
 import { seedPurchasingTenant } from "@/test/purchases";
+import { savePurchaseSettings } from "@/modules/purchases/settings";
+import {
+  confirmPurchaseSignature,
+  startPurchaseSignatureChain,
+  uploadPurchaseSignature,
+} from "@/modules/purchases/signatures";
 import type { MailAccountConfig, OutgoingMail, TransportFactory } from "./mailer";
 import {
   createExchangeTemplate,
@@ -371,6 +377,52 @@ describe("ORG-007 — modèles d'échange", () => {
 });
 
 describe("ORG-008 — envoi et journal", () => {
+  it("PUR-010 bloque le fournisseur avant confirmation et joint le dernier PDF signé après", async () => {
+    const tenant = await setup(db, "pur-010-final-po");
+    await db
+      .insert(memberships)
+      .values({ tenantId: tenant.tenantId, userId: tenant.userId, role: "owner" });
+    await savePurchaseSettings(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      raw: { defaultReceiptDelayDays: 0, signerUserIds: [tenant.userId] },
+    });
+    await startPurchaseSignatureChain(db, {
+      tenantId: tenant.tenantId,
+      orderId: tenant.confirmedOrderId,
+    });
+    await saveEmailAccount(db, {
+      tenantId: tenant.tenantId,
+      actorUserId: tenant.userId,
+      data: accountData(),
+    });
+    const transport = recorder();
+    await expect(
+      send(db, tenant, tenant.confirmedOrderId, transport, { type: "purchase_confirmation" }),
+    ).rejects.toThrow(/toutes les signatures prévues/);
+    expect(transport.sent).toHaveLength(0);
+
+    const signedPdf = new Uint8Array(Buffer.from("%PDF-1.7\nFINAL SIGNED PO"));
+    await uploadPurchaseSignature(db, {
+      tenantId: tenant.tenantId,
+      orderId: tenant.confirmedOrderId,
+      actorUserId: tenant.userId,
+      fileName: "po-final-signe.pdf",
+      mime: "application/pdf",
+      data: signedPdf,
+    });
+    await confirmPurchaseSignature(db, {
+      tenantId: tenant.tenantId,
+      orderId: tenant.confirmedOrderId,
+      actorUserId: tenant.userId,
+    });
+
+    await send(db, tenant, tenant.confirmedOrderId, transport, { type: "purchase_confirmation" });
+    expect(transport.sent).toHaveLength(1);
+    expect(transport.sent[0]?.attachments[0]?.filename).toBe("po-final-signe.pdf");
+    expect(transport.sent[0]?.attachments[0]?.content).toEqual(signedPdf);
+  });
+
   it("ORG-008 exige le bon statut de commande selon le type", async () => {
     const tenant = await setup(db, "org-008-status");
     const transport = recorder();

@@ -1,6 +1,8 @@
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { auditEvents, purchaseSettings } from "@/db/schema";
+import { listTeam } from "@/modules/identity/team";
+import { atLeast } from "@/modules/identity/modules";
 import { PurchaseError } from "./errors";
 
 export const MIN_RECEIPT_DELAY_DAYS = 0;
@@ -9,6 +11,7 @@ export const MAX_RECEIPT_DELAY_DAYS = 365;
 export interface PurchaseSettingsRecord {
   readonly id: string;
   readonly defaultReceiptDelayDays: number;
+  readonly signerUserIds: readonly string[];
 }
 
 export interface PurchaseSettingsView extends PurchaseSettingsRecord {
@@ -24,6 +27,7 @@ export async function loadPurchaseSettings(
     .select({
       id: purchaseSettings.id,
       defaultReceiptDelayDays: purchaseSettings.defaultReceiptDelayDays,
+      signerUserIds: purchaseSettings.signerUserIds,
     })
     .from(purchaseSettings)
     .where(eq(purchaseSettings.tenantId, tenantId))
@@ -39,6 +43,7 @@ export async function getPurchaseSettingsView(
     .select({
       id: purchaseSettings.id,
       defaultReceiptDelayDays: purchaseSettings.defaultReceiptDelayDays,
+      signerUserIds: purchaseSettings.signerUserIds,
       updatedAt: purchaseSettings.updatedAt,
     })
     .from(purchaseSettings)
@@ -52,6 +57,7 @@ export interface SavePurchaseSettingsInput {
   readonly actorUserId: string;
   readonly raw: {
     readonly defaultReceiptDelayDays: unknown;
+    readonly signerUserIds?: unknown;
   };
 }
 
@@ -86,6 +92,25 @@ export async function savePurchaseSettings(
   input: SavePurchaseSettingsInput,
 ): Promise<{ created: boolean }> {
   const defaultReceiptDelayDays = receiptDelayDaysOf(input.raw.defaultReceiptDelayDays);
+  const signerUserIds = Array.isArray(input.raw.signerUserIds)
+    ? input.raw.signerUserIds.map((id) => String(id).trim()).filter(Boolean)
+    : [];
+  if (signerUserIds.length > 5 || new Set(signerUserIds).size !== signerUserIds.length) {
+    throw new PurchaseError(
+      "Choisissez au plus cinq signataires différents, dans l'ordre souhaité.",
+    );
+  }
+  const team = await listTeam(db, input.tenantId);
+  const eligibleSignerIds = new Set(
+    team.members
+      .filter((member) => atLeast(member.levels.purchases, "read"))
+      .map((member) => member.userId),
+  );
+  if (signerUserIds.some((id) => !eligibleSignerIds.has(id))) {
+    throw new PurchaseError(
+      "Chaque signataire doit être membre de cet espace et avoir accès aux Achats.",
+    );
+  }
 
   return db.transaction(async (tx) => {
     const [existing] = await tx
@@ -98,6 +123,7 @@ export async function savePurchaseSettings(
     const values = {
       tenantId: input.tenantId,
       defaultReceiptDelayDays,
+      signerUserIds,
       updatedByUserId: input.actorUserId,
     };
 
@@ -115,7 +141,7 @@ export async function savePurchaseSettings(
       action: "purchase.settings.update",
       entityType: "purchase_settings",
       entityId: input.tenantId,
-      details: { created: !existing, defaultReceiptDelayDays },
+      details: { created: !existing, defaultReceiptDelayDays, signerCount: signerUserIds.length },
     });
 
     return { created: !existing };

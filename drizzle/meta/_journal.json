@@ -253,6 +253,20 @@
       "when": 1794049426156,
       "tag": "0035_yummy_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794073184016,
+      "tag": "0036_smooth_mojo",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794073506248,
+      "tag": "0037_bent_medusa",
+      "breakpoints": true
     }
   ]
 }

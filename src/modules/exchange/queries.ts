@@ -21,6 +21,10 @@ import {
 } from "@/modules/settings/queries";
 import { formatQuantity } from "@/modules/stock/quantities";
 import { getPurchaseOrder, type PurchaseOrderDetail } from "@/modules/purchases/queries";
+import {
+  allPurchaseSignaturesConfirmed,
+  getLatestConfirmedPurchaseSignatureFile,
+} from "@/modules/purchases/signatures";
 import type { MailAccountConfig, TransportFactory } from "./mailer";
 import { defaultTransportFactory } from "./mailer";
 import { buildPurchaseDocument, countryLabel, paymentTermsLabel } from "./document-model";
@@ -821,6 +825,17 @@ export async function sendPurchaseExchange(
       }. Statut actuel : ${detail.order.status}.`,
     );
   }
+  if (
+    input.type === "purchase_confirmation" &&
+    !(await allPurchaseSignaturesConfirmed(db, {
+      tenantId: input.tenantId,
+      orderId: input.orderId,
+    }))
+  ) {
+    throw new ExchangeError(
+      "Le PO ne peut pas être envoyé : toutes les signatures prévues doivent être déposées et confirmées.",
+    );
+  }
 
   const company = await getCompanySettings(db, input.tenantId);
   if (!company?.legalName) {
@@ -888,6 +903,14 @@ export async function sendPurchaseExchange(
     document,
     logo ? { mime: logo.mime, data: logo.data } : null,
   );
+  const finalSignedPdf =
+    input.type === "purchase_confirmation"
+      ? await getLatestConfirmedPurchaseSignatureFile(db, {
+          tenantId: input.tenantId,
+          orderId: input.orderId,
+        })
+      : null;
+  const outgoingPdf = finalSignedPdf ?? { fileName: pdf.fileName, data: pdf.bytes };
 
   const account = await getEmailAccountConfig(db, input.tenantId);
   if (!account || !account.active) {
@@ -903,7 +926,13 @@ export async function sendPurchaseExchange(
       subject,
       text: replyBody.text,
       html: replyBody.html,
-      attachments: [{ filename: pdf.fileName, content: pdf.bytes, contentType: "application/pdf" }],
+      attachments: [
+        {
+          filename: outgoingPdf.fileName,
+          content: outgoingPdf.data,
+          contentType: "application/pdf",
+        },
+      ],
     });
     providerMessageId = sent.messageId ?? null;
   } catch (error) {
@@ -922,7 +951,7 @@ export async function sendPurchaseExchange(
         subject,
         bodyText: replyBody.text.slice(0, 20000) || subject,
         bodyHtml: replyBody.html.slice(0, 60000) || subject,
-        attachmentName: pdf.fileName,
+        attachmentName: outgoingPdf.fileName,
         errorMessage: message,
         actorUserId: input.actorUserId,
         resentFromId: input.resentFromId ?? null,
@@ -964,7 +993,7 @@ export async function sendPurchaseExchange(
       subject,
       bodyText: replyBody.text.slice(0, 20000),
       bodyHtml: replyBody.html.slice(0, 60000),
-      attachmentName: pdf.fileName,
+      attachmentName: outgoingPdf.fileName,
       providerMessageId,
       actorUserId: input.actorUserId,
       resentFromId: input.resentFromId ?? null,
@@ -989,7 +1018,7 @@ export async function sendPurchaseExchange(
       orderId: detail.order.id,
       recipient: input.recipient,
       templateName: template.name,
-      attachment: pdf.fileName,
+      attachment: outgoingPdf.fileName,
     },
   });
   return { messageId, recipient: input.recipient, subject };
@@ -1102,6 +1131,19 @@ export async function getExchangeSendContext(
           : "Une commande annulée ne peut plus être transmise.",
     };
   }
+  if (
+    type === "purchase_confirmation" &&
+    !(await allPurchaseSignaturesConfirmed(db, {
+      tenantId: input.tenantId,
+      orderId: input.orderId,
+    }))
+  ) {
+    return {
+      ready: false,
+      reason:
+        "Le PO ne peut pas être transmis avant le dépôt et la confirmation de toutes les signatures prévues.",
+    };
+  }
 
   const company = await getCompanySettings(db, input.tenantId);
   if (!company?.legalName) {
@@ -1192,6 +1234,41 @@ export async function getExchangeSendContext(
     attachmentName: document.attachmentName,
     accountReady: Boolean(account?.active),
   };
+}
+
+export async function getPurchaseOrderSignaturePdf(
+  db: Database,
+  input: { tenantId: string; orderId: string },
+): Promise<{ fileName: string; data: Uint8Array }> {
+  const detail = await getPurchaseOrder(db, input);
+  if (!detail || !["confirmed", "closed"].includes(detail.order.status)) {
+    throw new ExchangeError("Un PO confirmé est nécessaire pour lancer les signatures.");
+  }
+  const company = await getCompanySettings(db, input.tenantId);
+  if (!company?.legalName) {
+    throw new ExchangeError("Complétez la raison sociale avant de lancer les signatures.");
+  }
+  const supplier = await getSupplierSnapshot(db, input.tenantId, detail.order.supplierId);
+  const document = buildPurchaseDocument({
+    type: "purchase_confirmation",
+    company,
+    supplier,
+    order: detail.order,
+    lines: detail.lines.map((line) => ({
+      lineNumber: line.lineNumber,
+      name: line.articleName,
+      unitCode: line.unitCode,
+      qty: line.qty,
+      unitPriceXof: line.unitPriceXof,
+      lineTotalXof: line.lineTotalXof,
+    })),
+  });
+  const logo = await getCompanyLogo(db, input.tenantId);
+  const pdf = await renderPurchaseDocumentPdf(
+    document,
+    logo ? { mime: logo.mime, data: logo.data } : null,
+  );
+  return { fileName: pdf.fileName, data: pdf.bytes };
 }
 
 const MESSAGE_SUMMARY_COLUMNS = {

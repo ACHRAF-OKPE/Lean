@@ -1,0 +1,1 @@
+ALTER TABLE "purchase_orders" ADD COLUMN "signature_workflow_required" boolean DEFAULT false NOT NULL;

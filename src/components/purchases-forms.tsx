@@ -11,8 +11,13 @@ const SUBMIT =
 
 export function PurchaseSettingsForm({
   values,
+  signers,
 }: {
-  values: { readonly defaultReceiptDelayDays: number } | null;
+  values: {
+    readonly defaultReceiptDelayDays: number;
+    readonly signerUserIds?: readonly string[];
+  } | null;
+  signers: readonly { readonly userId: string; readonly name: string; readonly email: string }[];
 }) {
   const [state, formAction, pending] = useActionState(
     savePurchaseSettingsAction,
@@ -42,6 +47,38 @@ export function PurchaseSettingsForm({
               className={`${INPUT_CLASS} tabular-nums`}
             />
           </Field>
+        </div>
+        <div className="space-y-2">
+          <div>
+            <h3 className="text-xs font-semibold">Circuit de signature du PO</h3>
+            <p className="mt-1 text-[10px] leading-4 text-muted">
+              Jusqu&apos;à cinq membres Achats, appelés dans l&apos;ordre. Après chaque dépôt, le
+              signataire devra confirmer le document avant que le courriel suivant parte.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {Array.from({ length: 5 }, (_, index) => (
+              <Field
+                key={index}
+                label={`Signataire ${index + 1}`}
+                htmlFor={`purchase-signer-${index + 1}`}
+              >
+                <select
+                  id={`purchase-signer-${index + 1}`}
+                  name="signerUserId"
+                  defaultValue={values?.signerUserIds?.[index] ?? ""}
+                  className={INPUT_CLASS}
+                >
+                  <option value="">Aucun</option>
+                  {signers.map((signer) => (
+                    <option key={signer.userId} value={signer.userId}>
+                      {signer.name} · {signer.email}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ))}
+          </div>
         </div>
         <div className="flex justify-end">
           <button

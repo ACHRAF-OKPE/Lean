@@ -185,15 +185,18 @@ export async function sendPurchaseExchangeAction(
   if (!UUID_PATTERN.test(orderId)) {
     return { errors: ["Commande invalide."] };
   }
-  if (!isSupplierDispatchConfirmed(formData.get("supplierDispatchConfirmed"))) {
+  if (!isExchangeType(type)) {
+    return { errors: ["Type d'échange inconnu."] };
+  }
+  if (
+    type === "purchase_confirmation" &&
+    !isSupplierDispatchConfirmed(formData.get("supplierDispatchConfirmed"))
+  ) {
     return {
       errors: [
         "Confirmez explicitement que les signatures et les conditions de la commande sont réunies avant l'envoi au fournisseur.",
       ],
     };
-  }
-  if (!isExchangeType(type)) {
-    return { errors: ["Type d'échange inconnu."] };
   }
   if (templateId && !UUID_PATTERN.test(templateId)) {
     return { errors: ["Modèle invalide."] };

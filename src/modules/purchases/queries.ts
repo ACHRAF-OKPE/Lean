@@ -34,6 +34,7 @@ import {
 import { nextDocumentNumber } from "@/modules/stock/sequences";
 import { normalizeQuantity, remainingQuantity } from "@/modules/stock/quantities";
 import type { SupplierBankSnapshot } from "./supplier-payment-snapshot";
+import { initializePurchaseSignatureChain } from "./signatures";
 
 const PURCHASE_EVENT_BY_ACTION: Record<PurchaseAction, DocumentEventType> = {
   request: "purchase_order.requested",
@@ -492,6 +493,7 @@ export interface TransitionResult {
   readonly id: string;
   readonly number: string | null;
   readonly status: PurchaseOrderStatus;
+  readonly signatureWorkflowStarted: boolean;
 }
 
 export async function transitionPurchaseOrder(
@@ -561,6 +563,20 @@ export async function transitionPurchaseOrder(
       })
       .where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.id, order.id)));
 
+    const signatureWorkflowStarted =
+      input.action === "confirm"
+        ? await initializePurchaseSignatureChain(tx, {
+            tenantId: input.tenantId,
+            orderId: order.id,
+          })
+        : false;
+    if (input.action === "confirm" && signatureWorkflowStarted) {
+      await tx
+        .update(purchaseOrders)
+        .set({ signatureWorkflowRequired: true })
+        .where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.id, order.id)));
+    }
+
     await tx.insert(auditEvents).values({
       tenantId: input.tenantId,
       actorUserId: input.actorUserId,
@@ -586,7 +602,7 @@ export async function transitionPurchaseOrder(
       },
     });
 
-    return { id: order.id, number, status: nextStatus };
+    return { id: order.id, number, status: nextStatus, signatureWorkflowStarted };
   });
 }
 

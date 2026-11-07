@@ -11,6 +11,7 @@ import { getAccessLevels, requireModule } from "@/lib/auth/session";
 import { isoDateLabel, isoDatePlusDays, todayIsoDate } from "@/lib/dates";
 import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
+import { listTeam } from "@/modules/identity/team";
 import { getPurchaseSettingsView } from "@/modules/purchases/settings";
 
 export const metadata: Metadata = {
@@ -32,10 +33,11 @@ async function PurchaseSettingsContent({
   const session = await requireModule("purchases", "read");
   const query = await searchParams;
   const db = getDb();
-  const [settings, memberships, levels] = await Promise.all([
+  const [settings, memberships, levels, team] = await Promise.all([
     getPurchaseSettingsView(db, session.tenantId),
     listMembershipsForUser(db, session.userId),
     getAccessLevels(session),
+    listTeam(db, session.tenantId),
   ]);
   const canManage = atLeast(levels.purchases, "manage");
   const saved = query.enregistre !== undefined;
@@ -120,7 +122,14 @@ async function PurchaseSettingsContent({
               Le délai est un entier de jours entre 0 et 365 ; zéro ne propose aucune date.
             </p>
             <PurchaseSettingsForm
-              values={settings ? { defaultReceiptDelayDays: delayDays } : null}
+              values={
+                settings
+                  ? { defaultReceiptDelayDays: delayDays, signerUserIds: settings.signerUserIds }
+                  : null
+              }
+              signers={team.members
+                .filter((member) => atLeast(member.levels.purchases, "read"))
+                .map(({ userId, name, email }) => ({ userId, name, email }))}
             />
           </section>
         ) : (

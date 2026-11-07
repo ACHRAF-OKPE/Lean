@@ -35,6 +35,8 @@ const MODULE_BY_ROUTE_DIR: readonly [string, ModuleKey][] = [
 const PLATFORM_ROUTES: readonly string[] = [
   "",
   "api/entreprise/logo",
+  "api/achats/[id]/signature-pdf",
+  "api/achats/[id]/signatures/[signatureId]",
   "api/imports/analyser",
   "api/modeles/[kind]",
   "acces-refuse",

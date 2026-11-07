@@ -1329,6 +1329,7 @@ export const purchaseOrders = pgTable(
     tenderId: uuid("tender_id"),
     supplyRunId: uuid("supply_run_id"),
     status: text("status").$type<PurchaseOrderStatus>().notNull().default("draft"),
+    signatureWorkflowRequired: boolean("signature_workflow_required").notNull().default(false),
     receiptState: text("receipt_state").$type<ReceiptState>().notNull().default("not_received"),
     orderDate: date("order_date", { mode: "string" }).notNull(),
     expectedReceiptDate: date("expected_receipt_date", { mode: "string" }),
@@ -1383,6 +1384,80 @@ export const purchaseOrders = pgTable(
       name: "purchase_orders_tenant_supply_run_fk",
       columns: [table.tenantId, table.supplyRunId],
       foreignColumns: [supplyRuns.tenantId, supplyRuns.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const purchaseOrderSignatures = pgTable(
+  "purchase_order_signatures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id").notNull(),
+    signerUserId: uuid("signer_user_id").notNull(),
+    sequence: integer("sequence").notNull(),
+    status: text("status")
+      .$type<"awaiting_upload" | "awaiting_confirmation" | "confirmed">()
+      .notNull(),
+    fileName: text("file_name"),
+    fileMime: text("file_mime"),
+    fileSize: integer("file_size"),
+    fileData: bytea("file_data"),
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("purchase_order_signatures_tenant_id_idx").on(table.tenantId, table.id),
+    uniqueIndex("purchase_order_signatures_tenant_sequence_idx").on(
+      table.tenantId,
+      table.orderId,
+      table.sequence,
+    ),
+    uniqueIndex("purchase_order_signatures_tenant_signer_idx").on(
+      table.tenantId,
+      table.orderId,
+      table.signerUserId,
+    ),
+    index("purchase_order_signatures_tenant_status_idx").on(
+      table.tenantId,
+      table.orderId,
+      table.status,
+      table.sequence,
+    ),
+    check("purchase_order_signatures_sequence_check", sql`${table.sequence} between 1 and 5`),
+    check(
+      "purchase_order_signatures_status_check",
+      sql`${table.status} in ('awaiting_upload', 'awaiting_confirmation', 'confirmed')`,
+    ),
+    check(
+      "purchase_order_signatures_file_check",
+      sql`(${table.fileName} is null) = (${table.fileMime} is null) and (${table.fileName} is null) = (${table.fileSize} is null) and (${table.fileName} is null) = (${table.fileData} is null) and (${table.fileName} is null or (char_length(${table.fileName}) between 1 and 200 and ${table.fileName} !~ '[/\\\\]'))`,
+    ),
+    check(
+      "purchase_order_signatures_file_mime_check",
+      sql`${table.fileMime} is null or ${table.fileMime} = 'application/pdf'`,
+    ),
+    check(
+      "purchase_order_signatures_file_size_check",
+      sql`${table.fileSize} is null or ${table.fileSize} between 1 and 1048576`,
+    ),
+    check(
+      "purchase_order_signatures_state_file_check",
+      sql`(${table.status} = 'awaiting_upload' and ${table.fileData} is null and ${table.uploadedAt} is null and ${table.confirmedAt} is null) or (${table.status} = 'awaiting_confirmation' and ${table.fileData} is not null and ${table.uploadedAt} is not null and ${table.confirmedAt} is null) or (${table.status} = 'confirmed' and ${table.fileData} is not null and ${table.uploadedAt} is not null and ${table.confirmedAt} is not null)`,
+    ),
+    foreignKey({
+      name: "purchase_order_signatures_tenant_order_fk",
+      columns: [table.tenantId, table.orderId],
+      foreignColumns: [purchaseOrders.tenantId, purchaseOrders.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "purchase_order_signatures_signer_fk",
+      columns: [table.signerUserId],
+      foreignColumns: [users.id],
     }).onDelete("restrict"),
   ],
 );
@@ -2212,6 +2287,7 @@ export const purchaseSettings = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
     defaultReceiptDelayDays: integer("default_receipt_delay_days").notNull().default(0),
+    signerUserIds: jsonb("signer_user_ids").$type<string[]>().notNull().default([]),
     updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),

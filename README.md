@@ -534,10 +534,11 @@ Comptabilité. L'étape 16B fige le délai fournisseur et ses coordonnées banca
 générés depuis une cotation attribuée ; le PDF reprend le délai figé et les données bancaires
 restent réservées à la consultation finance. L'étape 16C impose désormais une confirmation
 explicite avant tout envoi du PO au fournisseur ; elle ne valide pas automatiquement la présence
-des signatures. Les prochaines étapes traiteront les conditions propres à chaque offre, la
-chaîne de signatures avec dépôt et confirmation par signataire, les relances et la réception en
-magasin. Les règles `SCM-001` à `SCM-013` et `PUR-001` à `PUR-009` décrivent les décisions
-adoptées à ce stade.
+des signatures. L'étape 16D envoie le PO aux signataires dans l'ordre, attend le dépôt et la
+confirmation de chacun, et conserve une confirmation finale distincte avant l'envoi fournisseur.
+Les prochaines étapes traiteront les conditions propres à chaque offre, les relances et la
+réception en magasin. Les règles `SCM-001` à `SCM-013` et `PUR-001` à `PUR-010` décrivent les
+décisions adoptées à ce stade.
 
 ## Équipe et droits par module
 
