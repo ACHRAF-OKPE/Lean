@@ -139,6 +139,20 @@ export function SendForm({
             <FileText className="size-3.5 shrink-0 text-brand" aria-hidden="true" />
             Pièce jointe automatique : <span className="font-mono">{attachmentName}</span>
           </p>
+
+          <label className="flex items-start gap-2 rounded-md border border-copper/30 bg-copper-soft px-3 py-2.5 text-[11px] leading-5 text-copper">
+            <input
+              type="checkbox"
+              name="supplierDispatchConfirmed"
+              required
+              className="mt-1 accent-current"
+            />
+            <span>
+              Je confirme que les signatures requises sont présentes et que les conditions de la
+              commande sont réunies pour lancer le fournisseur. L&apos;envoi transmettra le PO pour
+              exécution.
+            </span>
+          </label>
         </fieldset>
 
         <div className="flex items-center justify-between border-t border-line pt-4">

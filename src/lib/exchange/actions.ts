@@ -19,6 +19,7 @@ import {
 } from "@/modules/exchange/queries";
 import {
   isExchangeType,
+  isSupplierDispatchConfirmed,
   validateEmailAccount,
   validateExchangeSend,
   validateExchangeTemplate,
@@ -183,6 +184,13 @@ export async function sendPurchaseExchangeAction(
 
   if (!UUID_PATTERN.test(orderId)) {
     return { errors: ["Commande invalide."] };
+  }
+  if (!isSupplierDispatchConfirmed(formData.get("supplierDispatchConfirmed"))) {
+    return {
+      errors: [
+        "Confirmez explicitement que les signatures et les conditions de la commande sont réunies avant l'envoi au fournisseur.",
+      ],
+    };
   }
   if (!isExchangeType(type)) {
     return { errors: ["Type d'échange inconnu."] };

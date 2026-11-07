@@ -54,6 +54,11 @@ export function isValidEmail(value: string): boolean {
   return value.length <= 160 && EMAIL_PATTERN.test(value);
 }
 
+/** PUR-009 — l'envoi externe exige une confirmation distincte du dépôt ou de la signature. */
+export function isSupplierDispatchConfirmed(value: unknown): boolean {
+  return value === "on";
+}
+
 export function isExchangeType(value: unknown): value is ExchangeType {
   return typeof value === "string" && (EXCHANGE_TYPES as readonly string[]).includes(value);
 }

@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { validateEmailAccount, validateExchangeSend, validateExchangeTemplate } from "./validation";
+import {
+  isSupplierDispatchConfirmed,
+  validateEmailAccount,
+  validateExchangeSend,
+  validateExchangeTemplate,
+} from "./validation";
+
+describe("PUR-009 — confirmation explicite du lancement fournisseur", () => {
+  it("PUR-009 bloque l'envoi tant que la confirmation distincte n'est pas cochée", () => {
+    expect(isSupplierDispatchConfirmed(null)).toBe(false);
+    expect(isSupplierDispatchConfirmed("true")).toBe(false);
+    expect(isSupplierDispatchConfirmed("on")).toBe(true);
+  });
+});
 
 const ACCOUNT = {
   name: "SMTP transactionnel",

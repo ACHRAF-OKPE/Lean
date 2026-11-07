@@ -532,10 +532,12 @@ réponse fournisseur à la commande, puis jusqu'à la réception en magasin. L'�
 le tiers fournisseur avec son profil de règlement, réservé aux gestionnaires Achats ou
 Comptabilité. L'étape 16B fige le délai fournisseur et ses coordonnées bancaires dans les PO
 générés depuis une cotation attribuée ; le PDF reprend le délai figé et les données bancaires
-restent réservées à la consultation finance. Les prochaines étapes traiteront les conditions
-propres à chaque offre, les signatures séquencées, l'envoi au fournisseur, les relances et la
-réception en magasin. Les règles `SCM-001` à `SCM-013` et `PUR-001` à `PUR-008` décrivent les
-décisions adoptées à ce stade.
+restent réservées à la consultation finance. L'étape 16C impose désormais une confirmation
+explicite avant tout envoi du PO au fournisseur ; elle ne valide pas automatiquement la présence
+des signatures. Les prochaines étapes traiteront les conditions propres à chaque offre, la
+chaîne de signatures avec dépôt et confirmation par signataire, les relances et la réception en
+magasin. Les règles `SCM-001` à `SCM-013` et `PUR-001` à `PUR-009` décrivent les décisions
+adoptées à ce stade.
 
 ## Équipe et droits par module
 
