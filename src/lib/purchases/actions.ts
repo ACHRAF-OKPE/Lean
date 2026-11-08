@@ -49,7 +49,7 @@ async function notifyCurrentSigner(
   const account = await getEmailAccountConfig(getDb(), tenantId);
   if (!account?.active)
     return "Circuit créé, mais aucun compte d'envoi actif ne peut notifier le signataire.";
-  const url = `${await resolveAppUrl()}/achats/${orderId}`;
+  const url = `${await resolveAppUrl()}/achats/${orderId}#signature-${notice.sequence}`;
   try {
     const pdf = await getPurchaseOrderSignaturePdf(getDb(), { tenantId, orderId });
     const latestSignature = await getLatestConfirmedPurchaseSignatureFile(getDb(), {

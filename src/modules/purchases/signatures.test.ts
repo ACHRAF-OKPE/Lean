@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { memberships, users } from "@/db/schema";
 import { createTestDatabase, type TestDatabase } from "@/test/pglite";
@@ -11,6 +12,7 @@ import { companySettings } from "@/db/schema";
 import {
   allPurchaseSignaturesConfirmed,
   confirmPurchaseSignature,
+  getCurrentPurchaseSigner,
   listPurchaseSignatureSteps,
   uploadPurchaseSignature,
 } from "./signatures";
@@ -345,5 +347,94 @@ describe("PUR-012 — tâche de signature pour chaque signataire", () => {
     expect(secondTask).toBeDefined();
     expect(secondTask!.status).toBe("open");
     expect(secondTask!.priority).toBe("high");
+  });
+
+  it("PUR-015 — le signataire courant est identifiable pour le lien mail vers son étape", async () => {
+    const ids = await seedPurchasingTenant(db, "pur015-link");
+    await db
+      .insert(memberships)
+      .values({ tenantId: ids.tenantId, userId: ids.userId, role: "owner" });
+    const [secondSigner] = await db
+      .insert(users)
+      .values({
+        email: "signataire-deux-pur015@test.local",
+        name: "Moussa Second",
+        passwordHash: "hash",
+      })
+      .returning({ id: users.id });
+    if (!secondSigner) throw new Error("Signataire de test absent.");
+    await db
+      .insert(memberships)
+      .values({ tenantId: ids.tenantId, userId: secondSigner.id, role: "member" });
+
+    await savePurchaseSettings(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      raw: { defaultReceiptDelayDays: 0, signerUserIds: [ids.userId, secondSigner.id] },
+    });
+    const order = await createPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      data: {
+        supplierId: ids.supplierId,
+        expectedReceiptDate: "",
+        externalReference: "",
+        notes: "",
+        lines: [{ articleId: ids.productId, qty: "1", unitPriceXof: 1000 }],
+      },
+    });
+    await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "request",
+    });
+    await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "confirm",
+    });
+
+    // Le premier signataire est identifiable pour le lien mail avec ancre
+    const [firstUser] = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, ids.userId))
+      .limit(1);
+
+    const firstSigner = await getCurrentPurchaseSigner(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+    });
+    expect(firstSigner).not.toBeNull();
+    expect(firstSigner!.signerEmail).toBe(firstUser!.email);
+    expect(firstSigner!.sequence).toBe(1);
+    expect(firstSigner!.orderNumber).not.toBeNull();
+
+    // Après confirmation du premier, le second devient le signataire courant
+    const pdf = new Uint8Array(Buffer.from("%PDF-1.7\nSigned PO test"));
+    await uploadPurchaseSignature(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+      actorUserId: ids.userId,
+      fileName: "po-signe-1.pdf",
+      mime: "application/pdf",
+      data: pdf,
+    });
+    await confirmPurchaseSignature(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+      actorUserId: ids.userId,
+    });
+
+    const secondSignerNotice = await getCurrentPurchaseSigner(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+    });
+    expect(secondSignerNotice).not.toBeNull();
+    expect(secondSignerNotice!.signerEmail).toBe("signataire-deux-pur015@test.local");
+    expect(secondSignerNotice!.sequence).toBe(2);
+    expect(secondSignerNotice!.orderNumber).not.toBeNull();
   });
 });

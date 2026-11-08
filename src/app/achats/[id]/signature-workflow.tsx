@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { Check, FileSignature, LoaderCircle, Mail, Upload } from "lucide-react";
 import { FormErrors, INPUT_CLASS } from "@/components/form-fields";
 import {
@@ -47,6 +47,26 @@ export function PurchaseSignatureWorkflow({
     EMPTY_PURCHASE_FORM_STATE,
   );
   const current = steps.find((step) => step.status !== "confirmed");
+
+  // Faire défiler vers l'étape du signataire quand l'ancre est présente dans l'URL,
+  // ou vers l'étape active quand c'est le tour de l'utilisateur connecté.
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash && steps.length > 0) {
+      const targetSequence = Number(hash.replace("#signature-", ""));
+      if (!Number.isNaN(targetSequence)) {
+        const el = document.getElementById(`signature-${targetSequence}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }
+    } else if (current && current.signerUserId === activeUserId) {
+      const el = document.getElementById(`signature-${current.sequence}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [steps.length, current, activeUserId]);
 
   return (
     <section className="mt-6 rounded-xl border border-line bg-panel p-5">
@@ -95,7 +115,11 @@ export function PurchaseSignatureWorkflow({
           {steps.map((step) => {
             const active = step.signerUserId === activeUserId && step.id === current?.id;
             return (
-              <li key={step.id} className="rounded-lg border border-line bg-canvas px-3 py-3">
+              <li
+                key={step.id}
+                id={`signature-${step.sequence}`}
+                className="rounded-lg border border-line bg-canvas px-3 py-3"
+              >
                 <div className="flex items-center gap-2 text-[11px]">
                   <span className="grid size-6 place-items-center rounded-full border border-line font-mono text-[10px]">
                     {step.sequence}
@@ -154,6 +178,14 @@ export function PurchaseSignatureWorkflow({
                     </button>
                     <FormErrors errors={uploadState.errors} />
                   </form>
+                ) : null}
+
+                {!active && step.status === "awaiting_upload" ? (
+                  <p className="mt-2 rounded-md border border-copper/20 bg-copper-soft px-3 py-2 text-[11px] leading-5 text-copper">
+                    Ce n&apos;est pas votre tour de signer : le signataire attendu est{" "}
+                    <span className="font-medium">{current?.signerName}</span>. Il doit déposer le
+                    PO signé et confirmer avant que le circuit ne vous revienne.
+                  </p>
                 ) : null}
 
                 {active && step.status === "awaiting_confirmation" ? (
