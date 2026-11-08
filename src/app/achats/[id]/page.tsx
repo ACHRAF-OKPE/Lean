@@ -27,7 +27,11 @@ import { formatXof } from "@/lib/money";
 import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { canApplyAction, statusLabel } from "@/modules/purchases/lifecycle";
-import { getPurchaseOrder, getPurchaseOrderPaymentDetails } from "@/modules/purchases/queries";
+import {
+  getPurchaseOrder,
+  getPurchaseOrderPaymentDetails,
+  canConfirmPurchaseOrder,
+} from "@/modules/purchases/queries";
 import { allPurchaseSignaturesConfirmed } from "@/modules/purchases/signatures";
 import { listExchangeMessages } from "@/modules/exchange/queries";
 import { listSupplierReplies } from "@/modules/exchange/reply-queries";
@@ -177,6 +181,11 @@ async function PurchaseOrderContent({
       : [];
   const banner = bannerFor(query);
   const canReceiveNow = canWriteStock && order.status === "confirmed" && hasReceivableLines;
+  const canConfirmOrder = await canConfirmPurchaseOrder(db, {
+    tenantId: session.tenantId,
+    userId: session.userId,
+    orderId,
+  });
   const orderCanSend = order.status === "confirmed" || order.status === "closed";
   let signaturesComplete = true;
   if (order.signatureWorkflowRequired) {
@@ -225,7 +234,7 @@ async function PurchaseOrderContent({
             {canManagePurchases && canApplyAction(order.status, "request") ? (
               <TransitionButton orderId={order.id} action="request" />
             ) : null}
-            {canManagePurchases && canApplyAction(order.status, "confirm") ? (
+            {canManagePurchases && canConfirmOrder ? (
               <TransitionButton orderId={order.id} action="confirm" />
             ) : null}
             {canManagePurchases && canApplyAction(order.status, "close", order.receiptState) ? (

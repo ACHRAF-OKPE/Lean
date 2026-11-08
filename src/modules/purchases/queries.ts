@@ -11,6 +11,7 @@ import {
   receptions,
   stockLocations,
   stockMoves,
+  tasks,
   type ArticleType,
   type PurchaseOrderStatus,
   type ReceiptState,
@@ -567,6 +568,36 @@ export async function transitionPurchaseOrder(
       }
     }
 
+    // PUR-014 — confirmer une commande réservée à l'assignee de la tâche de validation en cours.
+    // Si aucun validateur n'est paramétré, tout gestionnaire peut confirmer (comportement historique).
+    if (input.action === "confirm") {
+      const [settings] = await tx
+        .select({ validatorUserId: purchaseSettings.validatorUserId })
+        .from(purchaseSettings)
+        .where(eq(purchaseSettings.tenantId, input.tenantId))
+        .limit(1);
+      if (settings?.validatorUserId) {
+        const [validationTask] = await tx
+          .select({ id: tasks.id })
+          .from(tasks)
+          .where(
+            and(
+              eq(tasks.tenantId, input.tenantId),
+              eq(tasks.relatedEntityType, "purchase_order"),
+              eq(tasks.relatedEntityId, order.id),
+              eq(tasks.status, "open"),
+              eq(tasks.assigneeUserId, input.actorUserId),
+            ),
+          )
+          .limit(1);
+        if (!validationTask) {
+          throw new PurchaseError(
+            "Seul le validateur assigné à la tâche de validation peut confirmer cette commande.",
+          );
+        }
+      }
+    }
+
     const statusByAction: Record<Exclude<PurchaseAction, "cancel">, PurchaseOrderStatus> = {
       request: "requested",
       confirm: "confirmed",
@@ -689,4 +720,43 @@ export function canReceive(status: PurchaseOrderStatus): boolean {
 
 export function canCancelOrder(status: PurchaseOrderStatus): boolean {
   return canApplyAction(status, "cancel");
+}
+
+/** PUR-014 — vérifier si un utilisateur peut confirmer une commande. */
+export async function canConfirmPurchaseOrder(
+  db: Database,
+  input: { tenantId: string; userId: string; orderId: string },
+): Promise<boolean> {
+  const [order] = await db
+    .select({ status: purchaseOrders.status })
+    .from(purchaseOrders)
+    .where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.id, input.orderId)))
+    .limit(1);
+  if (!order || !canApplyAction(order.status, "confirm")) {
+    return false;
+  }
+
+  const [settings] = await db
+    .select({ validatorUserId: purchaseSettings.validatorUserId })
+    .from(purchaseSettings)
+    .where(eq(purchaseSettings.tenantId, input.tenantId))
+    .limit(1);
+  if (!settings?.validatorUserId) {
+    return true;
+  }
+
+  const [task] = await db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.tenantId, input.tenantId),
+        eq(tasks.relatedEntityType, "purchase_order"),
+        eq(tasks.relatedEntityId, input.orderId),
+        eq(tasks.status, "open"),
+        eq(tasks.assigneeUserId, input.userId),
+      ),
+    )
+    .limit(1);
+  return Boolean(task);
 }

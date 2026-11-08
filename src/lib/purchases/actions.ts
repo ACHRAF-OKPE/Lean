@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { requireModule } from "@/lib/auth/session";
 import { resolveAppUrl } from "@/lib/app-url";
@@ -11,6 +12,7 @@ import { savePurchaseSettings } from "@/modules/purchases/settings";
 import { defaultTransportFactory } from "@/modules/exchange/mailer";
 import { getEmailAccountConfig, getPurchaseOrderSignaturePdf } from "@/modules/exchange/queries";
 import { getCurrentPurchaseSigner } from "@/modules/purchases/signatures";
+import { purchaseSettings, users } from "@/db/schema";
 import {
   confirmPurchaseSignature,
   getLatestConfirmedPurchaseSignatureFile,
@@ -81,6 +83,46 @@ async function notifyCurrentSigner(
   }
 }
 
+/** PUR-014 — notifier le validateur qu'une demande de validation l'attend. */
+async function notifyValidator(
+  tenantId: string,
+  orderId: string,
+  orderNumber: string | null,
+): Promise<string | null> {
+  const [settings] = await getDb()
+    .select({ validatorUserId: purchaseSettings.validatorUserId })
+    .from(purchaseSettings)
+    .where(eq(purchaseSettings.tenantId, tenantId))
+    .limit(1);
+  if (!settings?.validatorUserId) return null;
+
+  const [validator] = await getDb()
+    .select({ name: users.name, email: users.email })
+    .from(users)
+    .where(eq(users.id, settings.validatorUserId))
+    .limit(1);
+  if (!validator?.email) return null;
+
+  const account = await getEmailAccountConfig(getDb(), tenantId);
+  if (!account?.active)
+    return "Demande créée, mais aucun compte d'envoi actif ne peut notifier le validateur.";
+
+  const url = `${await resolveAppUrl()}/achats/${orderId}`;
+  try {
+    await defaultTransportFactory(account.config).send({
+      to: validator.email,
+      toName: validator.name,
+      subject: `Validation requise — commande fournisseur ${orderNumber ?? orderId}`,
+      text: `Bonjour ${validator.name},\n\nUne commande fournisseur vous attend pour validation. Ouvrez la commande pour la confirmer : ${url}\n\nCette tâche vous est personnellement assignée.`,
+      html: `<p>Bonjour ${validator.name},</p><p>Une commande fournisseur vous attend pour validation.</p><p><a href="${url}">Ouvrir la commande et confirmer</a></p><p>Cette tâche vous est personnellement assignée.</p>`,
+      attachments: [],
+    });
+    return null;
+  } catch {
+    return "La demande est créée, mais le courriel au validateur n'a pas pu partir.";
+  }
+}
+
 export async function createPurchaseOrderAction(
   _state: PurchaseFormState,
   formData: FormData,
@@ -144,6 +186,10 @@ export async function transitionPurchaseOrderAction(
       orderId,
       action: requested,
     });
+    if (requested === "request") {
+      const notificationError = await notifyValidator(session.tenantId, orderId, result.number);
+      if (notificationError) return { errors: [notificationError] };
+    }
     if (result.signatureWorkflowStarted) {
       const notificationError = await notifyCurrentSigner(
         session.tenantId,

@@ -3,6 +3,7 @@ import { and, count, eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
   auditEvents,
+  memberships,
   partnerBankAccounts,
   partners,
   purchaseOrders,
@@ -10,6 +11,7 @@ import {
   stockLevels,
   stockLocations,
   stockMoves,
+  users,
 } from "@/db/schema";
 import { createTestDatabase, type TestDatabase } from "@/test/pglite";
 import { seedPurchasingTenant, type PurchasingTenant } from "@/test/purchases";
@@ -26,6 +28,7 @@ import { ensureDefaultLocations, listInternalLocations } from "@/modules/stock/l
 import { normalizeQuantity } from "@/modules/stock/quantities";
 import { savePartnerBankAccount } from "@/modules/catalog/partner-bank-account-queries";
 import { validatePartnerBankAccount } from "@/modules/catalog/partner-bank-account";
+import { savePurchaseSettings } from "./settings";
 
 let context: TestDatabase;
 let db: Database;
@@ -832,5 +835,109 @@ describe("PUR-013 — coordonnées bancaires à la création du tiers", () => {
       )
       .limit(1);
     expect(stored).toBeUndefined();
+  });
+});
+
+describe("PUR-014 — confirmation réservée à l'assignee de la tâche de validation", () => {
+  it("refuse la confirmation par un utilisateur qui n'est pas le validateur assigné", async () => {
+    const ids = await seedPurchasingTenant(db, "pur014-validator");
+    await db
+      .insert(memberships)
+      .values({ tenantId: ids.tenantId, userId: ids.userId, role: "owner" });
+    const [validator] = await db
+      .insert(users)
+      .values({
+        email: "valideur@test.local",
+        name: "Valideur Attitré",
+        passwordHash: "hash",
+      })
+      .returning({ id: users.id });
+    if (!validator) throw new Error("Validateur non créé.");
+    await db
+      .insert(memberships)
+      .values({ tenantId: ids.tenantId, userId: validator.id, role: "member" });
+
+    await savePurchaseSettings(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      raw: { defaultReceiptDelayDays: 0, validatorUserId: validator.id },
+    });
+
+    const order = await createPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      data: {
+        supplierId: ids.supplierId,
+        expectedReceiptDate: "",
+        externalReference: "",
+        notes: "",
+        lines: [{ articleId: ids.productId, qty: "1", unitPriceXof: 1000 }],
+      },
+    });
+    await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "request",
+    });
+
+    // Un utilisateur qui n'est pas le validateur ne peut pas confirmer
+    await expect(
+      transitionPurchaseOrder(db, {
+        tenantId: ids.tenantId,
+        actorUserId: ids.userId,
+        orderId: order.id,
+        action: "confirm",
+      }),
+    ).rejects.toThrow(/validateur assigné/);
+
+    // Le validateur peut confirmer
+    const confirmed = await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: validator.id,
+      orderId: order.id,
+      action: "confirm",
+    });
+    expect(confirmed.status).toBe("confirmed");
+  });
+
+  it("permet à tout gestionnaire de confirmer quand aucun validateur n'est paramétré", async () => {
+    const ids = await seedPurchasingTenant(db, "pur014-novalidator");
+    await db
+      .insert(memberships)
+      .values({ tenantId: ids.tenantId, userId: ids.userId, role: "owner" });
+
+    await savePurchaseSettings(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      raw: { defaultReceiptDelayDays: 0 },
+    });
+
+    const order = await createPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      data: {
+        supplierId: ids.supplierId,
+        expectedReceiptDate: "",
+        externalReference: "",
+        notes: "",
+        lines: [{ articleId: ids.productId, qty: "1", unitPriceXof: 1000 }],
+      },
+    });
+    await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "request",
+    });
+
+    // Aucun validateur paramétré : tout gestionnaire peut confirmer
+    const confirmed = await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "confirm",
+    });
+    expect(confirmed.status).toBe("confirmed");
   });
 });
