@@ -9,6 +9,7 @@ import {
   users,
 } from "@/db/schema";
 import { PurchaseError } from "./errors";
+import { createTaskForPurchaseOrder } from "@/modules/tasks/queries";
 
 const MAX_SIGNED_PDF_BYTES = 1_048_576;
 const PDF_MIME = "application/pdf";
@@ -327,6 +328,7 @@ export async function confirmPurchaseSignature(
     const [next] = await tx
       .select({
         signatureId: purchaseOrderSignatures.id,
+        signerUserId: purchaseOrderSignatures.signerUserId,
         signerName: users.name,
         signerEmail: users.email,
         sequence: purchaseOrderSignatures.sequence,
@@ -342,6 +344,20 @@ export async function confirmPurchaseSignature(
       )
       .orderBy(asc(purchaseOrderSignatures.sequence))
       .limit(1);
+
+    // PUR-012 — une tâche est créée pour le signataire suivant du circuit
+    if (next) {
+      await createTaskForPurchaseOrder(tx, {
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        assigneeUserId: next.signerUserId,
+        title: `Signer le bon de commande ${order?.number}`,
+        description: `Circuit de signature, étape ${next.sequence} : déposez le PDF signé puis confirmez le dépôt pour le transmettre au signataire suivant.`,
+        orderId: input.orderId,
+        priority: "high",
+      });
+    }
+
     return {
       complete: !next,
       nextSigner:

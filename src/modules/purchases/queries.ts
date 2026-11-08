@@ -5,6 +5,7 @@ import {
   auditEvents,
   partners,
   purchaseOrderLines,
+  purchaseOrderSignatures,
   purchaseOrders,
   purchaseSettings,
   receptions,
@@ -14,6 +15,7 @@ import {
   type PurchaseOrderStatus,
   type ReceiptState,
   type ReceptionStatus,
+  users,
 } from "@/db/schema";
 import { todayIsoDate } from "@/lib/dates";
 import { recordDocumentEvent } from "@/modules/discussion/queries";
@@ -621,6 +623,32 @@ export async function transitionPurchaseOrder(
         .update(purchaseOrders)
         .set({ signatureWorkflowRequired: true })
         .where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.id, order.id)));
+
+      // PUR-012 — une tâche est créée pour le premier signataire du circuit
+      const [firstStep] = await tx
+        .select({ signerUserId: purchaseOrderSignatures.signerUserId })
+        .from(purchaseOrderSignatures)
+        .innerJoin(users, eq(users.id, purchaseOrderSignatures.signerUserId))
+        .where(
+          and(
+            eq(purchaseOrderSignatures.tenantId, input.tenantId),
+            eq(purchaseOrderSignatures.orderId, order.id),
+          ),
+        )
+        .orderBy(asc(purchaseOrderSignatures.sequence))
+        .limit(1);
+      if (firstStep) {
+        await createTaskForPurchaseOrder(tx, {
+          tenantId: input.tenantId,
+          actorUserId: input.actorUserId,
+          assigneeUserId: firstStep.signerUserId,
+          title: `Signer le bon de commande ${number}`,
+          description:
+            "Circuit de signature, étape 1 : déposez le PDF signé puis confirmez le dépôt pour le transmettre au signataire suivant.",
+          orderId: order.id,
+          priority: "high",
+        });
+      }
     }
 
     await tx.insert(auditEvents).values({
