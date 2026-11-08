@@ -124,7 +124,11 @@ async function PurchaseSettingsContent({
             <PurchaseSettingsForm
               values={
                 settings
-                  ? { defaultReceiptDelayDays: delayDays, signerUserIds: settings.signerUserIds }
+                  ? {
+                      defaultReceiptDelayDays: delayDays,
+                      validatorUserId: settings.validatorUserId,
+                      signerUserIds: settings.signerUserIds,
+                    }
                   : null
               }
               signers={team.members

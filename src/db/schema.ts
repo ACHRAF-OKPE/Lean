@@ -1335,6 +1335,7 @@ export const purchaseOrders = pgTable(
     expectedReceiptDate: date("expected_receipt_date", { mode: "string" }),
     externalReference: text("external_reference"),
     notes: text("notes"),
+    legalClauses: text("legal_clauses"),
     exTaxTotal: integer("ex_tax_total").notNull().default(0),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     confirmedBy: uuid("confirmed_by").references(() => users.id, { onDelete: "set null" }),
@@ -2287,6 +2288,9 @@ export const purchaseSettings = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
     defaultReceiptDelayDays: integer("default_receipt_delay_days").notNull().default(0),
+    validatorUserId: uuid("validator_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     signerUserIds: jsonb("signer_user_ids").$type<string[]>().notNull().default([]),
     updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
       onDelete: "set null",

@@ -151,6 +151,48 @@ async function userName(tx: Transaction, userId: string): Promise<string | null>
   return row?.name ?? null;
 }
 
+export async function createTaskForPurchaseOrder(
+  tx: Transaction,
+  input: {
+    tenantId: string;
+    actorUserId: string;
+    assigneeUserId: string;
+    title: string;
+    description: string;
+    orderId: string;
+    priority?: "low" | "normal" | "high" | "urgent";
+    dueDate?: string;
+  },
+): Promise<string> {
+  const [row] = await tx
+    .insert(tasks)
+    .values({
+      tenantId: input.tenantId,
+      title: input.title,
+      description: input.description,
+      status: "open",
+      priority: input.priority ?? "normal",
+      dueDate: input.dueDate ?? null,
+      assigneeUserId: input.assigneeUserId,
+      relatedEntityType: "purchase_order",
+      relatedEntityId: input.orderId,
+      createdByUserId: input.actorUserId,
+    })
+    .returning({ id: tasks.id });
+  if (!row) throw new TasksError("Échec de la création de la tâche.");
+  await recordDocumentEvent(tx, {
+    tenantId: input.tenantId,
+    actorUserId: input.actorUserId,
+    entityType: "purchase_order",
+    entityId: input.orderId,
+    event: {
+      type: "task.created",
+      key: `task:${row.id}`,
+    },
+  });
+  return row.id;
+}
+
 async function recordTaskEvent(
   tx: Transaction,
   input: {

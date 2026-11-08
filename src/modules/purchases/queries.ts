@@ -6,6 +6,7 @@ import {
   partners,
   purchaseOrderLines,
   purchaseOrders,
+  purchaseSettings,
   receptions,
   stockLocations,
   stockMoves,
@@ -31,8 +32,10 @@ import {
   type DraftOrderInput,
   type SupplierReference,
 } from "./validation";
+import { createTaskForPurchaseOrder } from "@/modules/tasks/queries";
 import { nextDocumentNumber } from "@/modules/stock/sequences";
 import { normalizeQuantity, remainingQuantity } from "@/modules/stock/quantities";
+import { loadSupplierPaymentSnapshot } from "./supplier-payment-snapshot";
 import type { SupplierBankSnapshot } from "./supplier-payment-snapshot";
 import { initializePurchaseSignatureChain } from "./signatures";
 
@@ -106,6 +109,7 @@ export interface PurchaseOrderDetail {
     readonly supplierPaymentTermDays: number | null;
     readonly externalReference: string | null;
     readonly notes: string | null;
+    readonly legalClauses: string | null;
     readonly confirmedAt: Date | null;
   };
   readonly lines: readonly PurchaseOrderLineDetail[];
@@ -288,6 +292,7 @@ export async function getPurchaseOrder(
       supplierName: partners.name,
       externalReference: purchaseOrders.externalReference,
       notes: purchaseOrders.notes,
+      legalClauses: purchaseOrders.legalClauses,
       exTaxTotal: purchaseOrders.exTaxTotal,
       confirmedAt: purchaseOrders.confirmedAt,
       createdAt: purchaseOrders.createdAt,
@@ -389,6 +394,13 @@ export async function getPurchaseOrder(
   };
 }
 
+export interface CreatePurchaseOrderInput {
+  readonly tenantId: string;
+  readonly actorUserId: string;
+  readonly data: DraftOrderInput;
+  readonly legalClauses?: unknown;
+}
+
 export interface CreatePurchaseOrderResult {
   readonly id: string;
   readonly warnings: readonly string[];
@@ -396,11 +408,7 @@ export interface CreatePurchaseOrderResult {
 
 export async function createPurchaseOrder(
   db: Database,
-  input: {
-    tenantId: string;
-    actorUserId: string;
-    data: DraftOrderInput;
-  },
+  input: CreatePurchaseOrderInput,
 ): Promise<CreatePurchaseOrderResult> {
   const articleIds = [...new Set(input.data.lines.map((line) => line.articleId))];
   const references = await loadOrderReferences(db, input.tenantId, {
@@ -428,7 +436,20 @@ export async function createPurchaseOrder(
     })),
   );
 
+  const legalClauses =
+    input.legalClauses === null || input.legalClauses === undefined
+      ? null
+      : String(input.legalClauses).trim() || null;
+  if (legalClauses !== null && legalClauses.length > 5000) {
+    throw new PurchaseError("Clauses légales : 5000 caractères maximum.");
+  }
+
   return db.transaction(async (tx) => {
+    const snapshot = await loadSupplierPaymentSnapshot(tx, {
+      tenantId: input.tenantId,
+      supplierId: order.supplier.id,
+    });
+
     const [created] = await tx
       .insert(purchaseOrders)
       .values({
@@ -441,6 +462,9 @@ export async function createPurchaseOrder(
         externalReference: order.externalReference,
         notes: order.notes,
         exTaxTotal: order.exTaxTotal,
+        supplierPaymentTermDays: snapshot?.paymentTermDays ?? null,
+        supplierBankDetails: snapshot?.bankDetails ?? null,
+        legalClauses,
         createdBy: input.actorUserId,
       })
       .returning({ id: purchaseOrders.id });
@@ -475,6 +499,8 @@ export async function createPurchaseOrder(
         supplierCode: order.supplier.code,
         lineCount: order.lines.length,
         exTaxTotal: order.exTaxTotal,
+        hasBankDetails: snapshot?.bankDetails !== null,
+        hasLegalClauses: legalClauses !== null,
       },
     });
 
@@ -511,7 +537,7 @@ export async function transitionPurchaseOrder(
     if (!order) {
       throw new PurchaseError("Commande introuvable dans cet espace de travail.");
     }
-    if (!canApplyAction(order.status, input.action)) {
+    if (!canApplyAction(order.status, input.action, order.receiptState)) {
       throw new PurchaseError(
         `Action impossible : une commande ${statusLabel(order.status).toLowerCase()} ne peut pas être ${actionLabel(input.action)}.`,
       );
@@ -550,6 +576,26 @@ export async function transitionPurchaseOrder(
         tenantId: input.tenantId,
         scope: "purchase_order",
       });
+    }
+
+    // Créer une tâche pour le validateur lors de la demande
+    if (input.action === "request") {
+      const [settings] = await tx
+        .select({ validatorUserId: purchaseSettings.validatorUserId })
+        .from(purchaseSettings)
+        .where(eq(purchaseSettings.tenantId, input.tenantId))
+        .limit(1);
+      if (settings?.validatorUserId) {
+        await createTaskForPurchaseOrder(tx, {
+          tenantId: input.tenantId,
+          actorUserId: input.actorUserId,
+          assigneeUserId: settings.validatorUserId,
+          title: `Valider la commande fournisseur`,
+          description: `Commande brouillon à valider : ${order.id}`,
+          orderId: order.id,
+          priority: "high",
+        });
+      }
     }
 
     await tx

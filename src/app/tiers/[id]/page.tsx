@@ -12,6 +12,7 @@ import { PartnerDeleteButton } from "@/components/views/partner-delete-button";
 import { getDb } from "@/db/client";
 import { getAccessLevels, requireModule } from "@/lib/auth/session";
 import { categoriesByPartner } from "@/modules/catalog/partner-queries";
+import { getPartnerBankAccount } from "@/modules/catalog/partner-bank-account-queries";
 import { getPartner } from "@/modules/catalog/queries";
 import { PARTNER_TYPE_LABELS } from "@/modules/catalog/constants";
 import { atLeast } from "@/modules/identity/modules";
@@ -75,6 +76,10 @@ async function PartnerContent({
   if (!partner) {
     notFound();
   }
+
+  const bankAccount = partner.isSupplier
+    ? await getPartnerBankAccount(db, { tenantId: session.tenantId, partnerId })
+    : null;
 
   const categories = (await categoriesByPartner(db, session.tenantId, [partner.id])).get(
     partner.id,
@@ -225,6 +230,51 @@ async function PartnerContent({
             <p className="mt-1 font-mono text-[11px]">{partner.taxNumber ?? "—"}</p>
           </div>
         </section>
+
+        {partner.isSupplier ? (
+          <section
+            aria-label="Coordonnées de règlement fournisseur"
+            className="mt-6 grid gap-4 rounded-xl border border-line bg-panel p-5 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            <div>
+              <p className="font-mono text-[9px] tracking-[0.14em] text-muted uppercase">
+                Compte bancaire
+              </p>
+              <p className="mt-1 text-[11px]">
+                {bankAccount ? "Enregistré" : "Aucun compte bancaire enregistré."}
+              </p>
+              {bankAccount ? (
+                <div className="mt-3 space-y-2 text-[11px]">
+                  {bankAccount.bankName ? (
+                    <p>
+                      <span className="font-mono text-[10px] text-muted">Banque</span>{" "}
+                      {bankAccount.bankName}
+                    </p>
+                  ) : null}
+                  {bankAccount.accountHolder ? (
+                    <p>
+                      <span className="font-mono text-[10px] text-muted">Titulaire</span>{" "}
+                      {bankAccount.accountHolder}
+                    </p>
+                  ) : null}
+                  {bankAccount.iban ? (
+                    <p className="font-mono">
+                      <span className="text-muted">IBAN</span> {bankAccount.iban}
+                    </p>
+                  ) : null}
+                  {bankAccount.bic ? (
+                    <p className="font-mono">
+                      <span className="text-muted">BIC / SWIFT</span> {bankAccount.bic}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              <p className="mt-2 text-[10px] text-muted">
+                Ces coordonnées sont figées sur chaque bon de commande émis à ce fournisseur.
+              </p>
+            </div>
+          </section>
+        ) : null}
 
         <section className="mt-8">
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-3">

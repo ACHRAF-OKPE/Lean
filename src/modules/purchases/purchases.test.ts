@@ -3,6 +3,7 @@ import { and, count, eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
   auditEvents,
+  partnerBankAccounts,
   purchaseOrders,
   receptions,
   stockLevels,
@@ -13,7 +14,12 @@ import { createTestDatabase, type TestDatabase } from "@/test/pglite";
 import { seedPurchasingTenant, type PurchasingTenant } from "@/test/purchases";
 import { todayIsoDate } from "@/lib/dates";
 import { PurchaseError } from "./errors";
-import { createPurchaseOrder, getPurchaseOrder, transitionPurchaseOrder } from "./queries";
+import {
+  createPurchaseOrder,
+  getPurchaseOrder,
+  getPurchaseOrderPaymentDetails,
+  transitionPurchaseOrder,
+} from "./queries";
 import { cancelReception, createReception } from "@/modules/stock/receptions";
 import { ensureDefaultLocations, listInternalLocations } from "@/modules/stock/locations";
 import { normalizeQuantity } from "@/modules/stock/quantities";
@@ -198,7 +204,7 @@ describe("PUR-002 — cycle de vie et audit", () => {
   it("enchaîne brouillon, demandée, confirmée, clôturée et refuse les doubles transitions", async () => {
     const ids = await seedPurchasingTenant(db, "pur002");
     const orderId = await createOrder(ids, [
-      { articleId: ids.productId, qty: "2", unitPriceXof: 1000 },
+      { articleId: ids.serviceId, qty: "2", unitPriceXof: 1000 },
     ]);
 
     await transitionPurchaseOrder(db, {
@@ -609,5 +615,86 @@ describe("TEN — isolation des achats", () => {
       .where(and(eq(stockLocations.tenantId, second.tenantId), eq(stockLocations.type, "internal")))
       .limit(1);
     expect(locationRow?.code).toBe("MAG");
+  });
+});
+
+describe("PUR-008 — snapshot de paiement et clauses légales sur la commande", () => {
+  it("fige les coordonnées bancaires et le délai du fournisseur, avec les clauses légales", async () => {
+    const ids = await seedPurchasingTenant(db, "pur-snap");
+    const clauses =
+      "Réserve de propriété jusqu'au complet paiement. Paiement à 30 jours fin de mois. Pénalités de retard : 1,5 % par mois de retard. Juridiction : tribunal de commerce de Dakar.";
+
+    await db.insert(partnerBankAccounts).values({
+      tenantId: ids.tenantId,
+      partnerId: ids.supplierId,
+      bankName: "Banque du Sahel",
+      bankCountryCode: "SN",
+      accountHolder: "Sahel Négoce SARL",
+      bankCode: "10001",
+      branchCode: "00002",
+      accountNumber: "000012345678",
+      ribKey: "85",
+      iban: "SN123456789012345678901234",
+      bic: "BDSNSEXX",
+    });
+
+    const orderId = await createPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      data: {
+        supplierId: ids.supplierId,
+        expectedReceiptDate: "",
+        externalReference: "",
+        notes: "",
+        lines: [{ articleId: ids.productId, qty: "2", unitPriceXof: 1000 }],
+      },
+      legalClauses: clauses,
+    }).then((created) => created.id);
+
+    const detail = await getPurchaseOrder(db, { tenantId: ids.tenantId, orderId });
+    expect(detail).not.toBeNull();
+    expect(detail!.order.legalClauses).toBe(clauses);
+
+    const payment = await getPurchaseOrderPaymentDetails(db, {
+      tenantId: ids.tenantId,
+      orderId,
+    });
+    expect(payment).not.toBeNull();
+    expect(payment!.paymentTermDays).toBe(0);
+    expect(payment!.bankDetails).toMatchObject({
+      bankName: "Banque du Sahel",
+      accountHolder: "Sahel Négoce SARL",
+      iban: "SN123456789012345678901234",
+      bic: "BDSNSEXX",
+    });
+
+    const [stored] = await db
+      .select({
+        legalClauses: purchaseOrders.legalClauses,
+        supplierBankDetails: purchaseOrders.supplierBankDetails,
+        supplierPaymentTermDays: purchaseOrders.supplierPaymentTermDays,
+      })
+      .from(purchaseOrders)
+      .where(and(eq(purchaseOrders.tenantId, ids.tenantId), eq(purchaseOrders.id, orderId)));
+    expect(stored?.legalClauses).toBe(clauses);
+    expect(stored?.supplierBankDetails).toMatchObject({ bankName: "Banque du Sahel" });
+  });
+
+  it("refuse des clauses légales trop longues", async () => {
+    const ids = await seedPurchasingTenant(db, "pur-long");
+    await expect(
+      createPurchaseOrder(db, {
+        tenantId: ids.tenantId,
+        actorUserId: ids.userId,
+        data: {
+          supplierId: ids.supplierId,
+          expectedReceiptDate: "",
+          externalReference: "",
+          notes: "",
+          lines: [{ articleId: ids.productId, qty: "1", unitPriceXof: 1000 }],
+        },
+        legalClauses: "x".repeat(5001),
+      }),
+    ).rejects.toThrow(/Clauses légales : 5000 caractères maximum./);
   });
 });

@@ -218,7 +218,7 @@ async function PurchaseOrderContent({
             {canManagePurchases && canApplyAction(order.status, "confirm") ? (
               <TransitionButton orderId={order.id} action="confirm" />
             ) : null}
-            {canManagePurchases && canApplyAction(order.status, "close") ? (
+            {canManagePurchases && canApplyAction(order.status, "close", order.receiptState) ? (
               <TransitionButton orderId={order.id} action="close" />
             ) : null}
             {canManagePurchases &&
@@ -372,6 +372,18 @@ async function PurchaseOrderContent({
                 </p>
               )}
             </dl>
+          </section>
+        ) : null}
+
+        {order.legalClauses ? (
+          <section className="mt-4 rounded-xl border border-line bg-panel p-4">
+            <h2 className="text-sm font-semibold">Clauses légales et conditions générales</h2>
+            <p className="mt-1 text-[10px] text-muted">
+              Partie contractuelle du bon de commande, figée à sa création.
+            </p>
+            <div className="mt-3 rounded-lg border border-line bg-canvas p-3 text-[11px] leading-6 break-words whitespace-pre-line text-muted">
+              {order.legalClauses}
+            </div>
           </section>
         ) : null}
 

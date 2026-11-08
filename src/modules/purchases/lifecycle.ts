@@ -19,8 +19,19 @@ export const PURCHASE_TRANSITION_TARGET: Record<
   close: "closed",
 };
 
-export function canApplyAction(status: PurchaseOrderStatus, action: PurchaseAction): boolean {
-  return ALLOWED_STATUSES[action].includes(status);
+export function canApplyAction(
+  status: PurchaseOrderStatus,
+  action: PurchaseAction,
+  receiptState?: ReceiptState,
+): boolean {
+  if (!ALLOWED_STATUSES[action].includes(status)) {
+    return false;
+  }
+  // La clôture exige que la commande soit complètement reçue
+  if (action === "close" && receiptState !== "received") {
+    return false;
+  }
+  return true;
 }
 
 export function actionLabel(action: PurchaseAction): string {

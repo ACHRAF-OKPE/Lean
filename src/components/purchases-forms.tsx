@@ -15,6 +15,7 @@ export function PurchaseSettingsForm({
 }: {
   values: {
     readonly defaultReceiptDelayDays: number;
+    readonly validatorUserId?: string | null;
     readonly signerUserIds?: readonly string[];
   } | null;
   signers: readonly { readonly userId: string; readonly name: string; readonly email: string }[];
@@ -46,6 +47,25 @@ export function PurchaseSettingsForm({
               defaultValue={values?.defaultReceiptDelayDays ?? 0}
               className={`${INPUT_CLASS} tabular-nums`}
             />
+          </Field>
+          <Field
+            label="Validateur de commande"
+            htmlFor="settings-validator"
+            hint="Membre chargé de valider les commandes après demande. Si vide, tout gestionnaire peut valider."
+          >
+            <select
+              id="settings-validator"
+              name="validatorUserId"
+              defaultValue={values?.validatorUserId ?? ""}
+              className={INPUT_CLASS}
+            >
+              <option value="">Tout gestionnaire</option>
+              {signers.map((signer) => (
+                <option key={signer.userId} value={signer.userId}>
+                  {signer.name} · {signer.email}
+                </option>
+              ))}
+            </select>
           </Field>
         </div>
         <div className="space-y-2">

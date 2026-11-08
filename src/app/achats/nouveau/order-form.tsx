@@ -145,6 +145,20 @@ export function PurchaseOrderForm({
                 className={`${INPUT_CLASS} min-h-18 resize-y`}
               />
             </Field>
+            <Field
+              label="Clauses légales / conditions générales"
+              htmlFor="legalClauses"
+              hint="Partie contractuelle du bon de commande (5000 caractères maximum). Reprise sur le bon confirmé."
+            >
+              <textarea
+                id="legalClauses"
+                name="legalClauses"
+                maxLength={5000}
+                rows={3}
+                placeholder="Clause de réserve de propriété, délais de paiement, pénalités de retard, juridiction compétente…"
+                className={`${INPUT_CLASS} min-h-24 resize-y`}
+              />
+            </Field>
           </div>
         </section>
 

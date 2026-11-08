@@ -11,6 +11,7 @@ export const MAX_RECEIPT_DELAY_DAYS = 365;
 export interface PurchaseSettingsRecord {
   readonly id: string;
   readonly defaultReceiptDelayDays: number;
+  readonly validatorUserId: string | null;
   readonly signerUserIds: readonly string[];
 }
 
@@ -27,6 +28,7 @@ export async function loadPurchaseSettings(
     .select({
       id: purchaseSettings.id,
       defaultReceiptDelayDays: purchaseSettings.defaultReceiptDelayDays,
+      validatorUserId: purchaseSettings.validatorUserId,
       signerUserIds: purchaseSettings.signerUserIds,
     })
     .from(purchaseSettings)
@@ -43,6 +45,7 @@ export async function getPurchaseSettingsView(
     .select({
       id: purchaseSettings.id,
       defaultReceiptDelayDays: purchaseSettings.defaultReceiptDelayDays,
+      validatorUserId: purchaseSettings.validatorUserId,
       signerUserIds: purchaseSettings.signerUserIds,
       updatedAt: purchaseSettings.updatedAt,
     })
@@ -57,6 +60,7 @@ export interface SavePurchaseSettingsInput {
   readonly actorUserId: string;
   readonly raw: {
     readonly defaultReceiptDelayDays: unknown;
+    readonly validatorUserId?: unknown;
     readonly signerUserIds?: unknown;
   };
 }
@@ -92,6 +96,9 @@ export async function savePurchaseSettings(
   input: SavePurchaseSettingsInput,
 ): Promise<{ created: boolean }> {
   const defaultReceiptDelayDays = receiptDelayDaysOf(input.raw.defaultReceiptDelayDays);
+  const validatorUserId = input.raw.validatorUserId
+    ? String(input.raw.validatorUserId).trim()
+    : null;
   const signerUserIds = Array.isArray(input.raw.signerUserIds)
     ? input.raw.signerUserIds.map((id) => String(id).trim()).filter(Boolean)
     : [];
@@ -111,6 +118,11 @@ export async function savePurchaseSettings(
       "Chaque signataire doit être membre de cet espace et avoir accès aux Achats.",
     );
   }
+  if (validatorUserId && !eligibleSignerIds.has(validatorUserId)) {
+    throw new PurchaseError(
+      "Le validateur doit être membre de cet espace et avoir accès aux Achats.",
+    );
+  }
 
   return db.transaction(async (tx) => {
     const [existing] = await tx
@@ -123,6 +135,7 @@ export async function savePurchaseSettings(
     const values = {
       tenantId: input.tenantId,
       defaultReceiptDelayDays,
+      validatorUserId,
       signerUserIds,
       updatedByUserId: input.actorUserId,
     };

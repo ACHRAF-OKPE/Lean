@@ -267,6 +267,20 @@
       "when": 1794073506248,
       "tag": "0037_bent_medusa",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794088329201,
+      "tag": "0038_public_shiver_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794088329202,
+      "tag": "0039_legal_clauses_purchase_order",
+      "breakpoints": true
     }
   ]
 }

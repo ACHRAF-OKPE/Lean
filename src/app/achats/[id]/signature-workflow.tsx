@@ -123,7 +123,11 @@ export function PurchaseSignatureWorkflow({
                 ) : null}
 
                 {active && step.status === "awaiting_upload" ? (
-                  <form action={uploadAction} className="mt-3 flex flex-wrap items-end gap-2">
+                  <form
+                    action={uploadAction}
+                    encType="multipart/form-data"
+                    className="mt-3 flex flex-wrap items-end gap-2"
+                  >
                     <input type="hidden" name="orderId" value={orderId} />
                     <label className="min-w-0 flex-1 text-[10px] text-muted">
                       Déposer le PO signé (PDF, 1 Mio maximum)

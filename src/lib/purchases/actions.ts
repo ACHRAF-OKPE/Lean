@@ -111,6 +111,7 @@ export async function createPurchaseOrderAction(
         notes: text(formData, "notes"),
         lines,
       },
+      legalClauses: text(formData, "legalClauses"),
     });
     createdId = created.id;
   } catch (error) {
