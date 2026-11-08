@@ -128,12 +128,35 @@ export async function createPartnerAction(
   const duplicate = uniqueCodeError(row.code, context.existingPartnerCodes);
   const coordinates = parseCoordinates(Object.fromEntries(formData));
   const errors = [...row.errors, ...(duplicate ? [duplicate] : []), ...coordinates.errors];
+
+  // PUR-013 — coordonnées bancaires saisies dès la création d'un fournisseur
+  const bankRaw = {
+    bank_name: formData.get("bank_name"),
+    bank_country_code: formData.get("bank_country_code"),
+    account_holder: formData.get("account_holder"),
+    bank_code: formData.get("bank_code"),
+    branch_code: formData.get("branch_code"),
+    account_number: formData.get("account_number"),
+    rib_key: formData.get("rib_key"),
+    iban: formData.get("iban"),
+    bic: formData.get("bic"),
+  };
+  const bankValidation = validatePartnerBankAccount(bankRaw);
+  errors.push(...bankValidation.errors);
+
+  const hasBankData = Object.values(bankValidation.data).some(
+    (value) => value !== null && value !== "",
+  );
+  if (hasBankData && !row.data.isSupplier) {
+    errors.push("Les coordonnées bancaires ne peuvent être saisies que pour un fournisseur.");
+  }
+
   if (errors.length > 0) {
     return { errors };
   }
 
   try {
-    await createPartner(db, {
+    const created = await createPartner(db, {
       tenantId: session.tenantId,
       actorUserId: session.userId,
       data: row.data as unknown as PartnerImportData,
@@ -141,6 +164,16 @@ export async function createPartnerAction(
       longitude: coordinates.longitude,
       categoryIds: categoryIdsFrom(formData),
     });
+
+    // PUR-013 — enregistrement des coordonnées bancaires du fournisseur
+    if (hasBankData && row.data.isSupplier) {
+      await savePartnerBankAccount(getDb(), {
+        tenantId: session.tenantId,
+        actorUserId: session.userId,
+        partnerId: created.id,
+        data: bankValidation.data,
+      });
+    }
   } catch (error) {
     return failure(error);
   }

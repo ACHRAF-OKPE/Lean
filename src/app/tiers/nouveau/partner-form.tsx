@@ -207,6 +207,102 @@ export function PartnerForm({
             <CheckboxField name="actif" label="Actif" hint="Un tiers inactif reste visible." />
           </div>
         </section>
+
+        <section>
+          <h2 className="text-sm font-semibold">Coordonnées de règlement fournisseur</h2>
+          <p className="mt-1 text-[11px] leading-5 text-muted">
+            Facultatif : renseignez uniquement pour un fournisseur. Ces coordonnées sont figées sur
+            chaque bon de commande émis à ce tiers.
+          </p>
+          <div className="mt-3 grid gap-4 md:grid-cols-2">
+            <Field label="Banque" htmlFor="bank_name">
+              <input
+                id="bank_name"
+                name="bank_name"
+                maxLength={120}
+                defaultValue=""
+                className={INPUT_CLASS}
+              />
+            </Field>
+            <Field
+              label="Pays de la banque"
+              htmlFor="bank_country_code"
+              hint="Code ISO 3166-1, par exemple CI."
+            >
+              <input
+                id="bank_country_code"
+                name="bank_country_code"
+                maxLength={2}
+                pattern="[A-Za-z]{2}"
+                defaultValue=""
+                className={`${INPUT_CLASS} font-mono uppercase`}
+              />
+            </Field>
+            <Field label="Intitulé du compte" htmlFor="account_holder">
+              <input
+                id="account_holder"
+                name="account_holder"
+                maxLength={120}
+                defaultValue=""
+                className={INPUT_CLASS}
+              />
+            </Field>
+            <Field label="Code banque" htmlFor="bank_code">
+              <input
+                id="bank_code"
+                name="bank_code"
+                maxLength={20}
+                defaultValue=""
+                className={INPUT_CLASS}
+              />
+            </Field>
+            <Field label="Code guichet" htmlFor="branch_code">
+              <input
+                id="branch_code"
+                name="branch_code"
+                maxLength={20}
+                defaultValue=""
+                className={INPUT_CLASS}
+              />
+            </Field>
+            <Field label="Numéro de compte" htmlFor="account_number">
+              <input
+                id="account_number"
+                name="account_number"
+                maxLength={34}
+                defaultValue=""
+                className={`${INPUT_CLASS} font-mono`}
+              />
+            </Field>
+            <Field label="Clé RIB" htmlFor="rib_key" hint="Jusqu'à deux chiffres.">
+              <input
+                id="rib_key"
+                name="rib_key"
+                maxLength={2}
+                defaultValue=""
+                className={`${INPUT_CLASS} font-mono`}
+              />
+            </Field>
+            <Field label="IBAN" htmlFor="iban" hint="La clé de contrôle est vérifiée.">
+              <input
+                id="iban"
+                name="iban"
+                maxLength={34}
+                defaultValue=""
+                className={`${INPUT_CLASS} font-mono uppercase`}
+              />
+            </Field>
+            <Field label="BIC / SWIFT" htmlFor="bic" hint="8 ou 11 caractères, au format BIC.">
+              <input
+                id="bic"
+                name="bic"
+                maxLength={11}
+                defaultValue=""
+                className={`${INPUT_CLASS} font-mono uppercase`}
+              />
+            </Field>
+          </div>
+        </section>
       </fieldset>
 
       <div className="flex items-center justify-between border-t border-line pt-4">

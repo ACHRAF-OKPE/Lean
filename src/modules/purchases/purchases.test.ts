@@ -4,6 +4,7 @@ import type { Database } from "@/db/client";
 import {
   auditEvents,
   partnerBankAccounts,
+  partners,
   purchaseOrders,
   receptions,
   stockLevels,
@@ -23,6 +24,8 @@ import {
 import { cancelReception, createReception } from "@/modules/stock/receptions";
 import { ensureDefaultLocations, listInternalLocations } from "@/modules/stock/locations";
 import { normalizeQuantity } from "@/modules/stock/quantities";
+import { savePartnerBankAccount } from "@/modules/catalog/partner-bank-account-queries";
+import { validatePartnerBankAccount } from "@/modules/catalog/partner-bank-account";
 
 let context: TestDatabase;
 let db: Database;
@@ -696,5 +699,138 @@ describe("PUR-008 — snapshot de paiement et clauses légales sur la commande",
         legalClauses: "x".repeat(5001),
       }),
     ).rejects.toThrow(/Clauses légales : 5000 caractères maximum./);
+  });
+});
+
+describe("PUR-013 — coordonnées bancaires à la création du tiers", () => {
+  it("crée un fournisseur avec coordonnées bancaires et les stocke", async () => {
+    const ids = await seedPurchasingTenant(db, "pur013-bank");
+
+    const [partner] = await db
+      .insert(partners)
+      .values({
+        tenantId: ids.tenantId,
+        code: "FOUR-BANK",
+        name: "Fournisseur avec banque",
+        type: "company",
+        isSupplier: true,
+        isCustomer: false,
+        active: true,
+      })
+      .returning({ id: partners.id });
+
+    if (!partner) throw new Error("Partenaire non créé.");
+
+    await savePartnerBankAccount(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      partnerId: partner.id,
+      data: {
+        bankName: "Banque du Sahel",
+        bankCountryCode: "SN",
+        accountHolder: "Fournisseur avec banque SARL",
+        bankCode: "10001",
+        branchCode: "00002",
+        accountNumber: "000012345678",
+        ribKey: "85",
+        iban: "SN123456789012345678901234",
+        bic: "BDSNSEXX",
+      },
+    });
+
+    const [stored] = await db
+      .select()
+      .from(partnerBankAccounts)
+      .where(
+        and(
+          eq(partnerBankAccounts.tenantId, ids.tenantId),
+          eq(partnerBankAccounts.partnerId, partner.id),
+        ),
+      )
+      .limit(1);
+    expect(stored).not.toBeNull();
+    expect(stored!.bankName).toBe("Banque du Sahel");
+    expect(stored!.iban).toBe("SN123456789012345678901234");
+    expect(stored!.bic).toBe("BDSNSEXX");
+  });
+
+  it("refuse les coordonnées bancaires pour un tiers sans rôle fournisseur", async () => {
+    const ids = await seedPurchasingTenant(db, "pur013-nosupplier");
+
+    const [partner] = await db
+      .insert(partners)
+      .values({
+        tenantId: ids.tenantId,
+        code: "CLI-NOBANK",
+        name: "Client sans banque",
+        type: "company",
+        isSupplier: false,
+        isCustomer: true,
+        active: true,
+      })
+      .returning({ id: partners.id });
+
+    if (!partner) throw new Error("Partenaire non créé.");
+
+    await expect(
+      savePartnerBankAccount(db, {
+        tenantId: ids.tenantId,
+        actorUserId: ids.userId,
+        partnerId: partner.id,
+        data: {
+          bankName: "Banque X",
+          bankCountryCode: null,
+          accountHolder: "Client X",
+          bankCode: null,
+          branchCode: null,
+          accountNumber: null,
+          ribKey: null,
+          iban: "SN123456789012345678901234",
+          bic: "BDSNSEXX",
+        },
+      }),
+    ).rejects.toThrow(/Fournisseur introuvable/);
+  });
+
+  it("refuse un IBAN invalide", async () => {
+    const raw: Record<string, unknown> = {
+      bank_name: "Banque",
+      account_holder: "Titulaire",
+      iban: "INVALID-IBAN",
+      bic: "BDSNSEXX",
+    };
+    const { errors } = validatePartnerBankAccount(raw);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.join(" ")).toMatch(/IBAN/);
+  });
+
+  it("crée un tiers sans coordonnées bancaires (comportement normal)", async () => {
+    const ids = await seedPurchasingTenant(db, "pur013-nobank");
+
+    const [partner] = await db
+      .insert(partners)
+      .values({
+        tenantId: ids.tenantId,
+        code: "FOUR-NOBANK",
+        name: "Fournisseur sans banque",
+        type: "company",
+        isSupplier: true,
+        active: true,
+      })
+      .returning({ id: partners.id });
+
+    if (!partner) throw new Error("Partenaire non créé.");
+
+    const [stored] = await db
+      .select()
+      .from(partnerBankAccounts)
+      .where(
+        and(
+          eq(partnerBankAccounts.tenantId, ids.tenantId),
+          eq(partnerBankAccounts.partnerId, partner.id),
+        ),
+      )
+      .limit(1);
+    expect(stored).toBeUndefined();
   });
 });
