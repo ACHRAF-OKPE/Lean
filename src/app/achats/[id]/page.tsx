@@ -28,6 +28,7 @@ import { atLeast } from "@/modules/identity/modules";
 import { listMembershipsForUser } from "@/modules/identity/queries";
 import { canApplyAction, statusLabel } from "@/modules/purchases/lifecycle";
 import { getPurchaseOrder, getPurchaseOrderPaymentDetails } from "@/modules/purchases/queries";
+import { allPurchaseSignaturesConfirmed } from "@/modules/purchases/signatures";
 import { listExchangeMessages } from "@/modules/exchange/queries";
 import { listSupplierReplies } from "@/modules/exchange/reply-queries";
 import { getPurchaseSettingsView } from "@/modules/purchases/settings";
@@ -176,6 +177,15 @@ async function PurchaseOrderContent({
       : [];
   const banner = bannerFor(query);
   const canReceiveNow = canWriteStock && order.status === "confirmed" && hasReceivableLines;
+  const orderCanSend = order.status === "confirmed" || order.status === "closed";
+  let signaturesComplete = true;
+  if (order.signatureWorkflowRequired) {
+    signaturesComplete = await allPurchaseSignaturesConfirmed(db, {
+      tenantId: session.tenantId,
+      orderId,
+    });
+  }
+  const canSendOrder = canWritePurchases && orderCanSend && signaturesComplete;
   const paymentDetails = canManageFinance
     ? await getPurchaseOrderPaymentDetails(db, { tenantId: session.tenantId, orderId })
     : null;
@@ -226,7 +236,7 @@ async function PurchaseOrderContent({
             !hasValidatedReception ? (
               <TransitionButton orderId={order.id} action="cancel" />
             ) : null}
-            {canWritePurchases && order.status !== "draft" && order.status !== "cancelled" ? (
+            {canSendOrder ? (
               <Link
                 href={`/achats/${order.id}/envoyer`}
                 aria-label="Envoyer au fournisseur"

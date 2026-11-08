@@ -6,6 +6,8 @@ import { seedPurchasingTenant } from "@/test/purchases";
 import { createPurchaseOrder, transitionPurchaseOrder } from "./queries";
 import { savePurchaseSettings } from "./settings";
 import { listTasksForEntity } from "@/modules/tasks/queries";
+import { getExchangeSendContext } from "@/modules/exchange/queries";
+import { companySettings } from "@/db/schema";
 import {
   allPurchaseSignaturesConfirmed,
   confirmPurchaseSignature,
@@ -191,94 +193,157 @@ describe("PUR-010 — circuit de signature séquentiel", () => {
     }
   });
 
-  describe("PUR-012 — tâche de signature pour chaque signataire", () => {
-    it("crée une tâche pour le premier signataire à la confirmation, puis pour le suivant après confirmation du premier", async () => {
-      const ids = await seedPurchasingTenant(db, "pur012-tasks");
-      await db
-        .insert(memberships)
-        .values({ tenantId: ids.tenantId, userId: ids.userId, role: "owner" });
-      const [secondSigner] = await db
-        .insert(users)
-        .values({
-          email: "signataire-deux-pur012@test.local",
-          name: "Moussa Second",
-          passwordHash: "hash",
-        })
-        .returning({ id: users.id });
-      if (!secondSigner) throw new Error("Signataire de test absent.");
-      await db
-        .insert(memberships)
-        .values({ tenantId: ids.tenantId, userId: secondSigner.id, role: "member" });
-
-      await savePurchaseSettings(db, {
-        tenantId: ids.tenantId,
-        actorUserId: ids.userId,
-        raw: { defaultReceiptDelayDays: 0, signerUserIds: [ids.userId, secondSigner.id] },
-      });
-      const order = await createPurchaseOrder(db, {
-        tenantId: ids.tenantId,
-        actorUserId: ids.userId,
-        data: {
-          supplierId: ids.supplierId,
-          expectedReceiptDate: "",
-          externalReference: "",
-          notes: "",
-          lines: [{ articleId: ids.productId, qty: "1", unitPriceXof: 1000 }],
-        },
-      });
-      await transitionPurchaseOrder(db, {
-        tenantId: ids.tenantId,
-        actorUserId: ids.userId,
-        orderId: order.id,
-        action: "request",
-      });
-      const confirmed = await transitionPurchaseOrder(db, {
-        tenantId: ids.tenantId,
-        actorUserId: ids.userId,
-        orderId: order.id,
-        action: "confirm",
-      });
-      expect(confirmed.signatureWorkflowStarted).toBe(true);
-
-      // Une tâche existe pour le premier signataire (ids.userId)
-      const stepsBefore = await listTasksForEntity(db, {
-        tenantId: ids.tenantId,
-        entityType: "purchase_order",
-        entityId: order.id,
-      });
-      expect(stepsBefore.length).toBe(1);
-      expect(stepsBefore[0]!.assigneeUserId).toBe(ids.userId);
-      expect(stepsBefore[0]!.status).toBe("open");
-      expect(stepsBefore[0]!.priority).toBe("high");
-      expect(stepsBefore[0]!.title).toContain("Signer le bon de commande");
-
-      const pdf = new Uint8Array(Buffer.from("%PDF-1.7\nSigned PO test"));
-      await uploadPurchaseSignature(db, {
-        tenantId: ids.tenantId,
-        orderId: order.id,
-        actorUserId: ids.userId,
-        fileName: "po-signe-1.pdf",
-        mime: "application/pdf",
-        data: pdf,
-      });
-      const firstConfirmation = await confirmPurchaseSignature(db, {
-        tenantId: ids.tenantId,
-        orderId: order.id,
-        actorUserId: ids.userId,
-      });
-      expect(firstConfirmation.complete).toBe(false);
-
-      // Une tâche a été créée pour le second signataire
-      const stepsAfter = await listTasksForEntity(db, {
-        tenantId: ids.tenantId,
-        entityType: "purchase_order",
-        entityId: order.id,
-      });
-      expect(stepsAfter.length).toBe(2);
-      const secondTask = stepsAfter.find((task) => task.assigneeUserId === secondSigner.id);
-      expect(secondTask).toBeDefined();
-      expect(secondTask!.status).toBe("open");
-      expect(secondTask!.priority).toBe("high");
+  it("bloque l'envoi au fournisseur tant que le circuit de signature n'est pas confirmé", async () => {
+    const ids = await seedPurchasingTenant(db, "pur013-send");
+    await db.insert(companySettings).values({
+      tenantId: ids.tenantId,
+      legalName: "Sahel Négoce SARL",
     });
+    await db
+      .insert(memberships)
+      .values({ tenantId: ids.tenantId, userId: ids.userId, role: "owner" });
+    const [secondSigner] = await db
+      .insert(users)
+      .values({
+        email: "signataire-envoi@test.local",
+        name: "Moussa Envoi",
+        passwordHash: "hash",
+      })
+      .returning({ id: users.id });
+    if (!secondSigner) throw new Error("Signataire de test absent.");
+    await db
+      .insert(memberships)
+      .values({ tenantId: ids.tenantId, userId: secondSigner.id, role: "member" });
+
+    await savePurchaseSettings(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      raw: { defaultReceiptDelayDays: 0, signerUserIds: [ids.userId, secondSigner.id] },
+    });
+    const order = await createPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      data: {
+        supplierId: ids.supplierId,
+        expectedReceiptDate: "",
+        externalReference: "",
+        notes: "",
+        lines: [{ articleId: ids.productId, qty: "1", unitPriceXof: 1000 }],
+      },
+    });
+    await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "request",
+    });
+    await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "confirm",
+    });
+
+    const context = await getExchangeSendContext(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+      senderName: "Awa Koné",
+      appUrl: "https://lean.test",
+    });
+    expect(context.ready).toBe(false);
+    if (!context.ready) {
+      expect(context.reason).toMatch(/signature/);
+    }
+  });
+});
+
+describe("PUR-012 — tâche de signature pour chaque signataire", () => {
+  it("crée une tâche pour le premier signataire à la confirmation, puis pour le suivant après confirmation du premier", async () => {
+    const ids = await seedPurchasingTenant(db, "pur012-tasks");
+    await db
+      .insert(memberships)
+      .values({ tenantId: ids.tenantId, userId: ids.userId, role: "owner" });
+    const [secondSigner] = await db
+      .insert(users)
+      .values({
+        email: "signataire-deux-pur012@test.local",
+        name: "Moussa Second",
+        passwordHash: "hash",
+      })
+      .returning({ id: users.id });
+    if (!secondSigner) throw new Error("Signataire de test absent.");
+    await db
+      .insert(memberships)
+      .values({ tenantId: ids.tenantId, userId: secondSigner.id, role: "member" });
+
+    await savePurchaseSettings(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      raw: { defaultReceiptDelayDays: 0, signerUserIds: [ids.userId, secondSigner.id] },
+    });
+    const order = await createPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      data: {
+        supplierId: ids.supplierId,
+        expectedReceiptDate: "",
+        externalReference: "",
+        notes: "",
+        lines: [{ articleId: ids.productId, qty: "1", unitPriceXof: 1000 }],
+      },
+    });
+    await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "request",
+    });
+    const confirmed = await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "confirm",
+    });
+    expect(confirmed.signatureWorkflowStarted).toBe(true);
+
+    // Une tâche existe pour le premier signataire (ids.userId)
+    const stepsBefore = await listTasksForEntity(db, {
+      tenantId: ids.tenantId,
+      entityType: "purchase_order",
+      entityId: order.id,
+    });
+    expect(stepsBefore.length).toBe(1);
+    expect(stepsBefore[0]!.assigneeUserId).toBe(ids.userId);
+    expect(stepsBefore[0]!.status).toBe("open");
+    expect(stepsBefore[0]!.priority).toBe("high");
+    expect(stepsBefore[0]!.title).toContain("Signer le bon de commande");
+
+    const pdf = new Uint8Array(Buffer.from("%PDF-1.7\nSigned PO test"));
+    await uploadPurchaseSignature(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+      actorUserId: ids.userId,
+      fileName: "po-signe-1.pdf",
+      mime: "application/pdf",
+      data: pdf,
+    });
+    const firstConfirmation = await confirmPurchaseSignature(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+      actorUserId: ids.userId,
+    });
+    expect(firstConfirmation.complete).toBe(false);
+
+    // Une tâche a été créée pour le second signataire
+    const stepsAfter = await listTasksForEntity(db, {
+      tenantId: ids.tenantId,
+      entityType: "purchase_order",
+      entityId: order.id,
+    });
+    expect(stepsAfter.length).toBe(2);
+    const secondTask = stepsAfter.find((task) => task.assigneeUserId === secondSigner.id);
+    expect(secondTask).toBeDefined();
+    expect(secondTask!.status).toBe("open");
+    expect(secondTask!.priority).toBe("high");
   });
 });

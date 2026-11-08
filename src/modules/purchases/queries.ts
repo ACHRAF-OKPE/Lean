@@ -73,6 +73,7 @@ export interface PurchaseOrderSummary {
   readonly supplierCode: string;
   readonly supplierName: string;
   readonly exTaxTotal: number;
+  readonly signatureWorkflowRequired: boolean;
   readonly createdAt: Date;
 }
 
@@ -246,6 +247,7 @@ export async function listPurchaseOrders(
       supplierCode: partners.code,
       supplierName: partners.name,
       exTaxTotal: purchaseOrders.exTaxTotal,
+      signatureWorkflowRequired: purchaseOrders.signatureWorkflowRequired,
       createdAt: purchaseOrders.createdAt,
     })
     .from(purchaseOrders)
@@ -296,6 +298,7 @@ export async function getPurchaseOrder(
       notes: purchaseOrders.notes,
       legalClauses: purchaseOrders.legalClauses,
       exTaxTotal: purchaseOrders.exTaxTotal,
+      signatureWorkflowRequired: purchaseOrders.signatureWorkflowRequired,
       confirmedAt: purchaseOrders.confirmedAt,
       createdAt: purchaseOrders.createdAt,
     })
