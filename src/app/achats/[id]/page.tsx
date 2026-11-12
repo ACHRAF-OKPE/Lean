@@ -41,6 +41,7 @@ import { listInternalLocations } from "@/modules/stock/locations";
 import { compareQuantity, formatQuantity } from "@/modules/stock/quantities";
 import { CancelReceptionButton } from "./cancel-reception-button";
 import { ReceptionForm } from "./reception-form";
+import { ThreeWayMatchingCard } from "./three-way-matching-card";
 import { TransitionButton } from "./transition-button";
 import { PurchaseSignatureWorkflow } from "./signature-workflow";
 
@@ -722,6 +723,16 @@ async function PurchaseOrderContent({
             orderId={order.id}
             lines={lines}
             locations={locations}
+            today={todayIsoDate()}
+          />
+        ) : null}
+
+        {order.status === "confirmed" || order.status === "closed" ? (
+          <ThreeWayMatchingCard
+            key={`${order.id}:${order.matchingStatus}:${order.supplierInvoiceNumber ?? ""}`}
+            order={order}
+            lines={lines}
+            canWrite={canWritePurchases || canManageFinance}
             today={todayIsoDate()}
           />
         ) : null}

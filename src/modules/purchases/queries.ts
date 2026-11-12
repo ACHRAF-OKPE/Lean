@@ -13,6 +13,7 @@ import {
   stockMoves,
   tasks,
   type ArticleType,
+  type PurchaseOrderMatchingStatus,
   type PurchaseOrderStatus,
   type ReceiptState,
   type ReceptionStatus,
@@ -21,6 +22,13 @@ import {
 import { todayIsoDate } from "@/lib/dates";
 import { recordDocumentEvent } from "@/modules/discussion/queries";
 import type { DocumentEventType } from "@/modules/discussion/events";
+import {
+  computeThreeWayMatching,
+  type InvoicedLineInput,
+  type LineMatchingResult,
+  type OrderLineForMatching,
+  type ThreeWayMatchingResult,
+} from "./matching";
 import {
   actionLabel,
   canApplyAction,
@@ -69,6 +77,7 @@ export interface PurchaseOrderSummary {
   readonly number: string | null;
   readonly status: PurchaseOrderStatus;
   readonly receiptState: ReceiptState;
+  readonly matchingStatus?: PurchaseOrderMatchingStatus;
   readonly orderDate: string;
   readonly expectedReceiptDate: string | null;
   readonly supplierCode: string;
@@ -114,6 +123,14 @@ export interface PurchaseOrderDetail {
     readonly externalReference: string | null;
     readonly notes: string | null;
     readonly legalClauses: string | null;
+    readonly supplierInvoiceNumber: string | null;
+    readonly supplierInvoiceDate: string | null;
+    readonly supplierInvoiceAmountXof: number | null;
+    readonly matchingStatus: PurchaseOrderMatchingStatus;
+    readonly matchingLines: readonly LineMatchingResult[] | null;
+    readonly matchedAt: Date | null;
+    readonly matchedByName: string | null;
+    readonly disputeNotes: string | null;
     readonly confirmedAt: Date | null;
   };
   readonly lines: readonly PurchaseOrderLineDetail[];
@@ -243,6 +260,7 @@ export async function listPurchaseOrders(
       number: purchaseOrders.number,
       status: purchaseOrders.status,
       receiptState: purchaseOrders.receiptState,
+      matchingStatus: purchaseOrders.matchingStatus,
       orderDate: purchaseOrders.orderDate,
       expectedReceiptDate: purchaseOrders.expectedReceiptDate,
       supplierCode: partners.code,
@@ -298,6 +316,14 @@ export async function getPurchaseOrder(
       externalReference: purchaseOrders.externalReference,
       notes: purchaseOrders.notes,
       legalClauses: purchaseOrders.legalClauses,
+      supplierInvoiceNumber: purchaseOrders.supplierInvoiceNumber,
+      supplierInvoiceDate: purchaseOrders.supplierInvoiceDate,
+      supplierInvoiceAmountXof: purchaseOrders.supplierInvoiceAmountXof,
+      matchingStatus: purchaseOrders.matchingStatus,
+      matchingLines: purchaseOrders.matchingLines,
+      matchedAt: purchaseOrders.matchedAt,
+      matchedByName: users.name,
+      disputeNotes: purchaseOrders.disputeNotes,
       exTaxTotal: purchaseOrders.exTaxTotal,
       signatureWorkflowRequired: purchaseOrders.signatureWorkflowRequired,
       confirmedAt: purchaseOrders.confirmedAt,
@@ -311,6 +337,7 @@ export async function getPurchaseOrder(
         eq(partners.id, purchaseOrders.supplierId),
       ),
     )
+    .leftJoin(users, eq(users.id, purchaseOrders.matchedBy))
     .where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.id, input.orderId)))
     .limit(1);
 
@@ -759,4 +786,232 @@ export async function canConfirmPurchaseOrder(
     )
     .limit(1);
   return Boolean(task);
+}
+
+export interface RecordInvoiceAndMatchInput {
+  readonly tenantId: string;
+  readonly orderId: string;
+  readonly actorUserId: string;
+  readonly supplierInvoiceNumber: string;
+  readonly supplierInvoiceDate: string;
+  readonly supplierInvoiceAmountXof?: number | null;
+  readonly lines: readonly InvoicedLineInput[];
+  readonly disputeNotes?: string | null;
+}
+
+/**
+ * PUR-016 — Enregistre la facture fournisseur, calcule le 3-Way Match et délivre le Bon à Payer
+ */
+export async function recordSupplierInvoiceAndMatch(
+  db: Database,
+  input: RecordInvoiceAndMatchInput,
+): Promise<ThreeWayMatchingResult> {
+  const invoiceNumber = input.supplierInvoiceNumber.trim();
+  if (!invoiceNumber || invoiceNumber.length > 80) {
+    throw new PurchaseError("Numéro de facture fournisseur requis (80 caractères maximum).");
+  }
+  if (!input.supplierInvoiceDate) {
+    throw new PurchaseError("Date de facture requise.");
+  }
+
+  return db.transaction(async (tx) => {
+    const [order] = await tx
+      .select({
+        id: purchaseOrders.id,
+        number: purchaseOrders.number,
+        status: purchaseOrders.status,
+      })
+      .from(purchaseOrders)
+      .where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.id, input.orderId)))
+      .for("update")
+      .limit(1);
+
+    if (!order) {
+      throw new PurchaseError("Commande fournisseur introuvable.");
+    }
+    if (order.status !== "confirmed" && order.status !== "closed") {
+      throw new PurchaseError("Le rapprochement exige une commande confirmée ou clôturée.");
+    }
+
+    const lineRows = await tx
+      .select({
+        id: purchaseOrderLines.id,
+        name: purchaseOrderLines.name,
+        unitCode: purchaseOrderLines.unitCode,
+        qty: purchaseOrderLines.qty,
+        unitPriceXof: purchaseOrderLines.unitPriceXof,
+        receivedQty: purchaseOrderLines.receivedQty,
+        articleType: articles.type,
+      })
+      .from(purchaseOrderLines)
+      .innerJoin(
+        articles,
+        and(
+          eq(articles.tenantId, purchaseOrderLines.tenantId),
+          eq(articles.id, purchaseOrderLines.articleId),
+        ),
+      )
+      .where(
+        and(
+          eq(purchaseOrderLines.tenantId, input.tenantId),
+          eq(purchaseOrderLines.orderId, input.orderId),
+        ),
+      );
+
+    if (lineRows.length === 0) {
+      throw new PurchaseError("La commande ne comporte aucune ligne à rapprocher.");
+    }
+
+    const orderLinesForMatching: OrderLineForMatching[] = lineRows.map((line) => ({
+      orderLineId: line.id,
+      name: line.name,
+      unitCode: line.unitCode,
+      type: line.articleType,
+      orderedQty: line.qty,
+      orderedUnitPriceXof: line.unitPriceXof,
+      receivedQty: line.receivedQty,
+    }));
+
+    const result = computeThreeWayMatching(orderLinesForMatching, {
+      supplierInvoiceNumber: invoiceNumber,
+      supplierInvoiceDate: input.supplierInvoiceDate,
+      supplierInvoiceAmountXof: input.supplierInvoiceAmountXof,
+      lines: input.lines,
+    });
+
+    await tx
+      .update(purchaseOrders)
+      .set({
+        supplierInvoiceNumber: result.supplierInvoiceNumber,
+        supplierInvoiceDate: result.supplierInvoiceDate,
+        supplierInvoiceAmountXof: result.totalInvoicedXof,
+        matchingStatus: result.status,
+        matchingLines: result.lines,
+        matchedAt: new Date(),
+        matchedBy: input.actorUserId,
+        disputeNotes: input.disputeNotes ?? null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.id, input.orderId)),
+      );
+
+    await tx.insert(auditEvents).values({
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      action: "purchase_order.matched",
+      entityType: "purchase_order",
+      entityId: input.orderId,
+      details: {
+        supplierInvoiceNumber: result.supplierInvoiceNumber,
+        status: result.status,
+        isApprovedForPayment: result.isApprovedForPayment,
+        totalInvoicedXof: result.totalInvoicedXof,
+        netDiscrepancyXof: result.netDiscrepancyXof,
+      },
+    });
+
+    if (result.isApprovedForPayment) {
+      await recordDocumentEvent(tx, {
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        entityType: "purchase_order",
+        entityId: input.orderId,
+        event: {
+          type: "purchase_order.matched",
+          key: `purchase_order_matched_${input.orderId}_${result.supplierInvoiceNumber}_${Date.now()}`,
+          number: result.supplierInvoiceNumber,
+          amountXof: result.totalInvoicedXof,
+        },
+      });
+    } else {
+      await recordDocumentEvent(tx, {
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        entityType: "purchase_order",
+        entityId: input.orderId,
+        event: {
+          type: "purchase_order.dispute",
+          key: `purchase_order_dispute_${input.orderId}_${result.supplierInvoiceNumber}_${Date.now()}`,
+          number: result.supplierInvoiceNumber,
+          amountXof: result.totalInvoicedXof,
+        },
+      });
+    }
+
+    return result;
+  });
+}
+
+/**
+ * PUR-016 — Résolution manuelle ou accord d'une dérogation sur litige
+ */
+export async function resolveMatchingDispute(
+  db: Database,
+  input: {
+    readonly tenantId: string;
+    readonly orderId: string;
+    readonly actorUserId: string;
+    readonly resolutionNotes: string;
+  },
+): Promise<void> {
+  const notes = input.resolutionNotes.trim();
+  if (!notes) {
+    throw new PurchaseError("Motif de résolution requis.");
+  }
+
+  await db.transaction(async (tx) => {
+    const [order] = await tx
+      .select({
+        id: purchaseOrders.id,
+        supplierInvoiceNumber: purchaseOrders.supplierInvoiceNumber,
+        supplierInvoiceAmountXof: purchaseOrders.supplierInvoiceAmountXof,
+      })
+      .from(purchaseOrders)
+      .where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.id, input.orderId)))
+      .for("update")
+      .limit(1);
+
+    if (!order) {
+      throw new PurchaseError("Commande fournisseur introuvable.");
+    }
+
+    await tx
+      .update(purchaseOrders)
+      .set({
+        matchingStatus: "matched",
+        disputeNotes: notes,
+        matchedAt: new Date(),
+        matchedBy: input.actorUserId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.id, input.orderId)),
+      );
+
+    await tx.insert(auditEvents).values({
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      action: "purchase_order.dispute_resolved",
+      entityType: "purchase_order",
+      entityId: input.orderId,
+      details: {
+        supplierInvoiceNumber: order.supplierInvoiceNumber,
+        notes,
+      },
+    });
+
+    await recordDocumentEvent(tx, {
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      entityType: "purchase_order",
+      entityId: input.orderId,
+      event: {
+        type: "purchase_order.matched",
+        key: `purchase_order_resolved_${input.orderId}_${Date.now()}`,
+        number: order.supplierInvoiceNumber,
+        amountXof: order.supplierInvoiceAmountXof,
+      },
+    });
+  });
 }

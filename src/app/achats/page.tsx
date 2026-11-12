@@ -6,7 +6,11 @@ import { ArrowUpRight, FileSignature, Settings2, ShoppingCart } from "lucide-rea
 import { AppHeader } from "@/components/app-header";
 import { CatalogActions } from "@/components/catalog-actions";
 import { LoadingShell } from "@/components/loading-shell";
-import { PurchaseStatusBadge, ReceiptStateBadge } from "@/components/purchase-badges";
+import {
+  MatchingStatusBadge,
+  PurchaseStatusBadge,
+  ReceiptStateBadge,
+} from "@/components/purchase-badges";
 import { getDb } from "@/db/client";
 import { canAccessModule, requireModule } from "@/lib/auth/session";
 import { isoDateLabel } from "@/lib/dates";
@@ -130,6 +134,9 @@ async function PurchasesContent() {
                     <th scope="col" className={TH}>
                       Réception
                     </th>
+                    <th scope="col" className={TH}>
+                      Facture / BAP
+                    </th>
                     <th scope="col" className={`${TH} text-right`}>
                       Ouvrir
                     </th>
@@ -163,6 +170,9 @@ async function PurchasesContent() {
                       </td>
                       <td className="px-4 py-2.5">
                         <ReceiptStateBadge state={order.receiptState} />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <MatchingStatusBadge status={order.matchingStatus} />
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <Link

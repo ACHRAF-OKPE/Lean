@@ -286,6 +286,8 @@ export type ImportKind =
 export type ImportBatchStatus = "analyzed" | "applied";
 export type ImportRowStatus = "valid" | "warning" | "error";
 export type PurchaseOrderStatus = "draft" | "requested" | "confirmed" | "closed" | "cancelled";
+export type PurchaseOrderMatchingStatus =
+  "unmatched" | "matched" | "quantity_mismatch" | "price_mismatch" | "pending_receipt" | "disputed";
 export type ReceiptState = "not_received" | "partially_received" | "received";
 export type ReceptionStatus = "validated" | "cancelled";
 export type SalesOrderStatus = "draft" | "confirmed" | "closed" | "cancelled";
@@ -1336,6 +1338,37 @@ export const purchaseOrders = pgTable(
     externalReference: text("external_reference"),
     notes: text("notes"),
     legalClauses: text("legal_clauses"),
+    supplierInvoiceNumber: text("supplier_invoice_number"),
+    supplierInvoiceDate: date("supplier_invoice_date", { mode: "string" }),
+    supplierInvoiceAmountXof: integer("supplier_invoice_amount_xof"),
+    matchingStatus: text("matching_status")
+      .$type<PurchaseOrderMatchingStatus>()
+      .notNull()
+      .default("unmatched"),
+    matchingLines: jsonb("matching_lines").$type<
+      readonly {
+        readonly orderLineId: string;
+        readonly name: string;
+        readonly unitCode: string;
+        readonly type: "product" | "service";
+        readonly orderedQty: string;
+        readonly receivedQty: string;
+        readonly invoicedQty: string;
+        readonly orderedUnitPriceXof: number;
+        readonly invoicedUnitPriceXof: number;
+        readonly orderedTotalXof: number;
+        readonly receivedTotalXof: number;
+        readonly invoicedTotalXof: number;
+        readonly qtyDifference: string;
+        readonly unitPriceDifferenceXof: number;
+        readonly amountDifferenceXof: number;
+        readonly status:
+          "matched" | "quantity_mismatch" | "price_mismatch" | "pending_receipt" | "disputed";
+      }[]
+    >(),
+    matchedAt: timestamp("matched_at", { withTimezone: true }),
+    matchedBy: uuid("matched_by").references(() => users.id, { onDelete: "set null" }),
+    disputeNotes: text("dispute_notes"),
     exTaxTotal: integer("ex_tax_total").notNull().default(0),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     confirmedBy: uuid("confirmed_by").references(() => users.id, { onDelete: "set null" }),
@@ -1370,6 +1403,14 @@ export const purchaseOrders = pgTable(
     check(
       "purchase_orders_number_check",
       sql`${table.number} is null or ${table.number} ~ '^CMD-[0-9]{4}-[0-9]{4}$'`,
+    ),
+    check(
+      "purchase_orders_matching_status_check",
+      sql`${table.matchingStatus} in ('unmatched', 'matched', 'quantity_mismatch', 'price_mismatch', 'pending_receipt', 'disputed')`,
+    ),
+    check(
+      "purchase_orders_supplier_invoice_check",
+      sql`${table.supplierInvoiceNumber} is null or char_length(${table.supplierInvoiceNumber}) <= 80`,
     ),
     foreignKey({
       name: "purchase_orders_tenant_supplier_fk",

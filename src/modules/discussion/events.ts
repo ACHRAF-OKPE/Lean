@@ -10,6 +10,8 @@ export type DocumentEventType =
   | "purchase_order.received"
   | "purchase_order.reception_cancelled"
   | "purchase_order.supplier_reply"
+  | "purchase_order.matched"
+  | "purchase_order.dispute"
   | "sales_order.confirmed"
   | "sales_order.closed"
   | "sales_order.cancelled"
@@ -50,6 +52,8 @@ const TITLES: Record<DocumentEventType, string> = {
   "purchase_order.received": "Réception enregistrée",
   "purchase_order.reception_cancelled": "Réception annulée",
   "purchase_order.supplier_reply": "Réponse fournisseur reçue",
+  "purchase_order.matched": "Bon à payer certifié (3-Way Match)",
+  "purchase_order.dispute": "Écart de facturation (Litige 3-Way Match)",
   "sales_order.confirmed": "Commande client confirmée",
   "sales_order.closed": "Commande client clôturée",
   "sales_order.cancelled": "Commande client annulée",
@@ -103,6 +107,12 @@ export function describeDocumentEvent(input: DocumentEventInput): DocumentEventD
       body = input.availability
         ? `Le fournisseur a indiqué que la commande fournisseur${suffix} est ${AVAILABILITY_TEXT[input.availability]}.`
         : `Le fournisseur a répondu à la commande fournisseur${suffix}.`;
+      break;
+    case "purchase_order.matched":
+      body = `[DÉCISION] La facture fournisseur${suffix} a été rapprochée avec succès. Bon à payer accordé pour ${formatXof(input.amountXof ?? 0)}.`;
+      break;
+    case "purchase_order.dispute":
+      body = `[URGENT] La facture fournisseur${suffix} présente un écart de facturation. Paiement bloqué.`;
       break;
     case "sales_order.confirmed":
       body = `La commande client${suffix} a été confirmée.`;

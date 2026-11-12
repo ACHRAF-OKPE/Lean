@@ -7,7 +7,12 @@ import { requireModule } from "@/lib/auth/session";
 import { resolveAppUrl } from "@/lib/app-url";
 import { PurchaseError } from "@/modules/purchases/errors";
 import type { PurchaseAction } from "@/modules/purchases/lifecycle";
-import { createPurchaseOrder, transitionPurchaseOrder } from "@/modules/purchases/queries";
+import {
+  createPurchaseOrder,
+  recordSupplierInvoiceAndMatch,
+  resolveMatchingDispute,
+  transitionPurchaseOrder,
+} from "@/modules/purchases/queries";
 import { savePurchaseSettings } from "@/modules/purchases/settings";
 import { defaultTransportFactory } from "@/modules/exchange/mailer";
 import { getEmailAccountConfig, getPurchaseOrderSignaturePdf } from "@/modules/exchange/queries";
@@ -378,4 +383,80 @@ export async function confirmPurchaseSignatureAction(
   } catch (error) {
     return failure(error);
   }
+}
+
+export async function recordSupplierInvoiceAction(
+  _state: PurchaseFormState,
+  formData: FormData,
+): Promise<PurchaseFormState> {
+  const session = await requireModule("purchases", "write");
+  const orderId = text(formData, "orderId");
+  if (!UUID_PATTERN.test(orderId)) return { errors: ["Commande invalide."] };
+
+  const supplierInvoiceNumber = text(formData, "supplierInvoiceNumber").trim();
+  const supplierInvoiceDate = text(formData, "supplierInvoiceDate").trim();
+  const disputeNotes = text(formData, "disputeNotes").trim();
+
+  if (!supplierInvoiceNumber) {
+    return { errors: ["Le numéro de facture fournisseur est obligatoire."] };
+  }
+  if (!supplierInvoiceDate) {
+    return { errors: ["La date de la facture fournisseur est obligatoire."] };
+  }
+
+  const linesJson = text(formData, "linesJson");
+  let parsedLines: { orderLineId: string; invoicedQty: string; invoicedUnitPriceXof: number }[] =
+    [];
+  if (linesJson) {
+    try {
+      parsedLines = JSON.parse(linesJson);
+    } catch {
+      return { errors: ["Données de lignes de facture invalides."] };
+    }
+  }
+
+  let resultStatus: string;
+  try {
+    const result = await recordSupplierInvoiceAndMatch(getDb(), {
+      tenantId: session.tenantId,
+      orderId,
+      actorUserId: session.userId,
+      supplierInvoiceNumber,
+      supplierInvoiceDate,
+      lines: parsedLines,
+      disputeNotes: disputeNotes || null,
+    });
+    resultStatus = result.status;
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect(`/achats/${orderId}?matching=${resultStatus}`);
+}
+
+export async function resolveMatchingDisputeAction(
+  _state: PurchaseFormState,
+  formData: FormData,
+): Promise<PurchaseFormState> {
+  const session = await requireModule("purchases", "write");
+  const orderId = text(formData, "orderId");
+  if (!UUID_PATTERN.test(orderId)) return { errors: ["Commande invalide."] };
+
+  const resolutionNotes = text(formData, "resolutionNotes").trim();
+  if (!resolutionNotes) {
+    return { errors: ["Le motif de résolution du litige est obligatoire."] };
+  }
+
+  try {
+    await resolveMatchingDispute(getDb(), {
+      tenantId: session.tenantId,
+      orderId,
+      actorUserId: session.userId,
+      resolutionNotes,
+    });
+  } catch (error) {
+    return failure(error);
+  }
+
+  redirect(`/achats/${orderId}?matching=resolu`);
 }

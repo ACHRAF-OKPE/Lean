@@ -21,6 +21,8 @@ import {
   createPurchaseOrder,
   getPurchaseOrder,
   getPurchaseOrderPaymentDetails,
+  recordSupplierInvoiceAndMatch,
+  resolveMatchingDispute,
   transitionPurchaseOrder,
 } from "./queries";
 import { cancelReception, createReception } from "@/modules/stock/receptions";
@@ -939,5 +941,169 @@ describe("PUR-014 — confirmation réservée à l'assignee de la tâche de vali
       action: "confirm",
     });
     expect(confirmed.status).toBe("confirmed");
+  });
+
+  it("PUR-016 — enregistre la facture fournisseur et valide le 3-Way Match avec bon à payer", async () => {
+    const ids = await seedPurchasingTenant(db, "pur016-match");
+    await db.transaction(async (tx) => {
+      await ensureDefaultLocations(tx, ids.tenantId);
+    });
+    const locations = await listInternalLocations(db, ids.tenantId);
+    const loc = locations[0];
+    if (!loc) throw new Error("Emplacement introuvable");
+
+    const order = await createPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      data: {
+        supplierId: ids.supplierId,
+        expectedReceiptDate: "",
+        externalReference: "",
+        notes: "",
+        lines: [{ articleId: ids.productId, qty: "5", unitPriceXof: 10000 }],
+      },
+    });
+
+    await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "request",
+    });
+    await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "confirm",
+    });
+
+    const detailBefore = await getPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+    });
+    const orderLineId = detailBefore!.lines[0]!.id;
+
+    // Réceptionne les 5 unités
+    await createReception(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      locationId: loc.id,
+      receivedDate: todayIsoDate(),
+      notes: "Réception intégrale",
+      lines: [{ orderLineId, qty: "5" }],
+    });
+
+    // Enregistrement de la facture fournisseur conforme
+    const matchResult = await recordSupplierInvoiceAndMatch(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+      actorUserId: ids.userId,
+      supplierInvoiceNumber: "FAC-FOURN-001",
+      supplierInvoiceDate: todayIsoDate(),
+      lines: [{ orderLineId, invoicedQty: "5", invoicedUnitPriceXof: 10000 }],
+    });
+
+    expect(matchResult.status).toBe("matched");
+    expect(matchResult.isApprovedForPayment).toBe(true);
+    expect(matchResult.totalInvoicedXof).toBe(50000);
+    expect(matchResult.netDiscrepancyXof).toBe(0);
+
+    // Vérifie que getPurchaseOrder restitue le statut et l'autorisation
+    const detailAfter = await getPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+    });
+    expect(detailAfter!.order.matchingStatus).toBe("matched");
+    expect(detailAfter!.order.supplierInvoiceNumber).toBe("FAC-FOURN-001");
+    expect(detailAfter!.order.supplierInvoiceAmountXof).toBe(50000);
+    expect(detailAfter!.order.matchedAt).toBeInstanceOf(Date);
+  });
+
+  it("PUR-016 — bloque le paiement en cas de surfacturation et permet la résolution par dérogation", async () => {
+    const ids = await seedPurchasingTenant(db, "pur016-dispute");
+    await db.transaction(async (tx) => {
+      await ensureDefaultLocations(tx, ids.tenantId);
+    });
+    const locations = await listInternalLocations(db, ids.tenantId);
+    const loc = locations[0];
+    if (!loc) throw new Error("Emplacement introuvable");
+
+    const order = await createPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      data: {
+        supplierId: ids.supplierId,
+        expectedReceiptDate: "",
+        externalReference: "",
+        notes: "",
+        lines: [{ articleId: ids.productId, qty: "10", unitPriceXof: 5000 }],
+      },
+    });
+
+    await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "request",
+    });
+    await transitionPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      action: "confirm",
+    });
+
+    const detailBefore = await getPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+    });
+    const orderLineId = detailBefore!.lines[0]!.id;
+
+    // Réceptionne 6 unités seulement sur 10
+    await createReception(db, {
+      tenantId: ids.tenantId,
+      actorUserId: ids.userId,
+      orderId: order.id,
+      locationId: loc.id,
+      receivedDate: todayIsoDate(),
+      notes: "Livraison partielle",
+      lines: [{ orderLineId, qty: "6" }],
+    });
+
+    // Facture portant sur 10 unités -> surfacturation de 4 unités (20 000 XOF)
+    const matchResult = await recordSupplierInvoiceAndMatch(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+      actorUserId: ids.userId,
+      supplierInvoiceNumber: "FAC-EXCESS-02",
+      supplierInvoiceDate: todayIsoDate(),
+      lines: [{ orderLineId, invoicedQty: "10", invoicedUnitPriceXof: 5000 }],
+    });
+
+    expect(matchResult.status).toBe("quantity_mismatch");
+    expect(matchResult.isApprovedForPayment).toBe(false);
+    expect(matchResult.netDiscrepancyXof).toBe(20000);
+
+    const detailDisputed = await getPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+    });
+    expect(detailDisputed!.order.matchingStatus).toBe("quantity_mismatch");
+
+    // Résolution du litige par accord / dérogation
+    await resolveMatchingDispute(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+      actorUserId: ids.userId,
+      resolutionNotes: "Avoir reçu N° AV-999 de 20 000 XOF pour compenser le reliquat",
+    });
+
+    const detailResolved = await getPurchaseOrder(db, {
+      tenantId: ids.tenantId,
+      orderId: order.id,
+    });
+    expect(detailResolved!.order.matchingStatus).toBe("matched");
+    expect(detailResolved!.order.disputeNotes).toContain("Avoir reçu");
   });
 });

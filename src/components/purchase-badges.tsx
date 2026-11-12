@@ -1,4 +1,4 @@
-import type { PurchaseOrderStatus, ReceiptState } from "@/db/schema";
+import type { PurchaseOrderMatchingStatus, PurchaseOrderStatus, ReceiptState } from "@/db/schema";
 import { receiptStateLabel, statusLabel } from "@/modules/purchases/lifecycle";
 
 const ORDER_STATUS_CLASSES: Record<PurchaseOrderStatus, string> = {
@@ -31,6 +31,46 @@ export function ReceiptStateBadge({ state }: { state: ReceiptState }) {
       className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] whitespace-nowrap ${RECEIPT_CLASSES[state]}`}
     >
       {receiptStateLabel(state)}
+    </span>
+  );
+}
+
+const MATCHING_CLASSES: Record<
+  Exclude<PurchaseOrderMatchingStatus, "unmatched">,
+  { label: string; className: string }
+> = {
+  matched: {
+    label: "BAP Accordé",
+    className: "border-brand/20 bg-brand-soft text-brand-strong font-medium",
+  },
+  quantity_mismatch: {
+    label: "Surfacturé",
+    className: "border-rose-200 bg-rose-50 text-rose-700 font-medium",
+  },
+  price_mismatch: {
+    label: "Surcoût",
+    className: "border-amber-200 bg-amber-50 text-amber-800 font-medium",
+  },
+  pending_receipt: {
+    label: "Attente réception",
+    className: "border-blue-200 bg-blue-50 text-blue-800",
+  },
+  disputed: {
+    label: "Litige",
+    className: "border-rose-200 bg-rose-50 text-rose-700 font-medium",
+  },
+};
+
+export function MatchingStatusBadge({ status }: { status?: PurchaseOrderMatchingStatus | null }) {
+  if (!status || status === "unmatched") {
+    return <span className="font-mono text-[10px] text-muted">—</span>;
+  }
+  const config = MATCHING_CLASSES[status];
+  return (
+    <span
+      className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] whitespace-nowrap ${config.className}`}
+    >
+      {config.label}
     </span>
   );
 }
