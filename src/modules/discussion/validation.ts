@@ -1,5 +1,6 @@
 import type { DiscussionEntityType } from "@/db/schema";
 import { COMMENT_MAX_LENGTH, MENTION_MAX, isDiscussionEntityType } from "./constants";
+import { isMessageTag, type MessageTag } from "./tags";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -8,6 +9,7 @@ export interface DiscussionCommentRaw {
   readonly entityId: unknown;
   readonly body: unknown;
   readonly mentionedUserIds: readonly unknown[];
+  readonly tag?: unknown;
 }
 
 export interface DiscussionCommentData {
@@ -15,6 +17,7 @@ export interface DiscussionCommentData {
   readonly entityId: string;
   readonly body: string;
   readonly mentionedUserIds: readonly string[];
+  readonly tag: MessageTag | null;
 }
 
 export interface DiscussionValidation<T> {
@@ -60,6 +63,8 @@ export function validateDiscussionComment(
     errors.push(`Au plus ${MENTION_MAX} personnes peuvent être mentionnées.`);
   }
 
+  const tag = isMessageTag(raw.tag) ? raw.tag : null;
+
   return {
     data: {
       entityType: (isDiscussionEntityType(raw.entityType)
@@ -68,6 +73,7 @@ export function validateDiscussionComment(
       entityId,
       body,
       mentionedUserIds,
+      tag,
     },
     errors,
   };

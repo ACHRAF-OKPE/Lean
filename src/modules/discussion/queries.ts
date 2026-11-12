@@ -34,6 +34,7 @@ export interface DiscussionMessageSummary {
   readonly body: string;
   readonly eventType: string | null;
   readonly authorName: string | null;
+  readonly authorRole?: "owner" | "admin" | "member" | null;
   readonly createdAt: Date;
   readonly mentions: readonly { readonly userId: string; readonly name: string }[];
 }
@@ -292,10 +293,18 @@ export async function listDiscussionMessages(
       body: discussionMessages.body,
       eventType: discussionMessages.eventType,
       authorName: users.name,
+      authorRole: memberships.role,
       createdAt: discussionMessages.createdAt,
     })
     .from(discussionMessages)
     .leftJoin(users, eq(users.id, discussionMessages.authorUserId))
+    .leftJoin(
+      memberships,
+      and(
+        eq(memberships.userId, discussionMessages.authorUserId),
+        eq(memberships.tenantId, input.tenantId),
+      ),
+    )
     .where(
       and(
         eq(discussionMessages.tenantId, input.tenantId),
