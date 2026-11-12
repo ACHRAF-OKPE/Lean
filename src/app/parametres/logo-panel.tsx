@@ -31,7 +31,7 @@ export function LogoPanel({
     <section className="rounded-xl border border-line bg-panel p-5">
       <h2 className="text-sm font-semibold">Logo</h2>
       <p className="mt-1 text-[10px] leading-4 text-muted">
-        PNG, JPEG ou WebP, 512 Kio maximum. Le type est vérifié sur la signature du fichier.
+        PNG, JPEG, WebP ou SVG, 512 Kio maximum. Le type est vérifié sur la signature du fichier.
       </p>
 
       <div className="mt-4 flex min-h-24 items-center justify-center rounded-lg border border-dashed border-line bg-canvas p-4">
@@ -65,7 +65,7 @@ export function LogoPanel({
               name="logo"
               type="file"
               required
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
               className={`${INPUT_CLASS} text-[11px] file:mr-3 file:rounded file:border-0 file:bg-canvas file:px-2 file:py-1 file:text-[10px] file:text-muted`}
             />
             <div className="flex justify-end">

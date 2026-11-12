@@ -71,6 +71,8 @@ export const ACTION_LABELS: Record<string, string> = {
   "purchase.order.confirm": "Confirmation de commande fournisseur",
   "purchase.order.close": "Clôture de commande fournisseur",
   "purchase.order.cancel": "Annulation de commande fournisseur",
+  "purchase_order.matched": "Rapprochement 3-Way Match conforme",
+  "purchase_order.dispute_resolved": "Résolution de litige de rapprochement",
   "sales.order.request": "Demande de commande client",
   "sales.order.confirm": "Confirmation de commande client",
   "sales.order.close": "Clôture de commande client",

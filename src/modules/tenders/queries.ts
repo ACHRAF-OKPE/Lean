@@ -41,12 +41,12 @@ import {
 import { TenderError } from "./errors";
 import {
   buildQuoteLink,
-  createTenderToken,
   renderTenderEmail,
   tenderTokenExpiry,
   validateTenderDraft,
   type DraftTenderInput,
 } from "./rules";
+import { createTenderToken } from "./tokens";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

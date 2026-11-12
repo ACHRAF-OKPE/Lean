@@ -88,7 +88,7 @@ export async function uploadCompanyLogoAction(
   const file = formData.get("logo");
 
   if (!(file instanceof File) || file.size === 0) {
-    return { errors: ["Logo : sélectionnez un fichier PNG, JPEG ou WebP."] };
+    return { errors: ["Logo : sélectionnez un fichier PNG, JPEG, WebP ou SVG."] };
   }
   if (file.size > MAX_LOGO_BYTES) {
     return { errors: ["Logo : 512 Kio maximum."] };

@@ -14,7 +14,8 @@ import { isoDateLabel, todayIsoDate } from "@/lib/dates";
 import { isZeroQuantity } from "@/modules/stock/quantities";
 import { TenderError } from "./errors";
 import { MAX_QUOTE_REVISIONS, validateTenderQuote, type TenderQuoteRaw } from "./quotes";
-import { hashTenderToken, isTenderTokenShape } from "./rules";
+import { isTenderTokenShape } from "./rules";
+import { hashTenderToken } from "./tokens";
 
 export interface PublicTenderLine {
   readonly id: string;

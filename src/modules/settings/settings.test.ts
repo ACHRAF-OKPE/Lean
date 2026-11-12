@@ -301,6 +301,17 @@ describe("ORG-002 — logo de l'entreprise", () => {
     expect(mismatch.warnings[0]).toContain("type déclaré image/jpeg ignoré");
   });
 
+  it("accepte SVG sur signature binaire", () => {
+    const svg = new Uint8Array([0x3c, 0x73, 0x76, 0x67]); // <svg
+    expect(validateLogo({ bytes: svg, declaredMime: "image/svg+xml" }).data.mime).toBe(
+      "image/svg+xml",
+    );
+    const svgXml = new Uint8Array([0x3c, 0x3f, 0x78, 0x6d, 0x6c]); // <?xml
+    expect(validateLogo({ bytes: svgXml, declaredMime: "image/svg+xml" }).data.mime).toBe(
+      "image/svg+xml",
+    );
+  });
+
   it("refuse un contenu inconnu, vide ou trop lourd", () => {
     expect(validateLogo({ bytes: new Uint8Array([1, 2, 3]) }).errors[0]).toContain(
       "signature binaire non reconnue",

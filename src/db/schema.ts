@@ -246,7 +246,10 @@ export const companySettings = pgTable(
     ),
     check(
       "company_settings_logo_check",
-      sql`(${table.logoData} is null) = (${table.logoMime} is null) and (${table.logoMime} is null or ${table.logoMime} in ('image/png', 'image/jpeg', 'image/webp'))`,
+      sql`(
+        (${table.logoData} is null and ${table.logoMime} is null) or
+        (${table.logoData} is not null and ${table.logoMime} is not null and ${table.logoMime} in ('image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'))
+      )`,
     ),
     check(
       "company_settings_footer_check",

@@ -40,6 +40,8 @@ import { getReceivablesStats, getSalesOrderStats } from "@/modules/sales/queries
 import { getCompanySettings } from "@/modules/settings/queries";
 import { getStockCounts } from "@/modules/stock/queries";
 import { getSupplyStats } from "@/modules/supply/queries";
+import { getMorningBriefing } from "@/modules/dashboard/briefing";
+import { MorningBriefingCard } from "./morning-briefing";
 
 const GATE = [
   { label: "Lint", command: "npm run lint" },
@@ -127,6 +129,7 @@ async function Cockpit() {
     supply,
     years,
     levels,
+    briefing,
   ] = await Promise.all([
     listMembershipsForUser(db, session.userId),
     getCatalogCounts(db, session.tenantId),
@@ -139,6 +142,12 @@ async function Cockpit() {
     getSupplyStats(db, session.tenantId),
     listFiscalYears(db, session.tenantId),
     getAccessLevels(session),
+    getMorningBriefing({
+      db,
+      tenantId: session.tenantId,
+      userId: session.userId,
+      userName: session.userName ?? session.userEmail,
+    }),
   ]);
   const deliveredCount = LOTS.filter((lot) => lot.status === "done").length;
   const nextLot = LOTS.find((lot) => lot.status === "next");
@@ -151,6 +160,10 @@ async function Cockpit() {
       <AppHeader session={session} memberships={memberships} active="home" />
 
       <main className="mx-auto max-w-6xl px-6 py-10 md:px-10 md:py-14">
+        <div className="mb-12">
+          <MorningBriefingCard briefing={briefing} />
+        </div>
+
         <section className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] lg:items-end">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-brand uppercase">

@@ -34,8 +34,9 @@ import {
   updateTenderDraft,
 } from "./queries";
 import { getPublicTender, markTenderInvitationViewed, submitTenderQuote } from "./quote-queries";
-import { hashTenderToken, tenderTokenExpiry, validateTenderDraft } from "./rules";
+import { tenderTokenExpiry, validateTenderDraft } from "./rules";
 import { validateTenderQuote, type TenderQuoteRaw, type ValidatedTenderQuote } from "./quotes";
+import { hashTenderToken } from "./tokens";
 
 process.env.LEAN_SECRET_KEY = Buffer.alloc(32, 9).toString("base64");
 

@@ -8,7 +8,7 @@ const SWIFT_PATTERN = /^[A-Z0-9]{8}([A-Z0-9]{3})?$/;
 
 export const MAX_LOGO_BYTES = 512 * 1024;
 
-export const LOGO_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+export const LOGO_MIME_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"] as const;
 export type LogoMime = (typeof LOGO_MIME_TYPES)[number];
 
 export interface CompanyProfileData {
@@ -351,6 +351,16 @@ export function detectLogoMime(bytes: Uint8Array): LogoMime | null {
     bytes[11] === 0x50
   ) {
     return "image/webp";
+  }
+  // SVG : détecte les fichiers commençant par <?xml ou <svg
+  if (bytes.length >= 4) {
+    const startsWithXmlDecl =
+      bytes[0] === 0x3c && bytes[1] === 0x3f && bytes[2] === 0x78 && bytes[3] === 0x6d; // <?xm
+    const startsWithSvg =
+      bytes[0] === 0x3c && bytes[1] === 0x73 && bytes[2] === 0x76 && bytes[3] === 0x67; // <svg
+    if (startsWithXmlDecl || startsWithSvg) {
+      return "image/svg+xml";
+    }
   }
   return null;
 }
