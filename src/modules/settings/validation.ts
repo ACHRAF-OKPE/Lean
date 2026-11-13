@@ -6,7 +6,7 @@ const PHONE_PATTERN = /^\+?[0-9 ().-]+$/;
 const BANK_ACCOUNT_PATTERN = /^[A-Z0-9]{5,34}$/;
 const SWIFT_PATTERN = /^[A-Z0-9]{8}([A-Z0-9]{3})?$/;
 
-export const MAX_LOGO_BYTES = 512 * 1024;
+export const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
 export const LOGO_MIME_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"] as const;
 export type LogoMime = (typeof LOGO_MIME_TYPES)[number];
@@ -375,7 +375,7 @@ export function validateLogo(input: {
   if (input.bytes.length === 0) {
     errors.push("Logo : fichier vide.");
   } else if (input.bytes.length > MAX_LOGO_BYTES) {
-    errors.push("Logo : 512 Kio maximum.");
+    errors.push("Logo : 2 Mio maximum.");
   }
 
   const mime = detectLogoMime(input.bytes);

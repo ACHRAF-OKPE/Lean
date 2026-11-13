@@ -318,7 +318,7 @@ describe("ORG-002 — logo de l'entreprise", () => {
     );
     expect(validateLogo({ bytes: new Uint8Array() }).errors).toContain("Logo : fichier vide.");
     expect(validateLogo({ bytes: new Uint8Array(MAX_LOGO_BYTES + 1) }).errors).toContain(
-      "Logo : 512 Kio maximum.",
+      "Logo : 2 Mio maximum.",
     );
   });
 

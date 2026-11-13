@@ -91,7 +91,7 @@ export async function uploadCompanyLogoAction(
     return { errors: ["Logo : sélectionnez un fichier PNG, JPEG, WebP ou SVG."] };
   }
   if (file.size > MAX_LOGO_BYTES) {
-    return { errors: ["Logo : 512 Kio maximum."] };
+    return { errors: ["Logo : 2 Mio maximum."] };
   }
 
   const validation = validateLogo({

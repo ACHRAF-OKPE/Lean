@@ -31,7 +31,7 @@ export function LogoPanel({
     <section className="rounded-xl border border-line bg-panel p-5">
       <h2 className="text-sm font-semibold">Logo</h2>
       <p className="mt-1 text-[10px] leading-4 text-muted">
-        PNG, JPEG, WebP ou SVG, 512 Kio maximum. Le type est vérifié sur la signature du fichier.
+        PNG, JPEG, WebP ou SVG, 2 Mio maximum. Le type est vérifié sur la signature du fichier.
       </p>
 
       <div className="mt-4 flex min-h-24 items-center justify-center rounded-lg border border-dashed border-line bg-canvas p-4">
