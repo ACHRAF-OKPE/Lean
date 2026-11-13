@@ -1,5 +1,5 @@
 // Briefing module – generates morning dashboard alerts
-import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
   hrEmployees,
@@ -93,6 +93,14 @@ export async function getMorningBriefing({
   userName?: string | null;
   today?: string;
 }): Promise<MorningBriefing> {
+  const balanceDueXof = sql<number>`
+    ${invoices.exTaxTotal} -
+    COALESCE(
+      (SELECT SUM(${invoicePayments.amountXof}) FROM ${invoicePayments} WHERE ${invoicePayments.invoiceId} = ${invoices.id}),
+      0
+    )
+  `;
+
   const [
     matchingDisputes,
     readyForPayment,
@@ -139,7 +147,7 @@ export async function getMorningBriefing({
         and(
           eq(purchaseOrders.tenantId, tenantId),
           eq(purchaseOrders.matchingStatus, "matched"),
-          eq(purchaseOrders.supplierInvoiceNumber, sql`IS NOT NULL`),
+          isNotNull(purchaseOrders.supplierInvoiceNumber),
         ),
       ),
 
@@ -170,13 +178,7 @@ export async function getMorningBriefing({
         id: invoices.id,
         number: invoices.number,
         dueDate: invoices.dueDate,
-        balanceDueXof: sql<number>`
-          ${invoices.exTaxTotal} -
-          COALESCE(
-            (SELECT SUM(${invoicePayments.amountXof}) FROM ${invoicePayments} WHERE ${invoicePayments.invoiceId} = ${invoices.id}),
-            0
-          )
-        `,
+        balanceDueXof,
         clientName: partners.name,
       })
       .from(invoices)
@@ -186,7 +188,7 @@ export async function getMorningBriefing({
           eq(invoices.tenantId, tenantId),
           eq(invoices.status, "validated"),
           lte(invoices.dueDate, today),
-          sql`(${sql`balanceDueXof`} > 0)`,
+          sql`${balanceDueXof} > 0`,
         ),
       )
       .orderBy(invoices.dueDate)
